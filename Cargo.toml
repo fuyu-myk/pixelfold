@@ -1,0 +1,12 @@
+[package]
+name = "pixelfold"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.100"
+crossterm = "0.29.0"
+glam = "0.30.9"
+nom = "8.0.0"
+pdbtbx = "0.12.0"
+ratatui = "0.29.0"
