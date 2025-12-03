@@ -1,5 +1,7 @@
 # PixelFold
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A terminal-based 3D protein structure viewer using Braille Unicode characters for high-resolution visualization.
 
 ## Features
@@ -95,7 +97,3 @@ Braille Unicode characters provide **8× higher resolution** compared to ASCII:
 - [] Multiple selection and filtering modes
 - [] Save/load camera positions
 - [] Animation and structure comparison
-
-## License
-
-MIT
