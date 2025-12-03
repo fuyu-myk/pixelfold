@@ -12,6 +12,12 @@ use std::collections::HashSet;
 use std::env;
 
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum DisplayMode {
+    AllAtoms,
+    Backbone,
+}
+
 struct App {
     protein: Option<Protein>,
     camera: Camera,
@@ -24,6 +30,9 @@ struct App {
     last_canvas_height: f32,
     highlighted_atom_indices: HashSet<usize>, // Precomputed set of atoms to highlight
     residue_highlight_distance_threshold: f32, // Screen-space distance in pixels
+    display_mode: DisplayMode,
+    show_connections: bool,
+    use_bfactor_colors: bool,
 }
 
 impl App {
@@ -40,6 +49,9 @@ impl App {
             last_canvas_height: 0.0,
             highlighted_atom_indices: HashSet::new(),
             residue_highlight_distance_threshold: 50.0, // 50 pixels default
+            display_mode: DisplayMode::AllAtoms,
+            show_connections: true,
+            use_bfactor_colors: false,
         }
     }
 
@@ -121,6 +133,167 @@ fn run_app(terminal: &mut ratatui::Terminal<impl ratatui::backend::Backend>, app
     Ok(())
 }
 
+/// Map B-factor value to RGB color using blue –> cyan –> yellow –> red gradient
+/// Normalizes B-factors using percentile-based scaling
+fn bfactor_to_color(b_factor: f32, b_min: f32, b_max: f32) -> (u8, u8, u8) {
+    if b_max <= b_min {
+        return (128, 128, 128); // Gray for invalid range
+    }
+    
+    let t = ((b_factor - b_min) / (b_max - b_min)).clamp(0.0, 1.0);
+    
+    // Blue –> Cyan –> Yellow –> Red gradient
+    // Blue (0, 100, 255) at t = 0
+    // Cyan (0, 255, 255) at t = 0.33
+    // Yellow (255, 255, 0) at t = 0.67
+    // Red (255, 0, 0) at t = 1.0
+    
+    let (r, g, b) = if t < 0.33 {
+        // Blue to Cyan
+        let local_t = t / 0.33;
+        let r = 0.0;
+        let g = 100.0 + (255.0 - 100.0) * local_t;
+        let b = 255.0;
+        (r, g, b)
+    } else if t < 0.67 {
+        // Cyan to Yellow
+        let local_t = (t - 0.33) / 0.34;
+        let r = 255.0 * local_t;
+        let g = 255.0;
+        let b = 255.0 * (1.0 - local_t);
+        (r, g, b)
+    } else {
+        // Yellow to Red
+        let local_t = (t - 0.67) / 0.33;
+        let r = 255.0;
+        let g = 255.0 * (1.0 - local_t);
+        let b = 0.0;
+        (r, g, b)
+    };
+    
+    (r as u8, g as u8, b as u8)
+}
+
+/// Calculate B-factor percentiles for normalization
+fn calculate_bfactor_range(protein: &Protein) -> (f32, f32) {
+    if protein.atoms.is_empty() {
+        return (0.0, 100.0);
+    }
+    
+    let mut b_factors: Vec<f32> = protein.atoms.iter().map(|a| a.b_factor).collect();
+    b_factors.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    
+    // Avoiding outliers
+    let idx_min = (b_factors.len() as f32 * 0.02) as usize;
+    let idx_max = (b_factors.len() as f32 * 0.98) as usize;
+    
+    let b_min = b_factors[idx_min.min(b_factors.len() - 1)];
+    let b_max = b_factors[idx_max.min(b_factors.len() - 1)];
+    
+    (b_min, b_max)
+}
+
+/// Get indices of C-alpha atoms in the protein
+fn get_calpha_indices(protein: &Protein) -> Vec<usize> {
+    protein.atoms.iter()
+        .enumerate()
+        .filter(|(_, atom)| atom.name == "CA")
+        .map(|(idx, _)| idx)
+        .collect()
+}
+
+/// Get pairs of C-alpha indices that should be connected
+/// Only connects sequential C-alphas in the same chain within distance threshold
+fn get_calpha_connections(protein: &Protein, ca_indices: &[usize]) -> Vec<(usize, usize)> {
+    let mut connections = Vec::new();
+    let distance_threshold = 4.2; // Angstroms - typical CA-CA distance is ~3.8Å
+    
+    // Sort C-alphas by chain first, then by residue sequence
+    let mut sorted_cas: Vec<(String, u32, usize)> = ca_indices.iter()
+        .map(|&idx| {
+            let atom = &protein.atoms[idx];
+            (atom.chain_id.clone(), atom.residue_seq, idx)
+        })
+        .collect();
+    
+    sorted_cas.sort_by(|a, b| {
+        a.0.cmp(&b.0).then(a.1.cmp(&b.1))
+    });
+    
+    for i in 0..sorted_cas.len().saturating_sub(1) {
+        let (chain1, res1, idx1) = &sorted_cas[i];
+        let (chain2, res2, idx2) = &sorted_cas[i + 1];
+        
+        // Only connect if same chain
+        if chain1 == chain2 {
+            // Exactly sequential (res2 = res1 + 1)
+            if *res2 == *res1 + 1 {
+                let atom1 = &protein.atoms[*idx1];
+                let atom2 = &protein.atoms[*idx2];
+                let distance = (atom2.position - atom1.position).length();
+                
+                if distance >= 2.5 && distance <= distance_threshold {
+                    connections.push((*idx1, *idx2));
+                }
+            }
+        }
+    }
+    
+    connections
+}
+
+/// Draws a line between two points using Bresenham-like algorithm
+fn draw_line(x0: f32, y0: f32, x1: f32, y1: f32) -> Vec<(f64, f64)> {
+    let mut points = Vec::new();
+    
+    let dx = (x1 - x0).abs();
+    let dy = (y1 - y0).abs();
+    
+    let sx = if x0 < x1 { 1.0 } else { -1.0 };
+    let sy = if y0 < y1 { 1.0 } else { -1.0 };
+    
+    let mut err = dx - dy;
+    let mut x = x0;
+    let mut y = y0;
+    
+    // Starting point
+    points.push((x as f64, y as f64));
+    
+    // Draw line using Bresenham's algorithm
+    let max_steps = (dx.max(dy) as usize).max(1) + 2; // Safety limit
+    
+    for _ in 0..max_steps {
+        if (x - x1).abs() < 0.5 && (y - y1).abs() < 0.5 {
+            // Add endpoint if not already close to last point
+            if let Some(&last) = points.last() {
+                let dist = ((last.0 - x1 as f64).powi(2) + (last.1 - y1 as f64).powi(2)).sqrt();
+                if dist > 1.0 {
+                    points.push((x1 as f64, y1 as f64));
+                }
+            }
+            break;
+        }
+        
+        let e2 = 2.0 * err;
+        
+        // Move in x direction
+        if e2 > -dy {
+            err -= dy;
+            x += sx;
+        }
+        
+        // Move in y direction
+        if e2 < dx {
+            err += dx;
+            y += sy;
+        }
+        
+        points.push((x as f64, y as f64));
+    }
+    
+    points
+}
+
 fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f32, height: f32) -> Result<()> {
     let rotation_speed = 0.1;
     let zoom_speed = 0.1;
@@ -189,6 +362,24 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
             if let Some(ref protein) = app.protein {
                 renderer::auto_frame_protein(protein, &mut app.camera, width, height);
             }
+        }
+        
+        // Display mode controls
+        KeyCode::Char('1') => {
+            app.display_mode = DisplayMode::AllAtoms;
+        }
+        KeyCode::Char('2') => {
+            app.display_mode = DisplayMode::Backbone;
+        }
+        
+        // Toggle backbone connections
+        KeyCode::Char('c') => {
+            app.show_connections = !app.show_connections;
+        }
+        
+        // Toggle B-factor coloring
+        KeyCode::Char('b') => {
+            app.use_bfactor_colors = !app.use_bfactor_colors;
         }
         
         _ => {}
@@ -376,8 +567,18 @@ fn ui(frame: &mut Frame, app: &mut App) {
                 let width = main_area.width as f32 * 2.0;
                 let height = main_area.height as f32 * 4.0;
                 
-                // Store canvas dimensions for click detection (done in closure, so need mutable access)
-                // We'll store it after the paint closure
+                // Determine which atoms to display based on display mode
+                let display_indices: Vec<usize> = match app.display_mode {
+                    DisplayMode::AllAtoms => (0..protein.atoms.len()).collect(),
+                    DisplayMode::Backbone => get_calpha_indices(protein),
+                };
+                
+                // Calculate B-factor range if using B-factor coloring
+                let (b_min, b_max) = if app.use_bfactor_colors {
+                    calculate_bfactor_range(protein)
+                } else {
+                    (0.0, 100.0)
+                };
                 
                 let mut residue_colors: std::collections::HashMap<u32, SecondaryStructure> = 
                     std::collections::HashMap::new();
@@ -388,11 +589,13 @@ fn ui(frame: &mut Frame, app: &mut App) {
                         .or_insert(atom.secondary_structure);
                 }
                 
-                // Project and sort for rendering
-                let mut projected_with_idx: Vec<(usize, renderer::ProjectedAtom)> = 
-                    renderer::project_protein(protein, &app.camera, width, height)
-                        .into_iter()
-                        .enumerate()
+                let all_projected: Vec<renderer::ProjectedAtom> = 
+                    renderer::project_protein(protein, &app.camera, width, height);
+                
+                // Filter and prepare atoms for rendering
+                let mut projected_with_idx: Vec<(usize, &renderer::ProjectedAtom)> = 
+                    display_indices.iter()
+                        .map(|&idx| (idx, &all_projected[idx]))
                         .collect();
                 
                 // Sort by depth (painter's algorithm)
@@ -401,13 +604,59 @@ fn ui(frame: &mut Frame, app: &mut App) {
                 let selected_atom_idx = app.selected_atom_idx;
                 let residue_highlight_active = app.residue_highlight && selected_residue_seq.is_some();
                 
+                // Draw backbone connections first (if enabled and in backbone mode)
+                if app.show_connections && app.display_mode == DisplayMode::Backbone {
+                    let ca_indices = get_calpha_indices(protein);
+                    let connections = get_calpha_connections(protein, &ca_indices);
+                    
+                    for (idx1, idx2) in connections {
+                        let proj1 = &all_projected[idx1];
+                        let proj2 = &all_projected[idx2];
+                        
+                        // Only draw if both atoms are on screen
+                        if proj1.x >= 0.0 && proj1.x <= width && 
+                           proj1.y >= 0.0 && proj1.y <= height &&
+                           proj2.x >= 0.0 && proj2.x <= width && 
+                           proj2.y >= 0.0 && proj2.y <= height {
+                            
+                            let line_points = draw_line(proj1.x, proj1.y, proj2.x, proj2.y);
+                            
+                            // Color the line based on coloring mode (av of two atoms)
+                            let color = if app.use_bfactor_colors {
+                                let b1 = protein.atoms[idx1].b_factor;
+                                let b2 = protein.atoms[idx2].b_factor;
+                                let avg_b = (b1 + b2) / 2.0;
+                                let (r, g, b) = bfactor_to_color(avg_b, b_min, b_max);
+                                Color::Rgb(r, g, b)
+                            } else {
+                                // Use secondary structure color (slightly dimmed for lines)
+                                let residue_seq = protein.atoms[idx1].residue_seq;
+                                if let Some(&ss) = residue_colors.get(&residue_seq) {
+                                    let (r, g, b) = ss.color_rgb();
+                                    Color::Rgb(
+                                        (r as f32 * 0.8) as u8,
+                                        (g as f32 * 0.8) as u8,
+                                        (b as f32 * 0.8) as u8,
+                                    )
+                                } else {
+                                    Color::Gray
+                                }
+                            };
+                            
+                            ctx.draw(&Points {
+                                coords: &line_points,
+                                color,
+                            });
+                        }
+                    }
+                }
+                
                 // Pass 1: draw non-selected atoms
                 for (original_idx, proj_atom) in projected_with_idx.iter() {
                     if proj_atom.x >= 0.0 && proj_atom.x <= width && 
                        proj_atom.y >= 0.0 && proj_atom.y <= height {
                         let is_selected_atom = selected_atom_idx == Some(*original_idx);
                         let is_highlighted = app.highlighted_atom_indices.contains(original_idx);
-                        let residue_seq = protein.atoms[*original_idx].residue_seq;
                         
                         // Skip selected atom (drawn in Pass 3)
                         // Skip highlighted atoms only if highlighting is active (drawn in Pass 2)
@@ -416,21 +665,29 @@ fn ui(frame: &mut Frame, app: &mut App) {
                         if !is_selected_atom && !skip_for_pass2 {
                             let point = vec![(proj_atom.x as f64, proj_atom.y as f64)];
                             
-                            if residue_highlight_active {
+                            let color = if residue_highlight_active {
                                 // Dark grey for non-residue atoms when highlighting
-                                ctx.draw(&Points {
-                                    coords: &point,
-                                    color: Color::Rgb(75, 75, 75),
-                                });
+                                Color::Rgb(75, 75, 75)
+                            } else if app.use_bfactor_colors {
+                                // B-factor coloring
+                                let b_factor = protein.atoms[*original_idx].b_factor;
+                                let (r, g, b) = bfactor_to_color(b_factor, b_min, b_max);
+                                Color::Rgb(r, g, b)
                             } else {
+                                // Secondary structure coloring
+                                let residue_seq = protein.atoms[*original_idx].residue_seq;
                                 if let Some(&ss) = residue_colors.get(&residue_seq) {
                                     let (r, g, b) = ss.color_rgb();
-                                    ctx.draw(&Points {
-                                        coords: &point,
-                                        color: Color::Rgb(r, g, b),
-                                    });
+                                    Color::Rgb(r, g, b)
+                                } else {
+                                    Color::White
                                 }
-                            }
+                            };
+                            
+                            ctx.draw(&Points {
+                                coords: &point,
+                                color,
+                            });
                         }
                     }
                 }
@@ -445,7 +702,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
                             
                             if !is_selected_atom && is_highlighted {
                                 let point = vec![(proj_atom.x as f64, proj_atom.y as f64)];
-
+                                
                                 // White for residue atoms
                                 ctx.draw(&Points {
                                     coords: &point,
@@ -458,21 +715,19 @@ fn ui(frame: &mut Frame, app: &mut App) {
                 
                 // Pass 3: draw selected atom on top in cyan
                 if let Some(selected_idx) = selected_atom_idx {
-                    if let Some((_, proj_atom)) = projected_with_idx.iter()
-                        .find(|(idx, _)| *idx == selected_idx) {
-                        if proj_atom.x >= 0.0 && proj_atom.x <= width && 
-                           proj_atom.y >= 0.0 && proj_atom.y <= height {
-                            ctx.draw(&Points {
-                                coords: &[
-                                    (proj_atom.x as f64, proj_atom.y as f64),       // center
-                                    (proj_atom.x as f64 - 1.0, proj_atom.y as f64), // left
-                                    (proj_atom.x as f64 + 1.0, proj_atom.y as f64), // right
-                                    (proj_atom.x as f64, proj_atom.y as f64 - 1.0), // down
-                                    (proj_atom.x as f64, proj_atom.y as f64 + 1.0), // up
-                                ],
-                                color: Color::Cyan,
-                            });
-                        }
+                    let proj_atom = &all_projected[selected_idx];
+                    if proj_atom.x >= 0.0 && proj_atom.x <= width && 
+                       proj_atom.y >= 0.0 && proj_atom.y <= height {
+                        ctx.draw(&Points {
+                            coords: &[
+                                (proj_atom.x as f64, proj_atom.y as f64),       // center
+                                (proj_atom.x as f64 - 1.0, proj_atom.y as f64), // left
+                                (proj_atom.x as f64 + 1.0, proj_atom.y as f64), // right
+                                (proj_atom.x as f64, proj_atom.y as f64 - 1.0), // down
+                                (proj_atom.x as f64, proj_atom.y as f64 + 1.0), // up
+                            ],
+                            color: Color::Cyan,
+                        });
                     }
                 }
             });
@@ -480,16 +735,31 @@ fn ui(frame: &mut Frame, app: &mut App) {
         frame.render_widget(canvas, main_area);
         
         // Render info overlay
-        let mode_text = if app.inspect_mode { " | [INSPECT MODE]" } else { "" };
+        let display_mode_text = match app.display_mode {
+            DisplayMode::AllAtoms => "All Atoms",
+            DisplayMode::Backbone => "C-Alpha",
+        };
+        let connections_text = if app.show_connections { "Connected" } else { "Dots" };
+        let color_mode_text = if app.use_bfactor_colors { "B-factor" } else { "Sec. Struct." };
+        let mode_text = if app.inspect_mode { " | [INSPECT]" } else { "" };
         let highlight_text = if app.residue_highlight && app.selected_atom_idx.is_some() {
-            " | [RESIDUE HIGHLIGHTED]"
+            " | [RESIDUE]"
         } else {
             ""
         };
+        
+        let atom_count = match app.display_mode {
+            DisplayMode::AllAtoms => protein.atoms.len(),
+            DisplayMode::Backbone => get_calpha_indices(protein).len(),
+        };
+        
         let info_text = format!(
-            " {} | Atoms: {} | Zoom: {:.1}x{}{} | Controls: WASDZX = rotate, +/- = zoom, arrows = pan, f = frame, i = inspect, q = quit ",
+            " {} | {} atoms | [{}] [{}] [{}] | Zoom: {:.1}x{}{} ",
             protein.title,
-            protein.atoms.len(),
+            atom_count,
+            display_mode_text,
+            connections_text,
+            color_mode_text,
             app.camera.zoom,
             mode_text,
             highlight_text

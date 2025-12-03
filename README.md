@@ -37,9 +37,12 @@ pixelfold path/to/protein.cif
 - **Z/X**: Roll rotation
 - **+/-**: Zoom in/out
 - **Arrow Keys**: Pan the view
+- **1/2**: Toggle display modes (1: All atoms (default); 2: Alpha carbon backbone)
 - **F**: Auto-frame (reset and fit protein to view)
 - **I**: Inspect-mode (interactive clicking enabled to view more information)
 - **R**: Toggle highlight amino acid (in inspect mode only)
+- **C**: Toggle backbone connections
+- **B**: Toggle b-factor coloring
 - **Q**: Quit
 
 ## Implementation Details
@@ -93,7 +96,7 @@ Braille Unicode characters provide **8× higher resolution** compared to ASCII:
 
 ## Future TODO
 
-- [] Bond rendering between atoms
+- [x] Bond rendering between atoms (alpha carbons)
 - [] Multiple selection and filtering modes
 - [] Save/load camera positions
 - [] Animation and structure comparison
