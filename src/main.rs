@@ -8,6 +8,7 @@ use pixelfold::{
 };
 use ratatui::prelude::*;
 use ratatui::widgets::canvas::{Canvas, Points};
+use std::collections::HashSet;
 use std::env;
 
 
@@ -21,6 +22,8 @@ struct App {
     candidate_selection_idx: usize, // Index into candidate_atoms
     last_canvas_width: f32,
     last_canvas_height: f32,
+    highlighted_atom_indices: HashSet<usize>, // Precomputed set of atoms to highlight
+    residue_highlight_distance_threshold: f32, // Screen-space distance in pixels
 }
 
 impl App {
@@ -35,6 +38,8 @@ impl App {
             candidate_selection_idx: 0,
             last_canvas_width: 0.0,
             last_canvas_height: 0.0,
+            highlighted_atom_indices: HashSet::new(),
+            residue_highlight_distance_threshold: 50.0, // 50 pixels default
         }
     }
 
@@ -145,6 +150,7 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
                     app.candidate_selection_idx -= 1;
                 }
                 app.selected_atom_idx = Some(app.candidate_atoms[app.candidate_selection_idx].0);
+                update_highlighted_atoms(app, width, height);
             } else {
                 app.camera.pan_camera(0.0, pan_speed);
             }
@@ -153,6 +159,7 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
             if app.inspect_mode && !app.candidate_atoms.is_empty() {
                 app.candidate_selection_idx = (app.candidate_selection_idx + 1) % app.candidate_atoms.len();
                 app.selected_atom_idx = Some(app.candidate_atoms[app.candidate_selection_idx].0);
+                update_highlighted_atoms(app, width, height);
             } else {
                 app.camera.pan_camera(0.0, -pan_speed);
             }
@@ -225,10 +232,12 @@ fn handle_mouse(app: &mut App, mouse: event::MouseEvent, _terminal_size: Rect) -
                     app.candidate_atoms = candidates.into_iter().take(5).collect(); // Top 5 candidates
                     app.candidate_selection_idx = 0;
                     app.selected_atom_idx = Some(app.candidate_atoms[0].0);
+                    update_highlighted_atoms(app, canvas_width, canvas_height);
                 } else {
                     app.selected_atom_idx = None;
                     app.candidate_atoms.clear();
                     app.candidate_selection_idx = 0;
+                    app.highlighted_atom_indices.clear();
                 }
             }
         }
@@ -236,6 +245,59 @@ fn handle_mouse(app: &mut App, mouse: event::MouseEvent, _terminal_size: Rect) -
     }
     
     Ok(())
+}
+
+/// Update the set of highlighted atom indices based on screen-space proximity
+/// to the selected atom. Only highlights atoms in the same residue that are
+/// within the distance threshold in screen-space pixels.
+fn update_highlighted_atoms(app: &mut App, width: f32, height: f32) {
+    app.highlighted_atom_indices.clear();
+    
+    let protein = match &app.protein {
+        Some(p) => p,
+        None => return,
+    };
+    
+    let selected_idx = match app.selected_atom_idx {
+        Some(idx) => idx,
+        None => return,
+    };
+    
+    if width == 0.0 || height == 0.0 {
+        return;
+    }
+    
+    let selected_atom = &protein.atoms[selected_idx];
+    let selected_residue_seq = selected_atom.residue_seq;
+    let selected_chain_id = &selected_atom.chain_id;
+    let selected_position = selected_atom.position;
+    
+    // Project all atoms to screen space
+    let projected = renderer::project_protein(protein, &app.camera, width, height);
+    
+    // Get selected atom's screen position
+    let selected_screen = &projected[selected_idx];
+    let selected_screen_x = selected_screen.x;
+    let selected_screen_y = selected_screen.y;
+    
+    // Find all atoms in the same residue (same chain and residue_seq) within distance thresholds
+    for (idx, atom) in protein.atoms.iter().enumerate() {
+        // Residue matches both chain_id and residue_seq
+        if atom.chain_id == *selected_chain_id && atom.residue_seq == selected_residue_seq {
+            // 3D distance check 
+            let distance_3d = (atom.position - selected_position).length();
+            if distance_3d <= 15.0 { // 15Å threshold
+                let proj = &projected[idx];
+                let dx = proj.x - selected_screen_x;
+                let dy = proj.y - selected_screen_y;
+                let screen_distance = (dx * dx + dy * dy).sqrt();
+                
+                if screen_distance <= app.residue_highlight_distance_threshold {
+                    app.highlighted_atom_indices.insert(idx);
+                }
+            }
+        }
+    }
 }
 
 /// Pick atoms near the click position using screen-space distance
@@ -344,12 +406,12 @@ fn ui(frame: &mut Frame, app: &mut App) {
                     if proj_atom.x >= 0.0 && proj_atom.x <= width && 
                        proj_atom.y >= 0.0 && proj_atom.y <= height {
                         let is_selected_atom = selected_atom_idx == Some(*original_idx);
+                        let is_highlighted = app.highlighted_atom_indices.contains(original_idx);
                         let residue_seq = protein.atoms[*original_idx].residue_seq;
-                        let is_in_selected_residue = selected_residue_seq == Some(residue_seq);
                         
                         // Skip selected atom (drawn in Pass 3)
-                        // Skip residue atoms only if highlighting is active (drawn in Pass 2)
-                        let skip_for_pass2 = residue_highlight_active && is_in_selected_residue;
+                        // Skip highlighted atoms only if highlighting is active (drawn in Pass 2)
+                        let skip_for_pass2 = residue_highlight_active && is_highlighted;
                         
                         if !is_selected_atom && !skip_for_pass2 {
                             let point = vec![(proj_atom.x as f64, proj_atom.y as f64)];
@@ -373,16 +435,15 @@ fn ui(frame: &mut Frame, app: &mut App) {
                     }
                 }
                 
-                // Pass 2: draw atoms in the selected residue (but not the selected atom itself)
+                // Pass 2: draw atoms in the highlighted set (but not the selected atom itself)
                 if residue_highlight_active {
                     for (original_idx, proj_atom) in projected_with_idx.iter() {
                         if proj_atom.x >= 0.0 && proj_atom.x <= width && 
                            proj_atom.y >= 0.0 && proj_atom.y <= height {
                             let is_selected_atom = selected_atom_idx == Some(*original_idx);
-                            let residue_seq = protein.atoms[*original_idx].residue_seq;
-                            let is_in_selected_residue = selected_residue_seq == Some(residue_seq);
+                            let is_highlighted = app.highlighted_atom_indices.contains(original_idx);
                             
-                            if !is_selected_atom && is_in_selected_residue {
+                            if !is_selected_atom && is_highlighted {
                                 let point = vec![(proj_atom.x as f64, proj_atom.y as f64)];
 
                                 // White for residue atoms
@@ -492,6 +553,10 @@ fn ui(frame: &mut Frame, app: &mut App) {
                 Line::from(vec![
                     Span::styled("  Number:  ", Style::default().fg(Color::Gray)),
                     Span::styled(format!("{}", atom.residue_seq), Style::default().fg(Color::White)),
+                ]),
+                Line::from(vec![
+                    Span::styled("  Chain:   ", Style::default().fg(Color::Gray)),
+                    Span::styled(format!("{}", atom.chain_id), Style::default().fg(Color::Cyan).bold()),
                 ]),
                 Line::from(""),
                 Line::from(vec![

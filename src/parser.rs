@@ -30,12 +30,14 @@ pub fn load_protein<P: AsRef<Path>>(path: P) -> Result<Protein> {
             let atom = hierarchy.atom();
             let residue = hierarchy.residue();
             let conformer = hierarchy.conformer();
+            let chain = hierarchy.chain();
             
             Atom {
                 serial: atom.serial_number() as u32,
                 name: atom.name().to_string(),
                 residue_name: conformer.name().to_string(),
                 residue_seq: residue.serial_number() as u32,
+                chain_id: chain.id().to_string(),
                 position: Vec3::new(atom.x() as f32, atom.y() as f32, atom.z() as f32),
                 b_factor: atom.b_factor() as f32,
                 secondary_structure: SecondaryStructure::Coil, // Default to Coil
@@ -73,12 +75,14 @@ pub fn load_protein_backbone<P: AsRef<Path>>(path: P) -> Result<Protein> {
             let atom = hierarchy.atom();
             let residue = hierarchy.residue();
             let conformer = hierarchy.conformer();
+            let chain = hierarchy.chain();
             
             Atom {
                 serial: atom.serial_number() as u32,
                 name: atom.name().to_string(),
                 residue_name: conformer.name().to_string(),
                 residue_seq: residue.serial_number() as u32,
+                chain_id: chain.id().to_string(),
                 position: Vec3::new(atom.x() as f32, atom.y() as f32, atom.z() as f32),
                 b_factor: atom.b_factor() as f32,
                 secondary_structure: SecondaryStructure::Coil, // Default to Coil
@@ -113,12 +117,14 @@ pub fn load_protein_ca_only<P: AsRef<Path>>(path: P) -> Result<Protein> {
             let atom = hierarchy.atom();
             let residue = hierarchy.residue();
             let conformer = hierarchy.conformer();
+            let chain = hierarchy.chain();
             
             Atom {
                 serial: atom.serial_number() as u32,
                 name: atom.name().to_string(),
                 residue_name: conformer.name().to_string(),
                 residue_seq: residue.serial_number() as u32,
+                chain_id: chain.id().to_string(),
                 position: Vec3::new(atom.x() as f32, atom.y() as f32, atom.z() as f32),
                 b_factor: atom.b_factor() as f32,
                 secondary_structure: SecondaryStructure::Coil, // Default to Coil

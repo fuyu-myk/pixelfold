@@ -9,6 +9,7 @@ pub struct Atom {
     pub name: String,
     pub residue_name: String,
     pub residue_seq: u32,
+    pub chain_id: String,
     pub position: Vec3,
     pub b_factor: f32,
     pub secondary_structure: SecondaryStructure,
