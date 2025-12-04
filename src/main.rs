@@ -3,6 +3,7 @@ use crossterm::event::{self, KeyCode, KeyModifiers};
 use pixelfold::{
     parser,
     renderer::{self, Camera},
+    surface,
     Protein,
     SecondaryStructure,
 };
@@ -33,6 +34,8 @@ struct App {
     display_mode: DisplayMode,
     show_connections: bool,
     use_bfactor_colors: bool,
+    show_surface: bool,
+    surface_point_density: usize, // Points per atom for surface calculation
 }
 
 impl App {
@@ -52,11 +55,13 @@ impl App {
             display_mode: DisplayMode::AllAtoms,
             show_connections: true,
             use_bfactor_colors: false,
+            show_surface: false,
+            surface_point_density: 100, // Default 100 points per atom
         }
     }
 
-    fn load_protein(&mut self, path: &str, width: f32, height: f32) -> Result<()> {
-        self.protein = Some(parser::load_protein(path)?);
+    fn load_protein(&mut self, path: &str, width: f32, height: f32, skip_surface: bool) -> Result<()> {
+        self.protein = Some(parser::load_protein_with_options(path, skip_surface)?);
         
         // Auto-frame the protein when loaded
         if let Some(ref protein) = self.protein {
@@ -77,13 +82,44 @@ fn main() -> Result<()> {
     )?;
     
     let args: Vec<String> = env::args().collect();
-    if args.len() > 1 {
+    
+    // Parse command-line arguments
+    let mut protein_path: Option<String> = None;
+    let mut skip_surface = false;
+    
+    for arg in args.iter().skip(1) {
+        if arg == "--no-surface" {
+            skip_surface = true;
+        } else if arg == "--help" || arg == "-h" {
+            println!("PixelFold - Terminal-based 3D protein structure viewer");
+            println!("");
+            println!("Usage: pixelfold <path/to/protein.pdb|protein.cif> [OPTIONS]");
+            println!("");
+            println!("Options:");
+            println!("  --no-surface    Skip surface calculation for faster loading (large proteins)");
+            println!("  --help, -h      Show this help message");
+            println!("");
+            println!("Controls:");
+            println!("  WASDZX    Rotate structure");
+            println!("  +/-       Zoom in/out");
+            println!("  V         Toggle surface visualization");
+            println!("  C         Toggle backbone connections");
+            println!("  B         Toggle B-factor coloring");
+            println!("  I         Inspect mode");
+            println!("  Q         Quit");
+            return Ok(());
+        } else if !arg.starts_with('-') {
+            protein_path = Some(arg.clone());
+        }
+    }
+    
+    if let Some(path) = protein_path {
         // Initial terminal size
         let size = terminal.size()?;
         let width = size.width as f32 * 2.0;  // Braille canvas width
         let height = size.height as f32 * 4.0; // Braille canvas height
         
-        match app.load_protein(&args[1], width, height) {
+        match app.load_protein(&path, width, height, skip_surface) {
             Ok(_) => {},
             Err(e) => eprintln!("Failed to load protein: {}", e),
         }
@@ -314,9 +350,17 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
         KeyCode::Char('+') | KeyCode::Char('=') => app.camera.adjust_zoom(zoom_speed),
         KeyCode::Char('-') | KeyCode::Char('_') => app.camera.adjust_zoom(-zoom_speed),
         
-        // Pan controls (Arrow keys) - or cycle through candidates in inspect mode
+        // Pan controls (Arrow keys)
+        // Cycle through candidates in inspect mode (up and down)
+        // Adjust surface density (up and down)
         KeyCode::Up => {
-            if app.inspect_mode && !app.candidate_atoms.is_empty() {
+            if app.show_surface {
+                app.surface_point_density = (app.surface_point_density + 25).min(500);
+                if let Some(ref mut protein) = app.protein {
+                    let surface_calculator = surface::SurfaceCalculator::new(1.4, app.surface_point_density);
+                    protein.surface_points = surface_calculator.calculate_surface(&protein.atoms);
+                }
+            } else if app.inspect_mode && !app.candidate_atoms.is_empty() {
                 if app.candidate_selection_idx == 0 {
                     app.candidate_selection_idx = app.candidate_atoms.len() - 1;
                 } else {
@@ -329,7 +373,13 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
             }
         }
         KeyCode::Down => {
-            if app.inspect_mode && !app.candidate_atoms.is_empty() {
+            if app.show_surface {
+                app.surface_point_density = (app.surface_point_density.saturating_sub(25)).max(100);
+                if let Some(ref mut protein) = app.protein {
+                    let surface_calculator = surface::SurfaceCalculator::new(1.4, app.surface_point_density);
+                    protein.surface_points = surface_calculator.calculate_surface(&protein.atoms);
+                }
+            } else if app.inspect_mode && !app.candidate_atoms.is_empty() {
                 app.candidate_selection_idx = (app.candidate_selection_idx + 1) % app.candidate_atoms.len();
                 app.selected_atom_idx = Some(app.candidate_atoms[app.candidate_selection_idx].0);
                 update_highlighted_atoms(app, width, height);
@@ -380,6 +430,21 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
         // Toggle B-factor coloring
         KeyCode::Char('b') => {
             app.use_bfactor_colors = !app.use_bfactor_colors;
+        }
+        
+        // Toggle surface visualization
+        KeyCode::Char('v') => {
+            app.show_surface = !app.show_surface;
+            
+            // Compute surface on-demand if not already computed
+            if app.show_surface {
+                if let Some(ref mut protein) = app.protein {
+                    if protein.surface_points.is_empty() {
+                        let surface_calculator = surface::SurfaceCalculator::new(1.4, app.surface_point_density);
+                        protein.surface_points = surface_calculator.calculate_surface(&protein.atoms);
+                    }
+                }
+            }
         }
         
         _ => {}
@@ -651,83 +716,109 @@ fn ui(frame: &mut Frame, app: &mut App) {
                     }
                 }
                 
-                // Pass 1: draw non-selected atoms
-                for (original_idx, proj_atom) in projected_with_idx.iter() {
-                    if proj_atom.x >= 0.0 && proj_atom.x <= width && 
-                       proj_atom.y >= 0.0 && proj_atom.y <= height {
-                        let is_selected_atom = selected_atom_idx == Some(*original_idx);
-                        let is_highlighted = app.highlighted_atom_indices.contains(original_idx);
-                        
-                        // Skip selected atom (drawn in Pass 3)
-                        // Skip highlighted atoms only if highlighting is active (drawn in Pass 2)
-                        let skip_for_pass2 = residue_highlight_active && is_highlighted;
-                        
-                        if !is_selected_atom && !skip_for_pass2 {
-                            let point = vec![(proj_atom.x as f64, proj_atom.y as f64)];
-                            
-                            let color = if residue_highlight_active {
-                                // Dark grey for non-residue atoms when highlighting
-                                Color::Rgb(75, 75, 75)
-                            } else if app.use_bfactor_colors {
-                                // B-factor coloring
-                                let b_factor = protein.atoms[*original_idx].b_factor;
-                                let (r, g, b) = bfactor_to_color(b_factor, b_min, b_max);
-                                Color::Rgb(r, g, b)
-                            } else {
-                                // Secondary structure coloring
-                                let residue_seq = protein.atoms[*original_idx].residue_seq;
-                                if let Some(&ss) = residue_colors.get(&residue_seq) {
-                                    let (r, g, b) = ss.color_rgb();
-                                    Color::Rgb(r, g, b)
-                                } else {
-                                    Color::White
-                                }
-                            };
+                // Surface rendering - when enabled, surface replaces atom visualization
+                if app.show_surface {
+                    let projected_surface: Vec<renderer::ProjectedSurfacePoint> = 
+                        renderer::project_surface(protein, &app.camera, width, height);
+                    
+                    // Sort by depth
+                    let mut surface_with_depth: Vec<&renderer::ProjectedSurfacePoint> = 
+                        projected_surface.iter().collect();
+                    surface_with_depth.sort_by(|a, b| a.depth.partial_cmp(&b.depth).unwrap());
+                    
+                    for proj_surface in surface_with_depth {
+                        if proj_surface.x >= 0.0 && proj_surface.x <= width && 
+                           proj_surface.y >= 0.0 && proj_surface.y <= height {
+                            let point = vec![(proj_surface.x as f64, proj_surface.y as f64)];
+                            let (r, g, b) = surface::hydrophobicity_to_color(proj_surface.hydrophobicity);
                             
                             ctx.draw(&Points {
                                 coords: &point,
-                                color,
+                                color: Color::Rgb(r, g, b),
                             });
                         }
                     }
                 }
                 
-                // Pass 2: draw atoms in the highlighted set (but not the selected atom itself)
-                if residue_highlight_active {
+                // Pass 1: draw non-selected atoms (skip if surface hydrophobicity is shown)
+                if !app.show_surface {
                     for (original_idx, proj_atom) in projected_with_idx.iter() {
                         if proj_atom.x >= 0.0 && proj_atom.x <= width && 
-                           proj_atom.y >= 0.0 && proj_atom.y <= height {
+                        proj_atom.y >= 0.0 && proj_atom.y <= height {
                             let is_selected_atom = selected_atom_idx == Some(*original_idx);
                             let is_highlighted = app.highlighted_atom_indices.contains(original_idx);
                             
-                            if !is_selected_atom && is_highlighted {
+                            // Skip selected atom (drawn in Pass 3)
+                            // Skip highlighted atoms only if highlighting is active (drawn in Pass 2)
+                            let skip_for_pass2 = residue_highlight_active && is_highlighted;
+                            
+                            if !is_selected_atom && !skip_for_pass2 {
                                 let point = vec![(proj_atom.x as f64, proj_atom.y as f64)];
                                 
-                                // White for residue atoms
+                                let color = if residue_highlight_active {
+                                    // Dark grey for non-residue atoms when highlighting
+                                    Color::Rgb(75, 75, 75)
+                                } else if app.use_bfactor_colors {
+                                    // B-factor coloring
+                                    let b_factor = protein.atoms[*original_idx].b_factor;
+                                    let (r, g, b) = bfactor_to_color(b_factor, b_min, b_max);
+                                    Color::Rgb(r, g, b)
+                                } else {
+                                    // Secondary structure coloring
+                                    let residue_seq = protein.atoms[*original_idx].residue_seq;
+                                    if let Some(&ss) = residue_colors.get(&residue_seq) {
+                                        let (r, g, b) = ss.color_rgb();
+                                        Color::Rgb(r, g, b)
+                                    } else {
+                                        Color::White
+                                    }
+                                };
+                                
                                 ctx.draw(&Points {
                                     coords: &point,
-                                    color: Color::White,
+                                    color,
                                 });
                             }
                         }
                     }
-                }
                 
-                // Pass 3: draw selected atom on top in cyan
-                if let Some(selected_idx) = selected_atom_idx {
-                    let proj_atom = &all_projected[selected_idx];
-                    if proj_atom.x >= 0.0 && proj_atom.x <= width && 
-                       proj_atom.y >= 0.0 && proj_atom.y <= height {
-                        ctx.draw(&Points {
-                            coords: &[
-                                (proj_atom.x as f64, proj_atom.y as f64),       // center
-                                (proj_atom.x as f64 - 1.0, proj_atom.y as f64), // left
-                                (proj_atom.x as f64 + 1.0, proj_atom.y as f64), // right
-                                (proj_atom.x as f64, proj_atom.y as f64 - 1.0), // down
-                                (proj_atom.x as f64, proj_atom.y as f64 + 1.0), // up
-                            ],
-                            color: Color::Cyan,
-                        });
+                    // Pass 2: draw atoms in the highlighted set (but not the selected atom itself)
+                    if residue_highlight_active {
+                        for (original_idx, proj_atom) in projected_with_idx.iter() {
+                            if proj_atom.x >= 0.0 && proj_atom.x <= width && 
+                               proj_atom.y >= 0.0 && proj_atom.y <= height {
+                                let is_selected_atom = selected_atom_idx == Some(*original_idx);
+                                let is_highlighted = app.highlighted_atom_indices.contains(original_idx);
+                                
+                                if !is_selected_atom && is_highlighted {
+                                    let point = vec![(proj_atom.x as f64, proj_atom.y as f64)];
+                                    
+                                    // White for residue atoms
+                                    ctx.draw(&Points {
+                                        coords: &point,
+                                        color: Color::White,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Pass 3: draw selected atom on top in cyan
+                    if let Some(selected_idx) = selected_atom_idx {
+                        let proj_atom = &all_projected[selected_idx];
+                        if proj_atom.x >= 0.0 && proj_atom.x <= width && 
+                           proj_atom.y >= 0.0 && proj_atom.y <= height {
+                            ctx.draw(&Points {
+                                coords: &[
+                                    (proj_atom.x as f64, proj_atom.y as f64),       // center
+                                    (proj_atom.x as f64 - 1.0, proj_atom.y as f64), // left
+                                    (proj_atom.x as f64 + 1.0, proj_atom.y as f64), // right
+                                    (proj_atom.x as f64, proj_atom.y as f64 - 1.0), // down
+                                    (proj_atom.x as f64, proj_atom.y as f64 + 1.0), // up
+                                ],
+                                color: Color::Cyan,
+                            });
+                        }
                     }
                 }
             });
@@ -747,6 +838,11 @@ fn ui(frame: &mut Frame, app: &mut App) {
         } else {
             ""
         };
+        let surface_text = if app.show_surface {
+            format!(" | [SURFACE: {}pts]", app.surface_point_density)
+        } else {
+            String::new()
+        };
         
         let atom_count = match app.display_mode {
             DisplayMode::AllAtoms => protein.atoms.len(),
@@ -754,7 +850,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
         };
         
         let info_text = format!(
-            " {} | {} atoms | [{}] [{}] [{}] | Zoom: {:.1}x{}{} ",
+            " {} | {} atoms | [{}] [{}] [{}] | Zoom: {:.1}x{}{}{} ",
             protein.title,
             atom_count,
             display_mode_text,
@@ -762,7 +858,8 @@ fn ui(frame: &mut Frame, app: &mut App) {
             color_mode_text,
             app.camera.zoom,
             mode_text,
-            highlight_text
+            highlight_text,
+            surface_text
         );
         
         let info_area = Rect {

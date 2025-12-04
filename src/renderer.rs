@@ -96,6 +96,14 @@ pub struct ProjectedAtom {
     pub secondary_structure: SecondaryStructure,
 }
 
+/// Represents a projected surface point for rendering
+pub struct ProjectedSurfacePoint {
+    pub x: f32,
+    pub y: f32,
+    pub depth: f32,
+    pub hydrophobicity: f32,
+}
+
 /// Project all atoms in a protein to 2D screen space
 pub fn project_protein(protein: &Protein, camera: &Camera, width: f32, height: f32) -> Vec<ProjectedAtom> {
     protein
@@ -110,6 +118,23 @@ pub fn project_protein(protein: &Protein, camera: &Camera, width: f32, height: f
                 name: atom.name.clone(),
                 residue_name: atom.residue_name.clone(),
                 secondary_structure: atom.secondary_structure,
+            }
+        })
+        .collect()
+}
+
+/// Project all surface points in a protein to 2D screen space
+pub fn project_surface(protein: &Protein, camera: &Camera, width: f32, height: f32) -> Vec<ProjectedSurfacePoint> {
+    protein
+        .surface_points
+        .iter()
+        .map(|surface_point| {
+            let (x, y, depth) = camera.project_point_with_depth(surface_point.position, width, height);
+            ProjectedSurfacePoint {
+                x,
+                y,
+                depth,
+                hydrophobicity: surface_point.hydrophobicity,
             }
         })
         .collect()

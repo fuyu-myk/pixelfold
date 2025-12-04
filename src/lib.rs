@@ -2,6 +2,10 @@ use glam::Vec3;
 
 pub mod parser;
 pub mod renderer;
+pub mod surface;
+
+pub use surface::SurfacePoint;
+
 
 #[derive(Clone)]
 pub struct Atom {
@@ -46,6 +50,7 @@ impl SecondaryStructure {
 pub struct Protein {
     pub atoms: Vec<Atom>,
     pub title: String,
+    pub surface_points: Vec<SurfacePoint>,
 }
 
 pub struct SecondaryStructureAssignment {

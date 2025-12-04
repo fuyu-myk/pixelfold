@@ -6,10 +6,15 @@ use std::{
     collections::HashMap
 };
 
-use crate::{Atom, Protein, SecondaryStructure};
+use crate::{Atom, Protein, SecondaryStructure, surface::SurfaceCalculator};
 
 /// Load a protein structure from a PDB or mmCIF file
 pub fn load_protein<P: AsRef<Path>>(path: P) -> Result<Protein> {
+    load_protein_with_options(path, false)
+}
+
+/// Load a protein structure with additional options
+pub fn load_protein_with_options<P: AsRef<Path>>(path: P, skip_surface: bool) -> Result<Protein> {
     let path = path.as_ref();
     let path_str = path.to_str()
         .ok_or_else(|| anyhow::anyhow!("Invalid path: {}", path.display()))?;
@@ -47,11 +52,24 @@ pub fn load_protein<P: AsRef<Path>>(path: P) -> Result<Protein> {
 
     assign_secondary_structures(&mut atoms);
 
-    Ok(Protein { atoms, title })
+    // Compute solvent-accessible surface (unless skipped for performance)
+    let surface_points = if skip_surface {
+        Vec::new()
+    } else {
+        let surface_calculator = SurfaceCalculator::default();
+        surface_calculator.calculate_surface(&atoms)
+    };
+
+    Ok(Protein { atoms, title, surface_points })
 }
 
 /// Load only backbone atoms (CA, C, N, O) for simplified rendering
 pub fn load_protein_backbone<P: AsRef<Path>>(path: P) -> Result<Protein> {
+    load_protein_backbone_with_options(path, false)
+}
+
+/// Load backbone atoms with additional options
+pub fn load_protein_backbone_with_options<P: AsRef<Path>>(path: P, skip_surface: bool) -> Result<Protein> {
     let path = path.as_ref();
     let path_str = path.to_str()
         .ok_or_else(|| anyhow::anyhow!("Invalid path: {}", path.display()))?;
@@ -92,11 +110,24 @@ pub fn load_protein_backbone<P: AsRef<Path>>(path: P) -> Result<Protein> {
 
     assign_secondary_structures(&mut atoms);
 
-    Ok(Protein { atoms, title })
+    // Compute solvent-accessible surface (unless skipped for performance)
+    let surface_points = if skip_surface {
+        Vec::new()
+    } else {
+        let surface_calculator = SurfaceCalculator::default();
+        surface_calculator.calculate_surface(&atoms)
+    };
+
+    Ok(Protein { atoms, title, surface_points })
 }
 
 /// Load only CA (alpha carbon) atoms for minimal rendering of large proteins
 pub fn load_protein_ca_only<P: AsRef<Path>>(path: P) -> Result<Protein> {
+    load_protein_ca_only_with_options(path, false)
+}
+
+/// Load CA atoms with additional options
+pub fn load_protein_ca_only_with_options<P: AsRef<Path>>(path: P, skip_surface: bool) -> Result<Protein> {
     let path = path.as_ref();
     let path_str = path.to_str()
         .ok_or_else(|| anyhow::anyhow!("Invalid path: {}", path.display()))?;
@@ -134,7 +165,15 @@ pub fn load_protein_ca_only<P: AsRef<Path>>(path: P) -> Result<Protein> {
 
     assign_secondary_structures(&mut atoms);
 
-    Ok(Protein { atoms, title })
+    // Compute solvent-accessible surface (unless skipped for performance)
+    let surface_points = if skip_surface {
+        Vec::new()
+    } else {
+        let surface_calculator = SurfaceCalculator::default();
+        surface_calculator.calculate_surface(&atoms)
+    };
+
+    Ok(Protein { atoms, title, surface_points })
 }
 
 /// DSSP hydrogen bond for secondary structure assignment
