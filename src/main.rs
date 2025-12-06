@@ -4,6 +4,7 @@ use pixelfold::{
     parser,
     renderer::{self, Camera},
     surface,
+    network,
     Protein,
     SecondaryStructure,
 };
@@ -36,6 +37,11 @@ struct App {
     use_bfactor_colors: bool,
     show_surface: bool,
     surface_point_density: usize, // Points per atom for surface calculation
+    show_hydrogen_bonds: bool,
+    show_hbond_network: bool,
+    hbond_energy_threshold: f32, // kcal/mol, default -0.5
+    hbond_graph: Option<network::HBondGraph>,
+    network_analysis: Option<network::NetworkAnalysis>,
 }
 
 impl App {
@@ -57,6 +63,11 @@ impl App {
             use_bfactor_colors: false,
             show_surface: false,
             surface_point_density: 100, // Default 100 points per atom
+            show_hydrogen_bonds: false,
+            show_hbond_network: false,
+            hbond_energy_threshold: -0.5, // Default DSSP threshold
+            hbond_graph: None,
+            network_analysis: None,
         }
     }
 
@@ -73,14 +84,6 @@ impl App {
 }
 
 fn main() -> Result<()> {
-    let mut app = App::new();
-    let mut terminal = ratatui::init();
-    
-    crossterm::execute!(
-        std::io::stdout(),
-        crossterm::event::EnableMouseCapture
-    )?;
-    
     let args: Vec<String> = env::args().collect();
     
     // Parse command-line arguments
@@ -92,26 +95,44 @@ fn main() -> Result<()> {
             skip_surface = true;
         } else if arg == "--help" || arg == "-h" {
             println!("PixelFold - Terminal-based 3D protein structure viewer");
-            println!("");
+            println!();
             println!("Usage: pixelfold <path/to/protein.pdb|protein.cif> [OPTIONS]");
-            println!("");
+            println!();
             println!("Options:");
             println!("  --no-surface    Skip surface calculation for faster loading (large proteins)");
             println!("  --help, -h      Show this help message");
-            println!("");
+            println!();
             println!("Controls:");
             println!("  WASDZX    Rotate structure");
             println!("  +/-       Zoom in/out");
+            println!("  Arrows    Pan view (or adjust settings when mode active)");
+            println!("  1         Show all atoms");
+            println!("  2         Show backbone atoms");
             println!("  V         Toggle surface visualization");
+            println!("    ↑↓      Adjust surface density when surface visible");
             println!("  C         Toggle backbone connections");
             println!("  B         Toggle B-factor coloring");
+            println!("  H         Toggle hydrogen bond display");
+            println!("    ↑↓      Adjust H-bond energy threshold when H-bonds visible");
+            println!("  N         Toggle H-bond network analysis overlay");
+            println!("  F         Frame the protein in view");
             println!("  I         Inspect mode");
+            println!("    ↑↓      Cycle through nearby atoms");
+            println!("  R         Toggle residue highlighting (in inspect mode)");
             println!("  Q         Quit");
             return Ok(());
         } else if !arg.starts_with('-') {
             protein_path = Some(arg.clone());
         }
     }
+    
+    let mut app = App::new();
+    let mut terminal = ratatui::init();
+    
+    crossterm::execute!(
+        std::io::stdout(),
+        crossterm::event::EnableMouseCapture
+    )?;
     
     if let Some(path) = protein_path {
         // Initial terminal size
@@ -330,6 +351,43 @@ fn draw_line(x0: f32, y0: f32, x1: f32, y1: f32) -> Vec<(f64, f64)> {
     points
 }
 
+/// Map H-bond energy to color (cyan → yellow → orange)
+/// 
+/// Weak bonds (~ -0.5 kcal/mol): cyan; 
+/// Medium bonds (~ -2.0 kcal/mol): yellow; 
+/// Strong bonds (~ -5.0 kcal/mol): orange
+fn hbond_energy_to_color(energy: f32) -> (u8, u8, u8) {
+    // Normalization
+    let t = ((energy.abs() - 0.5) / 4.5).clamp(0.0, 1.0);
+    
+    if t < 0.5 {
+        // Cyan (0, 255, 255) to Yellow (255, 255, 0)
+        let local_t = t / 0.5;
+        let r = (255.0 * local_t) as u8;
+        let g = 255;
+        let b = (255.0 * (1.0 - local_t)) as u8;
+        (r, g, b)
+    } else {
+        // Yellow (255, 255, 0) to Orange (255, 165, 0)
+        let local_t = (t - 0.5) / 0.5;
+        let r = 255;
+        let g = (255.0 - 90.0 * local_t) as u8;
+        let b = 0;
+        (r, g, b)
+    }
+}
+
+/// Draw dashed line by sampling every nth point
+fn draw_dashed_line(x0: f32, y0: f32, x1: f32, y1: f32, dash_spacing: usize) -> Vec<(f64, f64)> {
+    let full_line = draw_line(x0, y0, x1, y1);
+    full_line
+        .into_iter()
+        .enumerate()
+        .filter(|(i, _)| i % dash_spacing == 0)
+        .map(|(_, p)| p)
+        .collect()
+}
+
 fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f32, height: f32) -> Result<()> {
     let rotation_speed = 0.1;
     let zoom_speed = 0.1;
@@ -353,8 +411,20 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
         // Pan controls (Arrow keys)
         // Cycle through candidates in inspect mode (up and down)
         // Adjust surface density (up and down)
+        // Adjust H-bond energy threshold (up and down when H-bonds visible)
         KeyCode::Up => {
-            if app.show_surface {
+            if app.show_hydrogen_bonds && !app.show_surface && !app.inspect_mode {
+                // More negative = stronger bonds only
+                app.hbond_energy_threshold = (app.hbond_energy_threshold - 0.5).max(-10.0);
+                
+                // Recompute network analysis if network mode is active
+                if app.show_hbond_network {
+                    if let Some(ref graph) = app.hbond_graph {
+                        let filtered = graph.filter_by_energy(app.hbond_energy_threshold);
+                        app.network_analysis = Some(filtered.analyze());
+                    }
+                }
+            } else if app.show_surface {
                 app.surface_point_density = (app.surface_point_density + 25).min(500);
                 if let Some(ref mut protein) = app.protein {
                     let surface_calculator = surface::SurfaceCalculator::new(1.4, app.surface_point_density);
@@ -373,7 +443,18 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
             }
         }
         KeyCode::Down => {
-            if app.show_surface {
+            if app.show_hydrogen_bonds && !app.show_surface && !app.inspect_mode {
+                // Less negative = more bonds shown
+                app.hbond_energy_threshold = (app.hbond_energy_threshold + 0.5).min(-0.1);
+                
+                // Recompute network analysis if network mode is active
+                if app.show_hbond_network {
+                    if let Some(ref graph) = app.hbond_graph {
+                        let filtered = graph.filter_by_energy(app.hbond_energy_threshold);
+                        app.network_analysis = Some(filtered.analyze());
+                    }
+                }
+            } else if app.show_surface {
                 app.surface_point_density = (app.surface_point_density.saturating_sub(25)).max(100);
                 if let Some(ref mut protein) = app.protein {
                     let surface_calculator = surface::SurfaceCalculator::new(1.4, app.surface_point_density);
@@ -443,6 +524,37 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
                         let surface_calculator = surface::SurfaceCalculator::new(1.4, app.surface_point_density);
                         protein.surface_points = surface_calculator.calculate_surface(&protein.atoms);
                     }
+                }
+            }
+        }
+
+        // Toggle Hydrogen bond display
+        KeyCode::Char('h') => {
+            app.show_hydrogen_bonds = !app.show_hydrogen_bonds;
+
+            // Build H-bond graph on first activation
+            if app.show_hydrogen_bonds && app.hbond_graph.is_none() {
+                if let Some(ref protein) = app.protein {
+                    app.hbond_graph = Some(network::HBondGraph::build(protein));
+                }
+            }
+        }
+        
+        // Toggle H-bond network visualization overlay
+        KeyCode::Char('n') => {
+            app.show_hbond_network = !app.show_hbond_network;
+            
+            // Compute network analysis on first activation
+            if app.show_hbond_network {
+                if app.hbond_graph.is_none() {
+                    if let Some(ref protein) = app.protein {
+                        app.hbond_graph = Some(network::HBondGraph::build(protein));
+                    }
+                }
+                
+                if let Some(ref graph) = app.hbond_graph {
+                    let filtered = graph.filter_by_energy(app.hbond_energy_threshold);
+                    app.network_analysis = Some(filtered.analyze());
                 }
             }
         }
@@ -670,7 +782,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
                 let residue_highlight_active = app.residue_highlight && selected_residue_seq.is_some();
                 
                 // Draw backbone connections first (if enabled and in backbone mode)
-                if app.show_connections && app.display_mode == DisplayMode::Backbone {
+                if app.show_connections && !app.residue_highlight && app.display_mode == DisplayMode::Backbone {
                     let ca_indices = get_calpha_indices(protein);
                     let connections = get_calpha_connections(protein, &ca_indices);
                     
@@ -711,6 +823,50 @@ fn ui(frame: &mut Frame, app: &mut App) {
                             ctx.draw(&Points {
                                 coords: &line_points,
                                 color,
+                            });
+                        }
+                    }
+                }
+                
+                // Draw hydrogen bonds (if enabled)
+                if app.show_hydrogen_bonds {
+                    // Filter H-bonds by energy threshold
+                    let visible_hbonds: Vec<&pixelfold::parser::HBond> = protein.hbonds
+                        .iter()
+                        .filter(|hb| hb.energy < app.hbond_energy_threshold)
+                        .collect();
+                    
+                    for hbond in visible_hbonds {
+                        let donor_idx = hbond.donor_atom_idx;
+                        let acceptor_idx = hbond.acceptor_atom_idx;
+                        
+                        // Skip if indices are out of bounds
+                        if donor_idx >= all_projected.len() || acceptor_idx >= all_projected.len() {
+                            continue;
+                        }
+                        
+                        let proj_donor = &all_projected[donor_idx];
+                        let proj_acceptor = &all_projected[acceptor_idx];
+                        
+                        // Only draw if both atoms are on screen
+                        if proj_donor.x >= 0.0 && proj_donor.x <= width && 
+                           proj_donor.y >= 0.0 && proj_donor.y <= height &&
+                           proj_acceptor.x >= 0.0 && proj_acceptor.x <= width && 
+                           proj_acceptor.y >= 0.0 && proj_acceptor.y <= height {
+                            
+                            let line_points = draw_dashed_line(
+                                proj_donor.x, 
+                                proj_donor.y, 
+                                proj_acceptor.x, 
+                                proj_acceptor.y,
+                                3  // Dash spacing
+                            );
+                            
+                            let (r, g, b) = hbond_energy_to_color(hbond.energy);
+                            
+                            ctx.draw(&Points {
+                                coords: &line_points,
+                                color: Color::Rgb(r, g, b),
                             });
                         }
                     }
@@ -844,13 +1000,38 @@ fn ui(frame: &mut Frame, app: &mut App) {
             String::new()
         };
         
+        let hbond_text = if app.show_hydrogen_bonds {
+            let visible_count = protein.hbonds.iter()
+                .filter(|hb| hb.energy < app.hbond_energy_threshold)
+                .count();
+            format!(" | [H-BONDS: {} @ {:.1} kcal/mol]", visible_count, app.hbond_energy_threshold)
+        } else {
+            String::new()
+        };
+        
+        let network_text = if app.show_hbond_network {
+            if let Some(ref analysis) = app.network_analysis {
+                let component_count = analysis.connected_components.len();
+                let largest_component = analysis.connected_components
+                    .iter()
+                    .map(|c| c.len())
+                    .max()
+                    .unwrap_or(0);
+                format!(" | [NETWORK: {} components, largest = {}]", component_count, largest_component)
+            } else {
+                String::from(" | [NETWORK]")
+            }
+        } else {
+            String::new()
+        };
+        
         let atom_count = match app.display_mode {
             DisplayMode::AllAtoms => protein.atoms.len(),
             DisplayMode::Backbone => get_calpha_indices(protein).len(),
         };
         
         let info_text = format!(
-            " {} | {} atoms | [{}] [{}] [{}] | Zoom: {:.1}x{}{}{} ",
+            " {} | {} atoms | [{}] [{}] [{}] | Zoom: {:.1}x{}{}{}{}{} ",
             protein.title,
             atom_count,
             display_mode_text,
@@ -859,7 +1040,9 @@ fn ui(frame: &mut Frame, app: &mut App) {
             app.camera.zoom,
             mode_text,
             highlight_text,
-            surface_text
+            surface_text,
+            hbond_text,
+            network_text
         );
         
         let info_area = Rect {
@@ -906,7 +1089,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
                 Line::from(""),
                 Line::from(vec![
                     Span::styled("  Atom:    ", Style::default().fg(Color::Gray)),
-                    Span::styled(format!("{}", atom.name), Style::default().fg(Color::Yellow).bold()),
+                    Span::styled(atom.name.to_string(), Style::default().fg(Color::Yellow).bold()),
                 ]),
                 Line::from(vec![
                     Span::styled("  Serial:  ", Style::default().fg(Color::Gray)),
@@ -915,7 +1098,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
                 Line::from(""),
                 Line::from(vec![
                     Span::styled("  Residue: ", Style::default().fg(Color::Gray)),
-                    Span::styled(format!("{}", atom.residue_name), Style::default().fg(Color::White).bold()),
+                    Span::styled(atom.residue_name.to_string(), Style::default().fg(Color::White).bold()),
                 ]),
                 Line::from(vec![
                     Span::styled("  Number:  ", Style::default().fg(Color::Gray)),
@@ -923,7 +1106,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
                 ]),
                 Line::from(vec![
                     Span::styled("  Chain:   ", Style::default().fg(Color::Gray)),
-                    Span::styled(format!("{}", atom.chain_id), Style::default().fg(Color::Cyan).bold()),
+                    Span::styled(atom.chain_id.to_string(), Style::default().fg(Color::Cyan).bold()),
                 ]),
                 Line::from(""),
                 Line::from(vec![
@@ -983,7 +1166,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
                     
                     info_lines.push(Line::from(vec![
                         Span::styled(prefix, Style::default().fg(color)),
-                        Span::styled(format!("{}", candidate.name), Style::default().fg(color).bold()),
+                        Span::styled(candidate.name.to_string(), Style::default().fg(color).bold()),
                         Span::styled(format!(" ({})", candidate.residue_name), Style::default().fg(Color::Gray)),
                     ]));
                     info_lines.push(Line::from(vec![
@@ -1009,7 +1192,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
         }
     } else {
         // No protein loaded - show help text
-        let help_text = vec![
+        let help_text = [
             "PixelFold - 3D Protein Viewer",
             "",
             "Usage: pixelfold <protein.pdb>",

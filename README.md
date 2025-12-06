@@ -10,6 +10,8 @@ A terminal-based 3D protein structure viewer using Braille Unicode characters fo
 - **PDB & mmCIF Support**: Parses both PDB and mmCIF/PDBx protein structure formats using `pdbtbx`
 - **Interactive 3D Controls**: Rotate, zoom, and pan the protein structure in real-time
 - **Surface Visualization**: Solvent-accessible surface with Kyte-Doolittle hydrophobicity coloring using the Shrake-Rupley algorithm
+- **Hydrogen Bond Visualization**: Displays backbone H-bonds with energy-based color coding (cyan→yellow→orange)
+- **H-Bond Network Analysis**: Graph-based analysis using `petgraph` to identify structural motifs, hubs, and connected components
 - **Performance Modes**: Multiple loading options for different protein sizes
 
 ## Installation
@@ -37,7 +39,7 @@ pixelfold path/to/protein.cif
 - **WASD**: Rotate the structure (W/S = pitch, A/D = yaw)
 - **Z/X**: Roll rotation
 - **+/-**: Zoom in/out
-- **Arrow Keys**: Pan the view (or cycle through candidate atoms in inspect mode, or adjust surface density when surface is visible)
+- **Arrow Keys**: Pan the view (or cycle through candidate atoms in inspect mode, or adjust surface density when surface is visible, or adjust H-bond threshold when H-bonds visible)
 - **1/2**: Toggle display modes (1: All atoms (default); 2: Alpha carbon backbone)
 - **F**: Auto-frame (reset and fit protein to view)
 - **I**: Inspect-mode (interactive clicking enabled to view more information)
@@ -48,6 +50,12 @@ pixelfold path/to/protein.cif
 - **V**: Toggle solvent-accessible surface visualization
   - **Note**: When surface is visible, atom rendering is disabled to show clear hydrophobicity patterns
   - **Up/Down arrows** (when surface visible): Adjust point density (100-500 points/atom)
+- **H**: Toggle hydrogen bond visualization
+  - **Dashed lines** colored by bond strength: cyan (weak, ~-0.5 kcal/mol) → yellow (medium, ~-2.0 kcal/mol) → orange (strong, ~-5.0 kcal/mol)
+  - **Up/Down arrows** (when H-bonds visible): Adjust energy threshold (-0.1 to -10.0 kcal/mol)
+- **N**: Toggle H-bond network analysis overlay
+  - Shows connected components and hub residues
+  - Displays network statistics in status bar
 - **Q**: Quit
 
 ## Implementation Details
@@ -74,6 +82,14 @@ The project consists of several modules:
   - Kyte-Doolittle hydrophobicity scale for surface coloring
   - Parallel computation for large proteins
 
+- **`network`**: H-bond network analysis using graph theory
+  - Builds directed graph of residue-level H-bond networks using `petgraph`
+  - Node types: ResidueNode (residue metadata, secondary structure, atom indices)
+  - Edge types: HBondEdge (energy, bond type, atom indices)
+  - Network analysis: degree centrality, connected components, motif detection
+  - Detects structural patterns: α-helix ladders (i→i+4), β-sheet patterns, turns
+  - Energy-based filtering for threshold-dependent analysis
+
 - **`main`**: TUI application using `ratatui` with Braille canvas rendering
 
 ### Why Braille?
@@ -90,6 +106,8 @@ Braille Unicode characters provide **8× higher resolution** compared to ASCII:
 - **`crossterm`**: Terminal manipulation
 - **`pdbtbx`**: PDB and mmCIF parsing
 - **`glam`**: 3D math library (vectors, matrices)
+- **`petgraph`**: Graph data structures and algorithms for H-bond network analysis
+- **`rayon`**: Data parallelism for performance optimization
 - **`anyhow`**: Error handling
 
 ### Current limitations
@@ -111,18 +129,23 @@ Braille Unicode characters provide **8× higher resolution** compared to ASCII:
 2. Run PixelFold with the file: `pixelfold 1crn.pdb`
 3. Use WASD to rotate and explore the structure
 4. Press F to auto-frame the view
-5. Press V to toggle surface visualization
-6. Use up/down arrows to adjust surface point density
-7. Use +/- to zoom in on specific regions
+5. Press H to visualize hydrogen bonds
+6. Use up/down arrows to adjust H-bond energy threshold
+7. Press N to analyze H-bond network topology
+8. Press V to toggle surface visualization
+9. Use up/down arrows to adjust surface point density
+10. Use +/- to zoom in on specific regions
 
 ## Future TODO
 
 - [x] Bond rendering between atoms (alpha carbons)
 - [x] Solvent-accessible surface visualization with hydrophobicity coloring
-- [] Multiple selection and filtering modes
-- [] Save/load camera positions
-- [] Animation and structure comparison
-- [] Electrostatic potential surface coloring (via APBS integration)
+- [x] Hydrogen bond visualization with energy-based coloring
+- [x] H-bond network analysis
+- [ ] Multiple selection and filtering modes
+- [ ] Save/load camera positions
+- [ ] Animation and structure comparison
+- [ ] Electrostatic potential surface coloring (via APBS integration)
 
 ## Citations
 

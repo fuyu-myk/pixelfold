@@ -35,7 +35,7 @@ impl Camera {
 
     /// Zoom in (positive) or out (negative)
     pub fn adjust_zoom(&mut self, delta: f32) {
-        self.zoom = (self.zoom + delta).max(0.1).min(10.0);
+        self.zoom = (self.zoom + delta).clamp(0.1, 10.0);
     }
 
     /// Pan camera in screen space

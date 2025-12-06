@@ -3,8 +3,11 @@ use glam::Vec3;
 pub mod parser;
 pub mod renderer;
 pub mod surface;
+pub mod network;
 
 pub use surface::SurfacePoint;
+
+use crate::parser::HBond;
 
 
 #[derive(Clone)]
@@ -51,6 +54,7 @@ pub struct Protein {
     pub atoms: Vec<Atom>,
     pub title: String,
     pub surface_points: Vec<SurfacePoint>,
+    pub hbonds: Vec<HBond>,
 }
 
 pub struct SecondaryStructureAssignment {
@@ -99,10 +103,9 @@ impl SecondaryStructureAssignment {
             let mut helix_count = 0;
 
             for offset in 0..helix_window {
-                if i + offset + 4 < residues.len() {
-                    if self.can_hbond(&residues[i + offset], &residues[i + offset + 4]) {
-                        helix_count += 1;
-                    }
+                if i + offset + 4 < residues.len() &&
+                   self.can_hbond(&residues[i + offset], &residues[i + offset + 4]) {
+                    helix_count += 1;
                 }
             }
 
@@ -129,16 +132,12 @@ impl SecondaryStructureAssignment {
             let mut sheet_hbond_count = 0;
 
             for j in 2..=3 {
-                if i + j < residues.len() {
-                    if self.can_hbond(&residues[i], &residues[i + j]) {
-                        sheet_hbond_count += 1;
-                    }
+                if i + j < residues.len() && self.can_hbond(&residues[i], &residues[i + j]) {
+                    sheet_hbond_count += 1;
                 }
 
-                if i >= j {
-                    if self.can_hbond(&residues[i - j], &residues[i]) {
-                        sheet_hbond_count += 1;
-                    }
+                if i >= j && self.can_hbond(&residues[i - j], &residues[i]) {
+                    sheet_hbond_count += 1;
                 }
             }
 

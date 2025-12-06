@@ -50,7 +50,7 @@ pub fn load_protein_with_options<P: AsRef<Path>>(path: P, skip_surface: bool) ->
         })
         .collect();
 
-    assign_secondary_structures(&mut atoms);
+    let hbonds = assign_secondary_structures(&mut atoms);
 
     // Compute solvent-accessible surface (unless skipped for performance)
     let surface_points = if skip_surface {
@@ -60,7 +60,7 @@ pub fn load_protein_with_options<P: AsRef<Path>>(path: P, skip_surface: bool) ->
         surface_calculator.calculate_surface(&atoms)
     };
 
-    Ok(Protein { atoms, title, surface_points })
+    Ok(Protein { atoms, title, surface_points, hbonds })
 }
 
 /// Load only backbone atoms (CA, C, N, O) for simplified rendering
@@ -108,7 +108,7 @@ pub fn load_protein_backbone_with_options<P: AsRef<Path>>(path: P, skip_surface:
         })
         .collect();
 
-    assign_secondary_structures(&mut atoms);
+    let hbonds = assign_secondary_structures(&mut atoms);
 
     // Compute solvent-accessible surface (unless skipped for performance)
     let surface_points = if skip_surface {
@@ -118,7 +118,7 @@ pub fn load_protein_backbone_with_options<P: AsRef<Path>>(path: P, skip_surface:
         surface_calculator.calculate_surface(&atoms)
     };
 
-    Ok(Protein { atoms, title, surface_points })
+    Ok(Protein { atoms, title, surface_points, hbonds })
 }
 
 /// Load only CA (alpha carbon) atoms for minimal rendering of large proteins
@@ -163,7 +163,7 @@ pub fn load_protein_ca_only_with_options<P: AsRef<Path>>(path: P, skip_surface: 
         })
         .collect();
 
-    assign_secondary_structures(&mut atoms);
+    let hbonds = assign_secondary_structures(&mut atoms);
 
     // Compute solvent-accessible surface (unless skipped for performance)
     let surface_points = if skip_surface {
@@ -173,15 +173,17 @@ pub fn load_protein_ca_only_with_options<P: AsRef<Path>>(path: P, skip_surface: 
         surface_calculator.calculate_surface(&atoms)
     };
 
-    Ok(Protein { atoms, title, surface_points })
+    Ok(Protein { atoms, title, surface_points, hbonds })
 }
 
-/// DSSP hydrogen bond for secondary structure assignment
+/// DSSP hydrogen bond for secondary structure assignment and visualization
 #[derive(Clone, Copy, Debug)]
-struct HBond {
-    donor: usize,        // Residue index (NH donor)
-    acceptor: usize,     // Residue index (CO acceptor)
-    energy: f32,         // kcal/mol
+pub struct HBond {
+    pub donor_residue: usize,        // Residue index (NH donor)
+    pub acceptor_residue: usize,     // Residue index (CO acceptor)
+    pub donor_atom_idx: usize,       // Atom index of N in donor residue
+    pub acceptor_atom_idx: usize,    // Atom index of O in acceptor residue
+    pub energy: f32,                 // kcal/mol
 }
 
 /// DSSP-based secondary structure assigner
@@ -201,15 +203,15 @@ impl Default for DSSPAssigner {
 }
 
 impl DSSPAssigner {
-    /// Assign secondary structure using DSSP algorithm
-    fn assign(&self, residues: &[Vec<Atom>]) -> Vec<SecondaryStructure> {
+    /// Assign secondary structure using DSSP algorithm and return H-bonds
+    fn assign(&self, residues: &[Vec<Atom>]) -> (Vec<SecondaryStructure>, Vec<HBond>) {
         let n = residues.len();
         let mut ss = vec![SecondaryStructure::Coil; n];
 
         let hbonds = self.find_hbonds(residues);
         self.assign_from_hbonds(&hbonds, &mut ss, n);
 
-        ss
+        (ss, hbonds)
     }
 
     /// Find all backbone H-bonds in the protein
@@ -227,8 +229,8 @@ impl DSSPAssigner {
 
         for (i, res_i) in residues.iter().enumerate() {
             for (j, res_j) in residues.iter().enumerate() {
-                if i == j || (i as i32 - j as i32).abs() < 2 {
-                    continue; // Skip adjacent and same residues
+                if i == j || (i as i32 - j as i32).abs() == 1 {
+                    continue; // Skip same and adjacent residues
                 }
 
                 // Get backbone atoms
@@ -243,8 +245,10 @@ impl DSSPAssigner {
 
                 if energy < self.energy_threshold {
                     hbonds.push(HBond {
-                        donor: j,
-                        acceptor: i,
+                        donor_residue: j,
+                        acceptor_residue: i,
+                        donor_atom_idx: 0,  // Mapped later
+                        acceptor_atom_idx: 0,  // Mapped later
                         energy,
                     });
                 }
@@ -315,8 +319,8 @@ impl DSSPAssigner {
         let mut donor_map: Vec<Vec<usize>> = vec![Vec::new(); n];
 
         for hbond in hbonds {
-            acceptor_map[hbond.acceptor].push(hbond.donor);
-            donor_map[hbond.donor].push(hbond.acceptor);
+            acceptor_map[hbond.acceptor_residue].push(hbond.donor_residue);
+            donor_map[hbond.donor_residue].push(hbond.acceptor_residue);
         }
 
         // Detect helices (i -> i+3, i+4, i+5 patterns)
@@ -332,9 +336,9 @@ impl DSSPAssigner {
 
                 // Mark residues in between for continuous helices
                 if offset == 4 && i + 4 < n {
-                    for k in i+1..i+4 {
-                        if ss[k] == SecondaryStructure::Coil {
-                            ss[k] = SecondaryStructure::Helix;
+                    for ss in ss.iter_mut().take(i + 4).skip(i + 1) {
+                        if *ss == SecondaryStructure::Coil {
+                            *ss = SecondaryStructure::Helix;
                         }
                     }
                 }
@@ -396,11 +400,13 @@ impl DSSPAssigner {
 }
 
 /// Group atoms by residue and assign secondary structures using DSSP
-fn assign_secondary_structures(atoms: &mut [Atom]) {
+/// 
+/// Returns H-bonds with atom indices mapped from residue indices
+fn assign_secondary_structures(atoms: &mut [Atom]) -> Vec<HBond> {
     let mut residues: HashMap<u32, Vec<Atom>> = HashMap::new();
     for atom in atoms.iter() {
         residues.entry(atom.residue_seq)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push((*atom).clone());
     }
 
@@ -413,7 +419,7 @@ fn assign_secondary_structures(atoms: &mut [Atom]) {
         .collect();
 
     let assigner = DSSPAssigner::default();
-    let assignments = assigner.assign(&residue_vec);
+    let (assignments, mut hbonds) = assigner.assign(&residue_vec);
 
     let mut ss_map: HashMap<u32, SecondaryStructure> = HashMap::new();
     for (i, &residue_num) in residue_numbers.iter().enumerate() {
@@ -425,4 +431,26 @@ fn assign_secondary_structures(atoms: &mut [Atom]) {
             atom.secondary_structure = ss;
         }
     }
+
+    // Map residue indices to atom indices for H-bonds
+    for hbond in hbonds.iter_mut() {
+        let donor_res_num = residue_numbers[hbond.donor_residue];
+        let acceptor_res_num = residue_numbers[hbond.acceptor_residue];
+
+        // N atom in donor residue
+        if let Some(donor_n_idx) = atoms.iter().position(|a| {
+            a.residue_seq == donor_res_num && a.name == "N"
+        }) {
+            hbond.donor_atom_idx = donor_n_idx;
+        }
+
+        // O atom in acceptor residue
+        if let Some(acceptor_o_idx) = atoms.iter().position(|a| {
+            a.residue_seq == acceptor_res_num && a.name == "O"
+        }) {
+            hbond.acceptor_atom_idx = acceptor_o_idx;
+        }
+    }
+
+    hbonds
 }
