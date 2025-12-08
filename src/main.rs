@@ -439,7 +439,7 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
                 app.selected_atom_idx = Some(app.candidate_atoms[app.candidate_selection_idx].0);
                 update_highlighted_atoms(app, width, height);
             } else {
-                app.camera.pan_camera(0.0, pan_speed);
+                app.camera.pan_camera(0.0, -pan_speed);
             }
         }
         KeyCode::Down => {
@@ -465,11 +465,11 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
                 app.selected_atom_idx = Some(app.candidate_atoms[app.candidate_selection_idx].0);
                 update_highlighted_atoms(app, width, height);
             } else {
-                app.camera.pan_camera(0.0, -pan_speed);
+                app.camera.pan_camera(0.0, pan_speed);
             }
         }
-        KeyCode::Left => app.camera.pan_camera(-pan_speed, 0.0),
-        KeyCode::Right => app.camera.pan_camera(pan_speed, 0.0),
+        KeyCode::Left => app.camera.pan_camera(pan_speed, 0.0),
+        KeyCode::Right => app.camera.pan_camera(-pan_speed, 0.0),
 
         // Inspect mode
         KeyCode::Char('i') => {
