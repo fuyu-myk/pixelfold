@@ -23,6 +23,11 @@ enum DisplayMode {
 struct App {
     protein: Option<Protein>,
     camera: Camera,
+    redraw_needed: bool,
+    projected_atom_cache: Option<Vec<renderer::ProjectedAtom>>,
+    ca_indices: Vec<usize>,
+    backbone_connections: Vec<(usize, usize)>,
+    residue_colors: std::collections::HashMap<u32, SecondaryStructure>,
     inspect_mode: bool,
     residue_highlight: bool,
     selected_atom_idx: Option<usize>,
@@ -49,6 +54,11 @@ impl App {
         Self {
             protein: None,
             camera: Camera::new(),
+            redraw_needed: true,
+            projected_atom_cache: None,
+            ca_indices: Vec::new(),
+            backbone_connections: Vec::new(),
+            residue_colors: std::collections::HashMap::new(),
             inspect_mode: false,
             residue_highlight: false,
             selected_atom_idx: None,
@@ -77,9 +87,33 @@ impl App {
         // Auto-frame the protein when loaded
         if let Some(ref protein) = self.protein {
             renderer::auto_frame_protein(protein, &mut self.camera, width, height);
+            
+            self.compute_static_geometry();
         }
         
         Ok(())
+    }
+    
+    /// Pre-computes static geometry that doesn't change during rotation
+    fn compute_static_geometry(&mut self) {
+        if let Some(ref protein) = self.protein {
+            // Compute CA indices
+            self.ca_indices = protein.atoms.iter()
+                .enumerate()
+                .filter(|(_, atom)| atom.name == "CA")
+                .map(|(idx, _)| idx)
+                .collect();
+            
+            // Compute backbone connections
+            self.backbone_connections = get_calpha_connections(protein, &self.ca_indices);
+            
+            // Compute residue colors
+            self.residue_colors.clear();
+            for atom in &protein.atoms {
+                self.residue_colors.entry(atom.residue_seq)
+                    .or_insert(atom.secondary_structure);
+            }
+        }
     }
 }
 
@@ -163,7 +197,10 @@ fn run_app(terminal: &mut ratatui::Terminal<impl ratatui::backend::Backend>, app
         let canvas_width = size.width as f32 * 2.0;
         let canvas_height = size.height as f32 * 4.0;
         
-        terminal.draw(|frame| ui(frame, app))?;
+        if app.redraw_needed {
+            terminal.draw(|frame| ui(frame, app))?;
+            app.redraw_needed = false;
+        }
 
         if event::poll(std::time::Duration::from_millis(16))? {
             match event::read()? {
@@ -397,16 +434,48 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
         KeyCode::Char('q') => {}
         
         // Rotation controls (WASD)
-        KeyCode::Char('w') => app.camera.rotate(rotation_speed, 0.0, 0.0),
-        KeyCode::Char('s') => app.camera.rotate(-rotation_speed, 0.0, 0.0),
-        KeyCode::Char('a') => app.camera.rotate(0.0, rotation_speed, 0.0),
-        KeyCode::Char('d') => app.camera.rotate(0.0, -rotation_speed, 0.0),
-        KeyCode::Char('z') => app.camera.rotate(0.0, 0.0, rotation_speed),
-        KeyCode::Char('x') => app.camera.rotate(0.0, 0.0, -rotation_speed),
+        KeyCode::Char('w') => {
+            app.redraw_needed = true;
+            app.projected_atom_cache = None;
+            app.camera.rotate(rotation_speed, 0.0, 0.0);
+        }
+        KeyCode::Char('s') => {
+            app.redraw_needed = true;
+            app.projected_atom_cache = None;
+            app.camera.rotate(-rotation_speed, 0.0, 0.0);
+        }
+        KeyCode::Char('a') => {
+            app.redraw_needed = true;
+            app.projected_atom_cache = None;
+            app.camera.rotate(0.0, rotation_speed, 0.0);
+        }
+        KeyCode::Char('d') => {
+            app.redraw_needed = true;
+            app.projected_atom_cache = None;
+            app.camera.rotate(0.0, -rotation_speed, 0.0);
+        }
+        KeyCode::Char('z') => {
+            app.redraw_needed = true;
+            app.projected_atom_cache = None;
+            app.camera.rotate(0.0, 0.0, rotation_speed);
+        }
+        KeyCode::Char('x') => {
+            app.redraw_needed = true;
+            app.projected_atom_cache = None;
+            app.camera.rotate(0.0, 0.0, -rotation_speed);
+        }
         
         // Zoom controls
-        KeyCode::Char('+') | KeyCode::Char('=') => app.camera.adjust_zoom(zoom_speed),
-        KeyCode::Char('-') | KeyCode::Char('_') => app.camera.adjust_zoom(-zoom_speed),
+        KeyCode::Char('+') | KeyCode::Char('=') => {
+            app.redraw_needed = true;
+            app.projected_atom_cache = None;
+            app.camera.adjust_zoom(zoom_speed);
+        }
+        KeyCode::Char('-') | KeyCode::Char('_') => {
+            app.redraw_needed = true;
+            app.projected_atom_cache = None;
+            app.camera.adjust_zoom(-zoom_speed);
+        }
         
         // Pan controls (Arrow keys)
         // Cycle through candidates in inspect mode (up and down)
@@ -416,6 +485,7 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
             if app.show_hydrogen_bonds && !app.show_surface && !app.inspect_mode {
                 // More negative = stronger bonds only
                 app.hbond_energy_threshold = (app.hbond_energy_threshold - 0.5).max(-10.0);
+                app.redraw_needed = true;
                 
                 // Recompute network analysis if network mode is active
                 if app.show_hbond_network {
@@ -426,6 +496,7 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
                 }
             } else if app.show_surface {
                 app.surface_point_density = (app.surface_point_density + 25).min(500);
+                app.redraw_needed = true;
                 if let Some(ref mut protein) = app.protein {
                     let surface_calculator = surface::SurfaceCalculator::new(1.4, app.surface_point_density);
                     protein.surface_points = surface_calculator.calculate_surface(&protein.atoms);
@@ -437,8 +508,11 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
                     app.candidate_selection_idx -= 1;
                 }
                 app.selected_atom_idx = Some(app.candidate_atoms[app.candidate_selection_idx].0);
+                app.redraw_needed = true;
                 update_highlighted_atoms(app, width, height);
             } else {
+                app.redraw_needed = true;
+                app.projected_atom_cache = None;
                 app.camera.pan_camera(0.0, -pan_speed);
             }
         }
@@ -446,6 +520,7 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
             if app.show_hydrogen_bonds && !app.show_surface && !app.inspect_mode {
                 // Less negative = more bonds shown
                 app.hbond_energy_threshold = (app.hbond_energy_threshold + 0.5).min(-0.1);
+                app.redraw_needed = true;
                 
                 // Recompute network analysis if network mode is active
                 if app.show_hbond_network {
@@ -456,6 +531,7 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
                 }
             } else if app.show_surface {
                 app.surface_point_density = (app.surface_point_density.saturating_sub(25)).max(100);
+                app.redraw_needed = true;
                 if let Some(ref mut protein) = app.protein {
                     let surface_calculator = surface::SurfaceCalculator::new(1.4, app.surface_point_density);
                     protein.surface_points = surface_calculator.calculate_surface(&protein.atoms);
@@ -463,17 +539,29 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
             } else if app.inspect_mode && !app.candidate_atoms.is_empty() {
                 app.candidate_selection_idx = (app.candidate_selection_idx + 1) % app.candidate_atoms.len();
                 app.selected_atom_idx = Some(app.candidate_atoms[app.candidate_selection_idx].0);
+                app.redraw_needed = true;
                 update_highlighted_atoms(app, width, height);
             } else {
+                app.redraw_needed = true;
+                app.projected_atom_cache = None;
                 app.camera.pan_camera(0.0, pan_speed);
             }
         }
-        KeyCode::Left => app.camera.pan_camera(pan_speed, 0.0),
-        KeyCode::Right => app.camera.pan_camera(-pan_speed, 0.0),
+        KeyCode::Left => {
+            app.redraw_needed = true;
+            app.projected_atom_cache = None;
+            app.camera.pan_camera(pan_speed, 0.0);
+        }
+        KeyCode::Right => {
+            app.redraw_needed = true;
+            app.projected_atom_cache = None;
+            app.camera.pan_camera(-pan_speed, 0.0);
+        }
 
         // Inspect mode
         KeyCode::Char('i') => {
             app.inspect_mode = !app.inspect_mode;
+            app.redraw_needed = true;
 
             if !app.inspect_mode {
                 app.selected_atom_idx = None;
@@ -485,6 +573,7 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
         KeyCode::Char('r') => {
             if app.inspect_mode {
                 app.residue_highlight = !app.residue_highlight;
+                app.redraw_needed = true;
             }
         }
         
@@ -492,30 +581,37 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
         KeyCode::Char('f') => {
             if let Some(ref protein) = app.protein {
                 renderer::auto_frame_protein(protein, &mut app.camera, width, height);
+                app.redraw_needed = true;
+                app.projected_atom_cache = None;
             }
         }
         
         // Display mode controls
         KeyCode::Char('1') => {
             app.display_mode = DisplayMode::AllAtoms;
+            app.redraw_needed = true;
         }
         KeyCode::Char('2') => {
             app.display_mode = DisplayMode::Backbone;
+            app.redraw_needed = true;
         }
         
         // Toggle backbone connections
         KeyCode::Char('c') => {
             app.show_connections = !app.show_connections;
+            app.redraw_needed = true;
         }
         
         // Toggle B-factor coloring
         KeyCode::Char('b') => {
             app.use_bfactor_colors = !app.use_bfactor_colors;
+            app.redraw_needed = true;
         }
         
         // Toggle surface visualization
         KeyCode::Char('v') => {
             app.show_surface = !app.show_surface;
+            app.redraw_needed = true;
             
             // Compute surface on-demand if not already computed
             if app.show_surface {
@@ -531,6 +627,7 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
         // Toggle Hydrogen bond display
         KeyCode::Char('h') => {
             app.show_hydrogen_bonds = !app.show_hydrogen_bonds;
+            app.redraw_needed = true;
 
             // Build H-bond graph on first activation
             if app.show_hydrogen_bonds && app.hbond_graph.is_none() {
@@ -543,6 +640,7 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
         // Toggle H-bond network visualization overlay
         KeyCode::Char('n') => {
             app.show_hbond_network = !app.show_hbond_network;
+            app.redraw_needed = true;
             
             // Compute network analysis on first activation
             if app.show_hbond_network {
@@ -574,6 +672,9 @@ fn handle_mouse(app: &mut App, mouse: event::MouseEvent, _terminal_size: Rect) -
     
     match mouse.kind {
         MouseEventKind::Down(event::MouseButton::Left) => {
+            app.redraw_needed = true;
+            app.projected_atom_cache = None;
+
             // Use the canvas dimensions from the last render
             let canvas_width = app.last_canvas_width;
             let canvas_height = app.last_canvas_height;
@@ -589,7 +690,7 @@ fn handle_mouse(app: &mut App, mouse: event::MouseEvent, _terminal_size: Rect) -
             if let Some(ref protein) = app.protein {
                 let candidates = pick_atoms_along_ray(
                     protein,
-                    &app.camera,
+                    &mut app.camera,
                     click_x,
                     click_y,
                     canvas_width,
@@ -641,6 +742,10 @@ fn update_highlighted_atoms(app: &mut App, width: f32, height: f32) {
     let selected_position = selected_atom.position;
     
     // Project all atoms to screen space
+    if app.camera.cached_view_matrix.is_none() {
+        app.camera.get_view_matrix();
+    }
+
     let projected = renderer::project_protein(protein, &app.camera, width, height);
     
     // Get selected atom's screen position
@@ -672,13 +777,17 @@ fn update_highlighted_atoms(app: &mut App, width: f32, height: f32) {
 /// Returns a sorted list of (atom_idx, distance_in_pixels) pairs
 fn pick_atoms_along_ray(
     protein: &Protein,
-    camera: &Camera,
+    camera: &mut Camera,
     click_x: f32,
     click_y: f32,
     width: f32,
     height: f32,
 ) -> Vec<(usize, f32)> {
     // Project all atoms to screen space
+    if camera.cached_view_matrix.is_none() {
+        camera.get_view_matrix();
+    }
+
     let projected = renderer::project_protein(protein, camera, width, height);
     
     let click_radius = 10.0; // Base radius in pixels
@@ -713,7 +822,19 @@ fn ui(frame: &mut Frame, app: &mut App) {
     let area = frame.area();
     
     if let Some(ref protein) = app.protein {
-        // Split layout if atom is selected (left: main view, right: info panel)
+        // Info bar (1 line)
+        let vertical_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(1),  // Top info bar
+                Constraint::Min(0),     // Content area (canvas + optional inspect panel)
+            ])
+            .split(area);
+        
+        let info_bar_area = vertical_chunks[0];
+        let content_area = vertical_chunks[1];
+        
+        // Canvas and optional inspect panel (left: main view, right: info panel)
         let main_area = if app.selected_atom_idx.is_some() {
             let chunks = Layout::default()
                 .direction(Direction::Horizontal)
@@ -721,15 +842,26 @@ fn ui(frame: &mut Frame, app: &mut App) {
                     Constraint::Percentage(75),
                     Constraint::Percentage(25),
                 ])
-                .split(area);
+                .split(content_area);
             chunks[0]
         } else {
-            area
+            content_area
         };
         
         // Store canvas dimensions for click detection
         app.last_canvas_width = main_area.width as f32 * 2.0;
         app.last_canvas_height = main_area.height as f32 * 4.0;
+
+        if app.camera.cached_view_matrix.is_none() {
+            app.camera.get_view_matrix();
+        }
+        
+        let width = main_area.width as f32 * 2.0;
+        let height = main_area.height as f32 * 4.0;
+        
+        if app.projected_atom_cache.is_none() {
+            app.projected_atom_cache = Some(renderer::project_protein(protein, &app.camera, width, height));
+        }
         
         // For highlighting residues
         let selected_residue_seq = app.selected_atom_idx
@@ -747,7 +879,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
                 // Determine which atoms to display based on display mode
                 let display_indices: Vec<usize> = match app.display_mode {
                     DisplayMode::AllAtoms => (0..protein.atoms.len()).collect(),
-                    DisplayMode::Backbone => get_calpha_indices(protein),
+                    DisplayMode::Backbone => app.ca_indices.clone(),
                 };
                 
                 // Calculate B-factor range if using B-factor coloring
@@ -757,17 +889,10 @@ fn ui(frame: &mut Frame, app: &mut App) {
                     (0.0, 100.0)
                 };
                 
-                let mut residue_colors: std::collections::HashMap<u32, SecondaryStructure> = 
-                    std::collections::HashMap::new();
-                
-                // Assign colors based on original atom order
-                for atom in &protein.atoms {
-                    residue_colors.entry(atom.residue_seq)
-                        .or_insert(atom.secondary_structure);
-                }
-                
-                let all_projected: Vec<renderer::ProjectedAtom> = 
-                    renderer::project_protein(protein, &app.camera, width, height);
+                let all_projected: Vec<renderer::ProjectedAtom> = match &app.projected_atom_cache {
+                    Some(cache) => cache.clone(),
+                    None => renderer::project_protein(protein, &app.camera, width, height),
+                };
                 
                 // Filter and prepare atoms for rendering
                 let mut projected_with_idx: Vec<(usize, &renderer::ProjectedAtom)> = 
@@ -783,10 +908,9 @@ fn ui(frame: &mut Frame, app: &mut App) {
                 
                 // Draw backbone connections first (if enabled and in backbone mode)
                 if app.show_connections && !app.residue_highlight && app.display_mode == DisplayMode::Backbone {
-                    let ca_indices = get_calpha_indices(protein);
-                    let connections = get_calpha_connections(protein, &ca_indices);
+                    let connections = &app.backbone_connections;
                     
-                    for (idx1, idx2) in connections {
+                    for &(idx1, idx2) in connections {
                         let proj1 = &all_projected[idx1];
                         let proj2 = &all_projected[idx2];
                         
@@ -808,7 +932,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
                             } else {
                                 // Use secondary structure color (slightly dimmed for lines)
                                 let residue_seq = protein.atoms[idx1].residue_seq;
-                                if let Some(&ss) = residue_colors.get(&residue_seq) {
+                                if let Some(&ss) = app.residue_colors.get(&residue_seq) {
                                     let (r, g, b) = ss.color_rgb();
                                     Color::Rgb(
                                         (r as f32 * 0.8) as u8,
@@ -922,7 +1046,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
                                 } else {
                                     // Secondary structure coloring
                                     let residue_seq = protein.atoms[*original_idx].residue_seq;
-                                    if let Some(&ss) = residue_colors.get(&residue_seq) {
+                                    if let Some(&ss) = app.residue_colors.get(&residue_seq) {
                                         let (r, g, b) = ss.color_rgb();
                                         Color::Rgb(r, g, b)
                                     } else {
@@ -1045,18 +1169,12 @@ fn ui(frame: &mut Frame, app: &mut App) {
             network_text
         );
         
-        let info_area = Rect {
-            x: 0,
-            y: 0,
-            width: main_area.width,
-            height: 1,
-        };
-        
+        // Render protein info at the top bar
         frame.render_widget(
             ratatui::widgets::Paragraph::new(info_text)
                 .alignment(Alignment::Center)
                 .style(Style::default().fg(Color::White)),
-            info_area,
+            info_bar_area,
         );
         
         // Render atom info panel if an atom is selected
@@ -1067,7 +1185,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
                     Constraint::Percentage(75),
                     Constraint::Percentage(25),
                 ])
-                .split(area);
+                .split(content_area);
             
             let panel_area = info_chunks[1];
             let atom = &protein.atoms[atom_idx];

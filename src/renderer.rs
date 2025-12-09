@@ -8,6 +8,7 @@ pub struct Camera {
     pub rotation: Vec3, // Euler angles (pitch, yaw, roll)
     pub zoom: f32,
     pub pan: Vec3,
+    pub cached_view_matrix: Option<Mat4>,
 }
 
 impl Default for Camera {
@@ -17,6 +18,7 @@ impl Default for Camera {
             rotation: Vec3::ZERO,
             zoom: 1.0,
             pan: Vec3::ZERO,
+            cached_view_matrix: None,
         }
     }
 }
@@ -31,21 +33,28 @@ impl Camera {
         self.rotation.x += pitch;
         self.rotation.y += yaw;
         self.rotation.z += roll;
+        self.cached_view_matrix = None;
     }
 
     /// Zoom in (positive) or out (negative)
     pub fn adjust_zoom(&mut self, delta: f32) {
         self.zoom = (self.zoom + delta).clamp(0.1, 10.0);
+        self.cached_view_matrix = None;
     }
 
     /// Pan camera in screen space
     pub fn pan_camera(&mut self, dx: f32, dy: f32) {
         self.pan.x += dx;
         self.pan.y += dy;
+        self.cached_view_matrix = None;
     }
 
     /// Get the view-projection matrix for transforming 3D points
-    pub fn get_view_matrix(&self) -> Mat4 {
+    pub fn get_view_matrix(&mut self) -> Mat4 {
+        if let Some(matrix) = self.cached_view_matrix {
+            return matrix;
+        }
+
         // Create rotation matrix from Euler angles
         let rotation_x = Mat4::from_rotation_x(self.rotation.x);
         let rotation_y = Mat4::from_rotation_y(self.rotation.y);
@@ -55,12 +64,15 @@ impl Camera {
         let center_translation = Mat4::from_translation(self.pan);
         let camera_translation = Mat4::from_translation(self.position);
 
-        camera_translation * rotation * center_translation
+        let view_matrix = camera_translation * rotation * center_translation;
+        self.cached_view_matrix = Some(view_matrix);
+        
+        view_matrix
     }
 
     /// Project a 3D point to 2D screen coordinates
     pub fn project_point(&self, point: Vec3, width: f32, height: f32) -> (f32, f32) {
-        let view_matrix = self.get_view_matrix();
+        let view_matrix = self.cached_view_matrix.expect("View matrix must be computed before projection");
         
         // Transform point by view matrix
         let transformed = view_matrix * Vec4::new(point.x, point.y, point.z, 1.0);
@@ -74,7 +86,7 @@ impl Camera {
 
     /// Project a 3D point with depth information (for depth sorting)
     pub fn project_point_with_depth(&self, point: Vec3, width: f32, height: f32) -> (f32, f32, f32) {
-        let view_matrix = self.get_view_matrix();
+        let view_matrix = self.cached_view_matrix.expect("View matrix must be computed before projection");
         
         let transformed = view_matrix * Vec4::new(point.x, point.y, point.z, 1.0);
         
@@ -86,6 +98,7 @@ impl Camera {
     }
 }
 
+#[derive(Clone)]
 /// Represents a projected atom for rendering
 pub struct ProjectedAtom {
     pub x: f32,
