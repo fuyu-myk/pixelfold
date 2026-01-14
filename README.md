@@ -12,7 +12,7 @@ A terminal-based 3D protein structure viewer using Braille Unicode characters fo
 - **Surface Visualization**: Solvent-accessible surface with Kyte-Doolittle hydrophobicity coloring using the Shrake-Rupley algorithm
 - **Hydrogen Bond Visualization**: Displays backbone H-bonds with energy-based color coding (cyan→yellow→orange)
 - **H-Bond Network Analysis**: Graph-based analysis using `petgraph` to identify structural motifs, hubs, and connected components
-- **Performance Modes**: Multiple loading options for different protein sizes
+- **Protein structure searching**: Ability to search for and download `.cif` files through the RCSB API
 
 ## Installation
 
@@ -28,13 +28,24 @@ The binary will be available at `target/release/pixelfold`.
 
 ```bash
 # Load and visualize a protein structure
-pixelfold path/to/protein.pdb
+pixelfold data/protein.pdb
 
 # Or with mmCIF format
-pixelfold path/to/protein.cif
+pixelfold data/protein.cif
+
+# Alternatively, simply input the name of the file
+pixelfold protein
 ```
 
 ### Controls
+
+#### Search mode
+
+- **Enter**: Send a search query or download selected proteins
+- **F1**: Clear the search bar
+- **Esc**: Quit
+
+#### Visualization mode
 
 - **WASD**: Rotate the structure (W/S = pitch, A/D = yaw)
 - **Z/X**: Roll rotation
@@ -64,17 +75,29 @@ pixelfold path/to/protein.cif
 
 The project consists of several modules:
 
-- **`parser`**: Loads PDB/mmCIF files using `pdbtbx` and converts to internal data structures
+- [**`client`**](src/search/client.rs): Interacts with the RCSB database using the publicly available api
+  - Leverages the `reqwest` library to do POST and GET requests
+  - Automatic building of the request json for searches
+
+- [**`download`**](src/search/download.rs): Handles downloading of protein structures and file decompression
+  - Concurrent downloading for faster downloads
+  - Utilizes the `flate2` library to decompress gzipped files
+
+- [**`search`**](src/search/mod.rs): Handles the search function of the TUI application
+  - Search and download operations run in background threads that communicate back to teh main UI thread via `mpsc` channels
+  - Real-time progress updates for each completed download/search
+
+- [**`parser`**](src/parser.rs): Loads PDB/mmCIF files using `pdbtbx` and converts to internal data structures
   - `load_protein()`: Load all atoms
   - `load_protein_backbone()`: Load only backbone atoms (CA, C, N, O)
   - `load_protein_ca_only()`: Load only alpha carbons for large proteins
 
-- **`renderer`**: Handles 3D-to-2D projection and camera controls
+- [**`renderer`**](src/visualization/renderer.rs): Handles 3D-to-2D projection and camera controls
   - Orthographic projection with rotation/zoom/pan
   - Depth sorting for proper atom occlusion
   - Camera utilities (auto-framing, bounds calculation)
 
-- **`surface`**: Solvent-accessible surface calculation using Shrake-Rupley algorithm
+- [**`surface`**](src/visualization/surface.rs): Solvent-accessible surface calculation using Shrake-Rupley algorithm
   - Powered by `rust-sasa` library for optimized performance
   - Fibonacci spiral sphere point generation for uniform sampling
   - Van der Waals radii lookup for common atoms
@@ -82,7 +105,7 @@ The project consists of several modules:
   - Kyte-Doolittle hydrophobicity scale for surface coloring
   - Parallel computation for large proteins
 
-- **`network`**: H-bond network analysis using graph theory
+- [**`network`**](src/visualization/network.rs): H-bond network analysis using graph theory
   - Builds directed graph of residue-level H-bond networks using `petgraph`
   - Node types: ResidueNode (residue metadata, secondary structure, atom indices)
   - Edge types: HBondEdge (energy, bond type, atom indices)
@@ -90,7 +113,7 @@ The project consists of several modules:
   - Detects structural patterns: α-helix ladders (i→i+4), β-sheet patterns, turns
   - Energy-based filtering for threshold-dependent analysis
 
-- **`main`**: TUI application using `ratatui` with Braille canvas rendering
+- [**`main`**](src/main.rs): TUI application using `ratatui` with Braille canvas rendering
 
 ### Why Braille?
 
@@ -109,6 +132,9 @@ Braille Unicode characters provide **8× higher resolution** compared to ASCII:
 - **`petgraph`**: Graph data structures and algorithms for H-bond network analysis
 - **`rayon`**: Data parallelism for performance optimization
 - **`anyhow`**: Error handling
+- **`tokio`**: Async calls for API interaction
+- **`reqwest`**: API interaction
+- **`flate2`**: Gz file decompresser
 
 ### Current limitations
 
@@ -125,8 +151,8 @@ Braille Unicode characters provide **8× higher resolution** compared to ASCII:
 
 ## Example Workflow
 
-1. Download a protein structure from [RCSB PDB](https://www.rcsb.org/)
-2. Run PixelFold with the file: `pixelfold 1crn.pdb`
+1. Search and download protein structure(s) using `pixelfold -f`
+2. Run PixelFold with the file: `pixelfold 1CRN`
 3. Use WASD to rotate and explore the structure
 4. Press F to auto-frame the view
 5. Press H to visualize hydrogen bonds
@@ -142,6 +168,8 @@ Braille Unicode characters provide **8× higher resolution** compared to ASCII:
 - [x] Solvent-accessible surface visualization with hydrophobicity coloring
 - [x] Hydrogen bond visualization with energy-based coloring
 - [x] H-bond network analysis
+- [ ] More information regarding each search query
+- [ ] More search options
 - [ ] Multiple selection and filtering modes
 - [ ] Save/load camera positions
 - [ ] Animation and structure comparison

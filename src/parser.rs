@@ -6,7 +6,7 @@ use std::{
     collections::HashMap
 };
 
-use crate::{Atom, Protein, SecondaryStructure, surface::SurfaceCalculator};
+use crate::{Atom, Protein, SecondaryStructure, visualization::surface::SurfaceCalculator};
 
 /// Load a protein structure from a PDB or mmCIF file
 pub fn load_protein<P: AsRef<Path>>(path: P) -> Result<Protein> {

@@ -1,7 +1,8 @@
 use anyhow::Result;
 use crossterm::event::{self, KeyCode, KeyModifiers};
+use pixelfold::visualization::{network, renderer, surface};
 use pixelfold::{
-    App, DisplayMode, SecondaryStructure, network, renderer, surface
+    App, DisplayMode, SecondaryStructure,
 };
 use ratatui::prelude::*;
 use ratatui::widgets::canvas::{Canvas, Points};
@@ -12,7 +13,7 @@ fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
     
     // Parse command-line arguments
-    let mut protein_path: Option<String> = None;
+    let mut protein_name: Option<String> = None;
     let mut skip_surface = false;
     
     for arg in args.iter().skip(1) {
@@ -21,7 +22,15 @@ fn main() -> Result<()> {
         } else if arg == "--help" || arg == "-h" {
             println!("PixelFold - Terminal-based 3D protein structure viewer");
             println!();
+            println!("--- Searching and fetching structures ---");
+            println!("Usage: pixelfold [OPTIONS] <optional_protein_name>");
+            println!();
+            println!("Options (compulsory):");
+            println!("  --fetch, -f     Opens a search interface to fetch protein structures by name");
+            println!();
+            println!("--- Visualization ---");
             println!("Usage: pixelfold <path/to/protein.pdb|protein.cif> [OPTIONS]");
+            println!("       pixelfold <protein> [OPTIONS]");
             println!();
             println!("Options:");
             println!("  --no-surface    Skip surface calculation for faster loading (large proteins)");
@@ -47,7 +56,7 @@ fn main() -> Result<()> {
             println!("  Q         Quit");
             return Ok(());
         } else if !arg.starts_with('-') {
-            protein_path = Some(arg.clone());
+            protein_name = Some(arg.clone());
         }
     }
     
@@ -59,19 +68,37 @@ fn main() -> Result<()> {
         crossterm::event::EnableMouseCapture
     )?;
     
-    if let Some(path) = protein_path {
-        // Initial terminal size
-        let size = terminal.size()?;
-        let width = size.width as f32 * 2.0;  // Braille canvas width
-        let height = size.height as f32 * 4.0; // Braille canvas height
-        
-        match app.load_protein(&path, width, height, skip_surface) {
-            Ok(_) => {},
-            Err(e) => eprintln!("Failed to load protein: {}", e),
-        }
-    }
+    let result = if args.iter().any(|arg| arg == "--fetch" || arg == "-f") {
+        pixelfold::search::fetch_structures(&mut terminal, protein_name)
+    } else {
+        if let Some(name) = protein_name {
+            // Initial terminal size
+            let size = terminal.size()?;
+            let width = size.width as f32 * 2.0;   // Braille canvas width
+            let height = size.height as f32 * 4.0; // Braille canvas height
 
-    let result = run_app(&mut terminal, &mut app);
+            let project_dir = env!("CARGO_MANIFEST_DIR");
+            
+            let path = if name.starts_with("data") {
+                format!("{}/{}", project_dir, name)
+            } else {
+                if name.ends_with(".cif") {
+                    format!("{}/data/{}", project_dir, name)
+                } else if name.ends_with(".pdb") {
+                    format!("{}/data/{}", project_dir, name)
+                } else {
+                    format!("{}/data/{}.cif", project_dir, name)
+                }
+            };
+            
+            match app.load_protein(&path, width, height, skip_surface) {
+                Ok(_) => {},
+                Err(e) => eprintln!("Failed to load protein: {}", e),
+            }
+        }
+
+        run_app(&mut terminal, &mut app)
+    };
     
     crossterm::execute!(
         std::io::stdout(),
@@ -115,6 +142,7 @@ fn run_app(terminal: &mut ratatui::Terminal<impl ratatui::backend::Backend>, app
             }
         }
     }
+
     Ok(())
 }
 

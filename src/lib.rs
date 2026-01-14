@@ -3,21 +3,20 @@ use std::collections::HashSet;
 use anyhow::Result;
 use glam::Vec3;
 
+pub mod search;
+pub mod visualization;
 pub mod parser;
-pub mod renderer;
-pub mod surface;
-pub mod network;
 
-pub use surface::SurfacePoint;
+pub use visualization::surface::SurfacePoint;
 
-use crate::{parser::HBond, renderer::Camera};
+use crate::{parser::HBond, visualization::renderer::Camera};
 
 
 pub struct App {
     pub protein: Option<Protein>,
     pub camera: Camera,
     pub redraw_needed: bool,
-    pub projected_atom_cache: Option<Vec<renderer::ProjectedAtom>>,
+    pub projected_atom_cache: Option<Vec<visualization::renderer::ProjectedAtom>>,
     pub ca_indices: Vec<usize>,
     pub backbone_connections: Vec<(usize, usize)>,
     pub residue_colors: std::collections::HashMap<u32, SecondaryStructure>,
@@ -38,8 +37,8 @@ pub struct App {
     pub show_hydrogen_bonds: bool,
     pub show_hbond_network: bool,
     pub hbond_energy_threshold: f32, // kcal/mol, default -0.5
-    pub hbond_graph: Option<network::HBondGraph>,
-    pub network_analysis: Option<network::NetworkAnalysis>,
+    pub hbond_graph: Option<visualization::network::HBondGraph>,
+    pub network_analysis: Option<visualization::network::NetworkAnalysis>,
 }
 
 impl App {
@@ -79,7 +78,7 @@ impl App {
         
         // Auto-frame the protein when loaded
         if let Some(ref protein) = self.protein {
-            renderer::auto_frame_protein(protein, &mut self.camera, width, height);
+            visualization::renderer::auto_frame_protein(protein, &mut self.camera, width, height);
             
             self.compute_static_geometry();
         }
@@ -541,7 +540,7 @@ pub fn update_highlighted_atoms(app: &mut App, width: f32, height: f32) {
         app.camera.get_view_matrix();
     }
 
-    let projected = renderer::project_protein(protein, &app.camera, width, height);
+    let projected = visualization::renderer::project_protein(protein, &app.camera, width, height);
     
     // Get selected atom's screen position
     let selected_screen = &projected[selected_idx];
@@ -583,7 +582,7 @@ pub fn pick_atoms_along_ray(
         camera.get_view_matrix();
     }
 
-    let projected = renderer::project_protein(protein, camera, width, height);
+    let projected = visualization::renderer::project_protein(protein, camera, width, height);
     
     let click_radius = 10.0; // Base radius in pixels
     
