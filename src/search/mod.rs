@@ -1,7 +1,7 @@
 use anyhow::Result;
 use crossterm::event::{self, KeyCode, KeyModifiers};
 use ratatui::prelude::*;
-use ratatui::widgets::{Block, List, ListItem, ListState, Paragraph};
+use ratatui::widgets::{Block, Cell, Paragraph, Row, Table, TableState};
 use ratatui::{Frame, layout::Rect};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 
@@ -266,10 +266,33 @@ fn handle_input(state: &mut AppState, key: KeyCode, modifiers: KeyModifiers) -> 
                                     if results.is_empty() {
                                         let _ = tx.send(SearchMessage::Error("No results found".to_string()));
                                     } else {
-                                        let proteins: Vec<FoundProtein> = results
+                                        let mut proteins: Vec<FoundProtein> = results
                                             .into_iter()
                                             .map(FoundProtein::new)
                                             .collect();
+
+                                        let fetch_futures: Vec<_> = proteins.iter()
+                                            .map(|protein| {
+                                                let pdb_id = protein.pdb_id.clone();
+                                                let client = client.clone();
+                                                async move {
+                                                    client.fetch_entry_data(&pdb_id).await
+                                                }
+                                            })
+                                            .collect();
+
+                                        let results = rt.block_on(futures::future::join_all(fetch_futures));
+                                        
+                                        for (protein, result) in proteins.iter_mut().zip(results) {
+                                            match result {
+                                                Ok(data) => {
+                                                    protein.title = data.struct_info.title;
+                                                    protein.date = data.rcsb_accession_info.revision_date;
+                                                }
+                                                Err(_) => {}
+                                            }
+                                        }
+
                                         let _ = tx.send(SearchMessage::Success(proteins));
                                     }
                                 }
@@ -520,15 +543,13 @@ impl SearchSelection {
         
         let relative_y = y - area.y;
         
-        if relative_y < 1 || relative_y >= area.height.saturating_sub(1) {
+        if relative_y < 2 || relative_y >= area.height.saturating_sub(1) {
             return None;
         }
         
-        let available_height = area.height.saturating_sub(2) as usize;
-        let lines_per_item = (available_height / 10).max(1);
-        let display_idx = ((relative_y - 1) as usize) / lines_per_item;
+        let display_idx = (relative_y - 2) as usize;
         
-        if display_idx >= 10 {
+        if display_idx >= self.pagination.items_per_page {
             return None;
         }
         
@@ -559,21 +580,16 @@ impl SearchSelection {
     fn render(&mut self, f: &mut Frame, area: Rect) {
         self.last_list_area = area;
         
-        let page_size = 10;
+        let available_height = area.height.saturating_sub(4) as usize;
+        let page_size = available_height.max(1);
         self.update_page_size(page_size);
-        
-        let available_height = area.height.saturating_sub(2) as usize;
-        let lines_per_item = (available_height / page_size).max(1);
         
         let indices = self.current_page_indices(page_size);
 
-        let items: Vec<ListItem> = indices
-            .iter()
+        let rows: Vec<Row> = indices.iter()
             .map(|&global_idx| {
-                let result = &self.results[global_idx];
-                let is_selected = result.selected;
-
-                let text = result.fmt_for_display();
+                let protein = &self.results[global_idx];
+                let is_selected = protein.selected;
 
                 let style = if is_selected {
                     Style::default()
@@ -583,28 +599,59 @@ impl SearchSelection {
                     Style::default()
                 };
 
-                let mut lines: Vec<Line> = vec![Line::from(text)];
-
-                for _ in 1..lines_per_item {
-                    lines.push(Line::from(""));
-                }
+                let pdb_id = &protein.pdb_id;
+                let name = &protein.title;
                 
-                ListItem::new(lines).style(style)
+                // Format date (YYYY-MM-DD)
+                let date = protein.date.split('T').next().unwrap_or(&protein.date);
+
+                let pdb_centered = format!("{:^10}", pdb_id);
+                let date_centered = format!("{:^10}", date);
+
+                Row::new(vec![
+                    Cell::from(pdb_centered).style(style),
+                    Cell::from(name.as_str()).style(style),
+                    Cell::from(date_centered).style(style),
+                ])
             })
             .collect();
 
-        let mut list_state = ListState::default();
-        list_state.select(self.get_display_index(page_size));
+        let widths = [
+            Constraint::Length(10),
+            Constraint::Min(5),
+            Constraint::Length(10),
+        ];
 
-        let list = List::new(items).block(
-            Block::bordered()
-                .title(format!(
-                    "Search results (Page {}/{}) | Click: Select/Deselect, ← →: Navigate Pages | Enter: Download selected | Esc: Quit",
-                    self.pagination.current_page + 1,
-                    self.pagination.total_pages,
-                ))
-                .title_alignment(Alignment::Center),
-        );
-        f.render_stateful_widget(list, area, &mut list_state);
+        let mut table_state = TableState::default();
+        table_state.select(self.get_display_index(page_size));
+
+        let table = Table::new(rows, widths)
+            .block(
+                Block::bordered()
+                    .title(format!(
+                        "Search results (Page {}/{}) | Click: Select/Deselect, ← →: Navigate Pages | Enter: Download selected | Esc: Quit",
+                        self.pagination.current_page + 1,
+                        self.pagination.total_pages,
+                    ))
+                    .title_alignment(Alignment::Center),
+            )
+            .header(
+                Row::new(vec![
+                    Cell::from(
+                        format!("{:^10}", "PDB ID")).style(Style::default()
+                            .fg(Color::LightBlue).add_modifier(Modifier::BOLD)
+                    ),
+                    Cell::from(
+                        "Molecule name").style(Style::default()
+                            .fg(Color::LightBlue).add_modifier(Modifier::BOLD)
+                    ),
+                    Cell::from(format!("{:^10}", "Date")).style(Style::default()
+                        .fg(Color::LightBlue).add_modifier(Modifier::BOLD)
+                    ),
+                ])
+                .underlined()
+            )
+            .column_spacing(1);
+        f.render_stateful_widget(table, area, &mut table_state);
     }
 }

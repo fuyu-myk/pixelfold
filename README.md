@@ -168,7 +168,8 @@ Braille Unicode characters provide **8× higher resolution** compared to ASCII:
 - [x] Solvent-accessible surface visualization with hydrophobicity coloring
 - [x] Hydrogen bond visualization with energy-based coloring
 - [x] H-bond network analysis
-- [ ] More information regarding each search query
+- [x] More information regarding each search query
+- [ ] Downloads across multiple search queries
 - [ ] More search options
 - [ ] Multiple selection and filtering modes
 - [ ] Save/load camera positions

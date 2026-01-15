@@ -1,27 +1,29 @@
 use anyhow::Result;
 use reqwest::Client;
 
-use crate::search::types::{SearchResponse, SearchResult};
+use crate::search::types::{SearchData, SearchResponse, SearchResult};
 
 
 #[derive(Debug, Clone)]
 pub struct RCSBClient {
     client: reqwest::Client,
-    url: String,
+    search_url: String,
+    data_url: String,
 }
 
 impl RCSBClient {
     pub fn new() -> Self {
         Self {
             client: Client::new(),
-            url: "https://search.rcsb.org/rcsbsearch/v2/query".to_string(),
+            search_url: "https://search.rcsb.org/rcsbsearch/v2/query".to_string(),
+            data_url: "https://data.rcsb.org/rest/v1/core/entry/".to_string(),
         }
     }
 
     pub async fn search(&self, query: &str) -> Result<Vec<SearchResult>> {
         let query = build_query(query);
         let res = self.client
-            .post(&self.url)
+            .post(&self.search_url)
             .json(&query)
             .timeout(std::time::Duration::from_secs(30))
             .send()
@@ -37,6 +39,27 @@ impl RCSBClient {
 
         let data: SearchResponse = res.json().await?;
         Ok(data.result_set)
+    }
+
+    pub async fn fetch_entry_data(&self, pdb_id: &str) -> Result<SearchData> {
+        let url = format!("{}{}", self.data_url, pdb_id.to_uppercase());
+
+        let res = self.client
+            .get(&url)
+            .timeout(std::time::Duration::from_secs(30))
+            .send()
+            .await?;
+
+        if !res.status().is_success() {
+            anyhow::bail!(
+                "Failed to fetch entry data for {}: {}",
+                pdb_id,
+                res.status(),
+            );
+        }
+
+        let data: SearchData = res.json().await?;
+        Ok(data)
     }
 
     pub async fn download_cif(&self, pdb_id: &str) -> Result<bytes::Bytes> {
