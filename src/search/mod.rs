@@ -102,7 +102,7 @@ pub fn fetch_structures(terminal: &mut ratatui::Terminal<impl ratatui::backend::
                     }
                     Ok(DownloadMessage::Complete(total)) => {
                         let message = format!(
-                            "Successfully downloaded {} structure(s) to data/\nPress Esc to exit.",
+                            "Successfully downloaded {} structure(s) to pixelfold/data/\nPress Esc to exit.",
                             total
                         );
 
@@ -313,7 +313,8 @@ fn handle_input(state: &mut AppState, key: KeyCode, modifiers: KeyModifiers) -> 
                         let (tx, rx) = mpsc::channel();
                         *state = AppState::Downloading(input_copy, selection_copy, progress, rx);
                         
-                        let output_dir = std::path::PathBuf::from("data");
+                        let project_dir = env!("CARGO_MANIFEST_DIR");
+                        let output_dir = std::path::PathBuf::from(format!("{}/data", project_dir));
                         
                         std::thread::spawn(move || {
                             let rt = tokio::runtime::Runtime::new().unwrap();
