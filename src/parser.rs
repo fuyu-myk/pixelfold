@@ -19,9 +19,12 @@ pub fn load_protein_with_options<P: AsRef<Path>>(path: P, skip_surface: bool) ->
     let path_str = path.to_str()
         .ok_or_else(|| anyhow::anyhow!("Invalid path: {}", path.display()))?;
     
-    let (pdb, errors) = pdbtbx::open(path_str)
+    let (pdb, errors) = ReadOptions::default()
+        .set_level(StrictnessLevel::Loose)
+        .set_only_first_model(true)
+        .read(path_str)
         .map_err(|e| anyhow::anyhow!("Failed to open file: {:?}", e))?;
-    
+
     if !errors.is_empty() {
         eprintln!("Warning: {} errors while parsing file", errors.len());
     }
@@ -74,7 +77,10 @@ pub fn load_protein_backbone_with_options<P: AsRef<Path>>(path: P, skip_surface:
     let path_str = path.to_str()
         .ok_or_else(|| anyhow::anyhow!("Invalid path: {}", path.display()))?;
     
-    let (pdb, errors) = pdbtbx::open(path_str)
+    let (pdb, errors) = ReadOptions::default()
+        .set_level(StrictnessLevel::Loose)
+        .set_only_first_model(true)
+        .read(path_str)
         .map_err(|e| anyhow::anyhow!("Failed to open file: {:?}", e))?;
     
     if !errors.is_empty() {
@@ -132,7 +138,10 @@ pub fn load_protein_ca_only_with_options<P: AsRef<Path>>(path: P, skip_surface: 
     let path_str = path.to_str()
         .ok_or_else(|| anyhow::anyhow!("Invalid path: {}", path.display()))?;
     
-    let (pdb, errors) = pdbtbx::open(path_str)
+    let (pdb, errors) = ReadOptions::default()
+        .set_level(StrictnessLevel::Loose)
+        .set_only_first_model(true)
+        .read(path_str)
         .map_err(|e| anyhow::anyhow!("Failed to open file: {:?}", e))?;
     
     if !errors.is_empty() {
