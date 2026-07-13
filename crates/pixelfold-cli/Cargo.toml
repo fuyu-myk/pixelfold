@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 pixelfold-tui.workspace = true
+pixelfold-fetch.workspace = true
 
 anyhow.workspace = true
 clap = { version = "4.6.1", features = ["derive"] }

@@ -56,8 +56,8 @@ Crates:
 - `[~]` `crates/pixelfold-render/` : scene to RGBA framebuffer to sinks
   - `[~]` `raster/` : (today: `render/src/renderer.rs` orthographic projection + camera, plus `render/src/draw.rs` Bresenham line + b-factor/hbond/hydrophobicity color mapping; z-buffer, sphere impostors, depth cue, slab, ID buffer are planned)
   - `[ ]` `sink/` : kitty, sixel, iterm2, unicode, png
-- `[~]` `crates/pixelfold-fetch/` : RCSB search + structure download (addition beyond roadmap layout; used by both the CLI `fetch` subcommand and the TUI search mode). (today: `client.rs` reqwest wrapper, `download.rs` concurrent gzip download, `types.rs` API response types)
-- `[~]` `crates/pixelfold-cli/` : headless subcommands (the product): view, rin, interactions, sasa, ss, render, fetch, validate. (today: `clap` arg parsing, a path/PDB-id resolver, and XDG cache handling; dispatches to `pixelfold_tui::view`/`search`. Named subcommands still to come)
+- `[~]` `crates/pixelfold-fetch/` : RCSB search + structure download (addition beyond roadmap layout; used by both the CLI `fetch` subcommand and the TUI search mode). (today: `client.rs` async reqwest wrapper, `download.rs` concurrent gzip download for the search TUI, `types.rs` API response types, and `fetch_cif` a blocking single-structure download for the CLI resolver)
+- `[~]` `crates/pixelfold-cli/` : headless subcommands (the product): view, rin, interactions, sasa, ss, render, fetch, validate. (today: `clap` arg parsing, a path/PDB-id resolver that auto-fetches uncached ids into the XDG cache, then dispatches to `pixelfold_tui::view`/`search`. Named subcommands still to come)
 - `[~]` `crates/pixelfold-tui/` : ratatui front-end (the demo), now a library. (today: `args`/`app`/`inputs`/`ui` split the entry + event loop + input + render; `lib.rs` `App` state; `search/` search mode)
 - `[~]` `crates/pixelfold-validate/` : validation harness, precision/recall vs DSSP, FreeSASA, PLIP, RING. (today: binary stub printing a placeholder; `cargo run -p pixelfold-validate`)
 - `[~]` `benchmarks/` : pinned PDB manifest + golden reference files. (today: `manifest.toml` with empty strata + `golden/` scaffold)
@@ -80,14 +80,15 @@ Two binaries now exist (`pixelfold` from cli, `pixelfold-validate`); `default-me
 
 `pixelfold-fetch/src/`:
 
-- `client.rs` : `RCSBClient` reqwest wrapper (search, entry data, CIF download)
-- `download.rs` : `DownloadManager` concurrent gzip download to a caller-supplied dir
+- `lib.rs` : `fetch_cif(id, dir)` blocking single-structure download for the CLI resolver
+- `client.rs` : `RCSBClient` async reqwest wrapper (search, entry data, CIF download)
+- `download.rs` : `DownloadManager` concurrent gzip download to a caller-supplied dir (search TUI)
 - `types.rs` : RCSB API response types (`SearchResponse`, `SearchData`, `SearchResult`, ...)
 
 `pixelfold-cli/src/`:
 
-- `main.rs` : `clap` parser, XDG cache dir (via `dirs`, `--cache-dir` override), dispatch to `pixelfold_tui::view`/`search`
-- `resolve.rs` : structure argument resolver (existing path / 4-char PDB id in cache / error), unit-tested
+- `main.rs` : `clap` parser, XDG cache dir (via `dirs`, `--cache-dir` override), fetch-on-miss, dispatch to `pixelfold_tui::view`/`search`
+- `resolve.rs` : structure resolver returning a `Resolution` (existing path / cached id / fetch request / error), unit-tested
 
 `pixelfold-tui/src/`:
 

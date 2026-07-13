@@ -2,26 +2,36 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Result, bail};
 
-/// Resolve a structure argument to a local file path.
+/// The outcome of resolving a structure argument.
+#[derive(Debug, PartialEq)]
+pub enum Resolution {
+    /// A local file to open directly.
+    Found(PathBuf),
+    /// A PDB id that is not cached; the caller should fetch it to `dest`.
+    Fetch { id: String, dest: PathBuf },
+}
+
+/// Resolve a structure argument.
 ///
 /// Resolution order:
-/// 1. an existing path (absolute or relative) is used as given
-/// 2. a 4-character PDB id resolves to `<cache_dir>/<ID>.cif` if that file exists
+/// 1. an existing path (absolute or relative) is opened as given
+/// 2. a 4-character PDB id resolves to `<cache_dir>/<ID>.cif`, either found in
+///    the cache or requested for fetch
 /// 3. otherwise an error explaining what was expected
-pub fn resolve(input: &str, cache_dir: &Path) -> Result<PathBuf> {
+pub fn resolve(input: &str, cache_dir: &Path) -> Result<Resolution> {
     let candidate = Path::new(input);
     if candidate.exists() {
-        return Ok(candidate.to_path_buf());
+        return Ok(Resolution::Found(candidate.to_path_buf()));
     }
 
     if is_pdb_id(input) {
         let id = input.to_uppercase();
-        let cached = cache_dir.join(format!("{id}.cif"));
-        if cached.exists() {
-            return Ok(cached);
+        let dest = cache_dir.join(format!("{id}.cif"));
+        if dest.exists() {
+            return Ok(Resolution::Found(dest));
         }
 
-        bail!("{id} is not in the cache. Fetch it first with: pixelfold --fetch {id}");
+        return Ok(Resolution::Fetch { id, dest });
     }
 
     bail!("'{input}' is not an existing file and not a 4-character PDB id")
@@ -66,7 +76,7 @@ mod tests {
         let cache = tempfile::tempdir().unwrap();
 
         let resolved = resolve(file.to_str().unwrap(), cache.path()).unwrap();
-        assert_eq!(resolved, file);
+        assert_eq!(resolved, Resolution::Found(file));
     }
 
     #[test]
@@ -76,14 +86,20 @@ mod tests {
         fs::write(&cached, "data").unwrap();
 
         let resolved = resolve("4hhb", cache.path()).unwrap();
-        assert_eq!(resolved, cached);
+        assert_eq!(resolved, Resolution::Found(cached));
     }
 
     #[test]
-    fn uncached_pdb_id_errors_with_fetch_hint() {
+    fn uncached_pdb_id_requests_fetch() {
         let cache = tempfile::tempdir().unwrap();
-        let err = resolve("4HHB", cache.path()).unwrap_err().to_string();
-        assert!(err.contains("--fetch 4HHB"), "got: {err}");
+        let resolved = resolve("4hhb", cache.path()).unwrap();
+        assert_eq!(
+            resolved,
+            Resolution::Fetch {
+                id: "4HHB".to_string(),
+                dest: cache.path().join("4HHB.cif"),
+            }
+        );
     }
 
     #[test]

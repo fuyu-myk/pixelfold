@@ -48,7 +48,14 @@ fn main() -> Result<()> {
         return Ok(());
     };
 
-    let path = resolve::resolve(&input, &cache_dir)?;
+    let path = match resolve::resolve(&input, &cache_dir)? {
+        resolve::Resolution::Found(path) => path,
+        resolve::Resolution::Fetch { id, dest } => {
+            eprintln!("Fetching {id} from RCSB...");
+            pixelfold_fetch::fetch_cif(&id, &cache_dir)?;
+            dest
+        }
+    };
     pixelfold_tui::view(&path, cli.no_surface)
 }
 
