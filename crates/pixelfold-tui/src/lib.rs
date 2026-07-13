@@ -1,10 +1,13 @@
 use std::collections::HashSet;
 
 use anyhow::Result;
-use pixelfold_core::{DisplayMode, Protein, SecondaryStructure, get_calpha_connections};
+use pixelfold_core::{get_calpha_connections, DisplayMode, Protein, SecondaryStructure};
 use pixelfold_render::renderer::{self, Camera};
 
 pub mod search;
+
+mod app;
+pub use app::run;
 
 pub struct App {
     pub protein: Option<Protein>,

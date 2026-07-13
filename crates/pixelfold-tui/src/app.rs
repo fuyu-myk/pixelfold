@@ -1,13 +1,13 @@
+use crate::App;
 use anyhow::Result;
 use crossterm::event::{self, KeyCode, KeyModifiers};
-use pixelfold_core::{DisplayMode, SecondaryStructure, rin, sasa};
+use pixelfold_core::{rin, sasa, DisplayMode, SecondaryStructure};
 use pixelfold_render::renderer;
-use pixelfold_tui::App;
 use ratatui::prelude::*;
 use ratatui::widgets::canvas::{Canvas, Points};
 use std::env;
 
-fn main() -> Result<()> {
+pub fn run() -> Result<()> {
     let args: Vec<String> = env::args().collect();
 
     // Parse command-line arguments
@@ -68,7 +68,7 @@ fn main() -> Result<()> {
     crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture)?;
 
     let result = if args.iter().any(|arg| arg == "--fetch" || arg == "-f") {
-        pixelfold_tui::search::fetch_structures(&mut terminal, protein_name)
+        crate::search::fetch_structures(&mut terminal, protein_name)
     } else {
         if let Some(name) = protein_name {
             // Initial terminal size
@@ -236,7 +236,7 @@ fn handle_input(
                 }
                 app.selected_atom_idx = Some(app.candidate_atoms[app.candidate_selection_idx].0);
                 app.redraw_needed = true;
-                pixelfold_tui::update_highlighted_atoms(app, width, height);
+                crate::update_highlighted_atoms(app, width, height);
             } else {
                 app.redraw_needed = true;
                 app.projected_atom_cache = None;
@@ -269,7 +269,7 @@ fn handle_input(
                     (app.candidate_selection_idx + 1) % app.candidate_atoms.len();
                 app.selected_atom_idx = Some(app.candidate_atoms[app.candidate_selection_idx].0);
                 app.redraw_needed = true;
-                pixelfold_tui::update_highlighted_atoms(app, width, height);
+                crate::update_highlighted_atoms(app, width, height);
             } else {
                 app.redraw_needed = true;
                 app.projected_atom_cache = None;
@@ -419,7 +419,7 @@ fn handle_mouse(app: &mut App, mouse: event::MouseEvent, _terminal_size: Rect) -
             let click_y = canvas_height - (mouse.row as f32 * 4.0);
 
             if let Some(ref protein) = app.protein {
-                let candidates = pixelfold_tui::pick_atoms_along_ray(
+                let candidates = crate::pick_atoms_along_ray(
                     protein,
                     &mut app.camera,
                     click_x,
@@ -432,7 +432,7 @@ fn handle_mouse(app: &mut App, mouse: event::MouseEvent, _terminal_size: Rect) -
                     app.candidate_atoms = candidates.into_iter().take(5).collect(); // Top 5 candidates
                     app.candidate_selection_idx = 0;
                     app.selected_atom_idx = Some(app.candidate_atoms[0].0);
-                    pixelfold_tui::update_highlighted_atoms(app, canvas_width, canvas_height);
+                    crate::update_highlighted_atoms(app, canvas_width, canvas_height);
                 } else {
                     app.selected_atom_idx = None;
                     app.candidate_atoms.clear();

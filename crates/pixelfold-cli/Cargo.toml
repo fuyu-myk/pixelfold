@@ -5,4 +5,11 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[[bin]]
+name = "pixelfold"
+path = "src/main.rs"
+
 [dependencies]
+pixelfold-tui.workspace = true
+
+anyhow.workspace = true
