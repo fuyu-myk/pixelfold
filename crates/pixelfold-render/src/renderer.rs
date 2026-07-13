@@ -1,6 +1,6 @@
 use glam::{Quat, Vec2, Vec3};
 
-use pixelfold_core::{Protein, SecondaryStructure};
+use pixelfold_core::{FixedStr, Protein, SecondaryStructure};
 
 pub struct Camera {
     /// Accumulated orientation as a unit quaternion.
@@ -80,8 +80,8 @@ pub struct ProjectedAtom {
     pub x: f32,
     pub y: f32,
     pub depth: f32,
-    pub name: String,
-    pub residue_name: String,
+    pub name: FixedStr<4>,
+    pub residue_name: FixedStr<6>,
     pub secondary_structure: SecondaryStructure,
 }
 
@@ -109,8 +109,8 @@ pub fn project_protein(
                 x,
                 y,
                 depth,
-                name: atom.name.clone(),
-                residue_name: atom.residue_name.clone(),
+                name: atom.name,
+                residue_name: atom.residue_name,
                 secondary_structure: atom.secondary_structure,
             }
         })
@@ -202,11 +202,11 @@ mod tests {
     fn atom_at(x: f32) -> Atom {
         Atom {
             serial: 0,
-            name: "CA".to_string(),
-            element: "C".to_string(),
-            residue_name: "ALA".to_string(),
+            name: FixedStr::new("CA"),
+            element: FixedStr::new("C"),
+            residue_name: FixedStr::new("ALA"),
             residue_seq: 1,
-            chain_id: "A".to_string(),
+            chain_id: FixedStr::new("A"),
             is_hetatm: false,
             altloc: None,
             occupancy: 1.0,

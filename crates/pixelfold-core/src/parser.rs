@@ -1,9 +1,13 @@
 use anyhow::Result;
 use glam::Vec3;
 use pdbtbx::*;
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::{BTreeSet, HashMap},
+    path::Path,
+};
 
 use crate::{
+    fixed_str::FixedStr,
     sasa::SurfaceCalculator,
     structure::{AltlocPolicy, Atom, Protein, SecondaryStructure, filter_altlocs},
 };
@@ -26,11 +30,11 @@ fn build_atom(hierarchy: &impl ContainsAtomConformerResidueChainModel) -> Atom {
 
     Atom {
         serial: atom.serial_number() as u32,
-        name: atom.name().to_string(),
-        element,
-        residue_name: conformer.name().to_string(),
+        name: FixedStr::new(atom.name()),
+        element: FixedStr::new(&element),
+        residue_name: FixedStr::new(conformer.name()),
         residue_seq: residue.serial_number() as u32,
-        chain_id: chain.id().to_string(),
+        chain_id: FixedStr::new(chain.id()),
         is_hetatm: atom.hetero(),
         altloc,
         occupancy: atom.occupancy() as f32,
@@ -51,6 +55,23 @@ fn infer_element(name: &str) -> String {
         .find(|c| c.is_ascii_alphabetic())
         .map(|c| c.to_ascii_uppercase().to_string())
         .unwrap_or_default()
+}
+
+/// Format a one-line warning for identifiers that overflowed their fixed field
+/// capacity, or `None` when nothing was truncated.
+fn truncation_warning(truncated: &BTreeSet<(&'static str, String)>) -> Option<String> {
+    if truncated.is_empty() {
+        return None;
+    }
+    let list: Vec<String> = truncated
+        .iter()
+        .map(|(field, value)| format!("{field} '{value}'"))
+        .collect();
+    Some(format!(
+        "{} identifier(s) exceeded the fixed field capacity and were truncated: {}",
+        truncated.len(),
+        list.join(", ")
+    ))
 }
 
 /// Load a protein structure from a PDB or mmCIF file
@@ -81,11 +102,31 @@ pub fn load_protein_with_options<P: AsRef<Path>>(
 
     let title = pdb.identifier.as_deref().unwrap_or("Unknown").to_string();
 
-    // Use atoms_with_hierarchy to get residue information
+    // Build atoms, noting any identifier that overflowed its fixed-capacity
+    // field.
+    let mut truncated: BTreeSet<(&'static str, String)> = BTreeSet::new();
     let atoms: Vec<Atom> = pdb
         .atoms_with_hierarchy()
-        .map(|hierarchy| build_atom(&hierarchy))
+        .map(|hierarchy| {
+            let atom = build_atom(&hierarchy);
+            if atom.name.as_str() != hierarchy.atom().name() {
+                truncated.insert(("atom name", hierarchy.atom().name().to_string()));
+            }
+            if atom.residue_name.as_str() != hierarchy.conformer().name() {
+                truncated.insert(("residue name", hierarchy.conformer().name().to_string()));
+            }
+            if atom.chain_id.as_str() != hierarchy.chain().id() {
+                truncated.insert(("chain id", hierarchy.chain().id().to_string()));
+            }
+
+            atom
+        })
         .collect();
+
+    if let Some(message) = truncation_warning(&truncated) {
+        eprintln!("Warning: {message}");
+    }
+
     let mut atoms = filter_altlocs(atoms, altloc);
 
     let hbonds = assign_secondary_structures(&mut atoms);
@@ -537,12 +578,55 @@ HETATM 2 Ca CA CA B 2 5.0 0.0 0.0 1.0 0.0
             .find(|a| !a.is_hetatm)
             .expect("the ATOM record");
         assert_eq!(carbon.name, "CA"); // C-alpha, named CA
-        assert_eq!(carbon.element.to_uppercase(), "C"); // but its element is carbon
+        assert_eq!(carbon.element.as_str().to_uppercase(), "C"); // but its element is carbon
 
         let calcium = atoms
             .iter()
             .find(|a| a.is_hetatm)
             .expect("the HETATM record");
-        assert_eq!(calcium.element.to_uppercase(), "CA"); // calcium, not carbon
+        assert_eq!(calcium.element.as_str().to_uppercase(), "CA"); // calcium, not carbon
+    }
+
+    #[test]
+    fn truncation_warning_lists_offenders() {
+        let mut set = BTreeSet::new();
+        assert_eq!(truncation_warning(&set), None);
+
+        set.insert(("chain id", "AAAAA".to_string()));
+        let message = truncation_warning(&set).expect("non-empty set warns");
+        assert!(message.contains("chain id 'AAAAA'"), "{message}");
+        assert!(message.contains("1 identifier"), "{message}");
+    }
+
+    #[test]
+    fn loader_truncates_overlong_chain_id_without_crashing() {
+        // A 5-character chain id exceeds the 4-byte field and must truncate
+        // rather than panic; the loader still returns both atoms.
+        let cif = "\
+data_test
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.auth_asym_id
+_atom_site.label_seq_id
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+_atom_site.occupancy
+_atom_site.B_iso_or_equiv
+ATOM 1 C CA ALA AAAAA AAAAA 1 0.0 0.0 0.0 1.0 0.0
+ATOM 2 C CA ALA AAAAA AAAAA 2 3.8 0.0 0.0 1.0 0.0
+";
+        let path = std::env::temp_dir().join("pf_truncation_test.cif");
+        std::fs::write(&path, cif).unwrap();
+        let protein = load_protein_with_options(&path, true, AltlocPolicy::All).unwrap();
+
+        assert_eq!(protein.atoms.len(), 2);
+        assert_eq!(protein.atoms[0].chain_id.as_str(), "AAAA"); // truncated from "AAAAA"
+        let _ = std::fs::remove_file(&path);
     }
 }

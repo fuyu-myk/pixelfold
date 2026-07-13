@@ -46,7 +46,7 @@ impl SurfaceCalculator {
             .iter()
             .enumerate()
             .map(|(idx, atom)| {
-                let vdw_radius = get_vdw_radius(&atom.element);
+                let vdw_radius = get_vdw_radius(atom.element.as_str());
                 SasaAtom {
                     position: Point3::new(atom.position.x, atom.position.y, atom.position.z),
                     radius: vdw_radius,
@@ -73,9 +73,9 @@ impl SurfaceCalculator {
             // Only generate surface points for atoms with accessible surface
             if sasa_value > 0.1 {
                 // Threshold (avoids atoms with tiny SASA)
-                let vdw_radius = get_vdw_radius(&atom.element);
+                let vdw_radius = get_vdw_radius(atom.element.as_str());
                 let surface_radius = vdw_radius + self.probe_radius;
-                let hydrophobicity = get_hydrophobicity(&atom.residue_name);
+                let hydrophobicity = get_hydrophobicity(atom.residue_name.as_str());
 
                 // Calculate how many points to generate based on SASA ratio
                 // Full sphere: 4π(r + probe)²

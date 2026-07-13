@@ -46,7 +46,7 @@ The Cargo workspace exists. `pixelfold-core` holds the extracted analysis code (
 Crates:
 
 - `[ ]` `crates/pixelfold-core/` : the library (pure, dependency-light)
-  - `[~]` `structure/` : Atom/Residue/Chain/Model + mmCIF/PDB ingest. (today: `core/src/structure.rs` holds `Atom`/`Protein`; ingest in `core/src/parser.rs`; `Atom` now carries element/is_hetatm/altloc/occupancy/insertion_code/model_number; still `String` fields (byte arrays later); no first-class Residue/Chain; entity_id not exposed by pdbtbx; single-model only)
+  - `[~]` `structure/` : Atom/Residue/Chain/Model + mmCIF/PDB ingest. (today: `core/src/structure.rs` holds `Atom`/`Protein`; ingest in `core/src/parser.rs`; `Atom` carries element/is_hetatm/altloc/occupancy/insertion_code/model_number; hot string fields are fixed-size byte arrays via `FixedStr<N>` (name 4, residue 6, chain 4, element 2) in `core/src/fixed_str.rs`; the parser warns once per load if any identifier overflows and is truncated; no first-class Residue/Chain; entity_id not exposed by pdbtbx; single-model only)
   - `[ ]` `spatial/` : uniform grid / cell list, cell size = max interaction cutoff (~6 A). O(N) build, O(1) neighbour queries; powers interactions, `within` selections, SASA neighbours, clash detection
   - `[ ]` `select/` : selection language, `nom` parser to atom-index bitset
   - `[~]` `dssp/` : secondary structure + Kabsch-Sander backbone H-bond energies. (today: inside `core/src/parser.rs`, not yet split out; amide hydrogen not inferred, so energies are not yet correct)
@@ -69,6 +69,7 @@ Two binaries now exist (`pixelfold` from cli, `pixelfold-validate`); `default-me
 `pixelfold-core/src/`:
 
 - `structure.rs` : domain types (`Atom`, `Protein`, `BiologicalAssembly`, `DisplayMode`, `SecondaryStructure`) + pure helpers (b-factor range, C-alpha indices/connections).
+- `fixed_str.rs` : `FixedStr<N>`, an inline fixed-capacity ASCII string (Copy, zero-alloc, cheap HashMap key) for hot `Atom` fields; truncates content longer than `N` bytes.
 - `parser.rs` : pdbtbx PDB/mmCIF loading (`build_atom`) + altloc policy (`filter_altlocs`) + backbone H-bond detection + DSSP assignment (ingest and dssp not yet split).
 - `assembly.rs` : pure `detect_partial_assembly` reading `_pdbx_struct_assembly` / `REMARK 350` from the raw file (pdbtbx does not parse them), flagging when the biological unit needs symmetry expansion beyond the deposited coordinates. Detection only; generation is later work.
 - `sasa.rs` : Shrake-Rupley SASA (wraps `rust-sasa`) + vdW radius / hydrophobicity tables.

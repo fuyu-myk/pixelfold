@@ -1,5 +1,6 @@
 use glam::Vec3;
 
+use crate::fixed_str::FixedStr;
 use crate::parser::HBond;
 use crate::sasa::SurfacePoint;
 
@@ -12,13 +13,13 @@ pub enum DisplayMode {
 #[derive(Clone)]
 pub struct Atom {
     pub serial: u32,
-    pub name: String,
+    pub name: FixedStr<4>,
     /// Element symbol (e.g. "C", "Ca", "Fe"), parsed from the structure's
     /// element column so a calcium ion is distinct from a C-alpha carbon.
-    pub element: String,
-    pub residue_name: String,
+    pub element: FixedStr<2>,
+    pub residue_name: FixedStr<6>,
     pub residue_seq: u32,
-    pub chain_id: String,
+    pub chain_id: FixedStr<4>,
     pub is_hetatm: bool,
     pub altloc: Option<char>,
     pub occupancy: f32,
@@ -125,11 +126,11 @@ pub fn get_calpha_connections(protein: &Protein, ca_indices: &[usize]) -> Vec<(u
     let distance_threshold = 4.2; // Angstroms (typical CA-CA distance is ~3.8Å)
 
     // Sort C-alphas by chain first, then by residue sequence
-    let mut sorted_cas: Vec<(String, u32, usize)> = ca_indices
+    let mut sorted_cas: Vec<(FixedStr<4>, u32, usize)> = ca_indices
         .iter()
         .map(|&idx| {
             let atom = &protein.atoms[idx];
-            (atom.chain_id.clone(), atom.residue_seq, idx)
+            (atom.chain_id, atom.residue_seq, idx)
         })
         .collect();
 
@@ -185,8 +186,10 @@ pub fn filter_altlocs(atoms: Vec<Atom>, policy: AltlocPolicy) -> Vec<Atom> {
             .collect(),
         AltlocPolicy::Occupancy => {
             // Keep the best conformer per (chain, residue, insertion, atom name).
-            let mut best: std::collections::HashMap<(String, u32, Option<char>, String), usize> =
-                std::collections::HashMap::new();
+            let mut best: std::collections::HashMap<
+                (FixedStr<4>, u32, Option<char>, FixedStr<4>),
+                usize,
+            > = std::collections::HashMap::new();
             let mut kept: Vec<Atom> = Vec::new();
 
             for atom in atoms {
@@ -196,10 +199,10 @@ pub fn filter_altlocs(atoms: Vec<Atom>, policy: AltlocPolicy) -> Vec<Atom> {
                 }
 
                 let key = (
-                    atom.chain_id.clone(),
+                    atom.chain_id,
                     atom.residue_seq,
                     atom.insertion_code,
-                    atom.name.clone(),
+                    atom.name,
                 );
                 match best.get(&key).copied() {
                     None => {
@@ -231,11 +234,11 @@ mod tests {
     fn atom_with_bfactor(b: f32) -> Atom {
         Atom {
             serial: 0,
-            name: "CA".to_string(),
-            element: "C".to_string(),
-            residue_name: "ALA".to_string(),
+            name: FixedStr::new("CA"),
+            element: FixedStr::new("C"),
+            residue_name: FixedStr::new("ALA"),
             residue_seq: 1,
-            chain_id: "A".to_string(),
+            chain_id: FixedStr::new("A"),
             is_hetatm: false,
             altloc: None,
             occupancy: 1.0,
@@ -270,11 +273,11 @@ mod tests {
     fn altloc_atom(name: &str, altloc: Option<char>, occupancy: f32) -> Atom {
         Atom {
             serial: 0,
-            name: name.to_string(),
-            element: "C".to_string(),
-            residue_name: "SER".to_string(),
+            name: FixedStr::new(name),
+            element: FixedStr::new("C"),
+            residue_name: FixedStr::new("SER"),
             residue_seq: 1,
-            chain_id: "A".to_string(),
+            chain_id: FixedStr::new("A"),
             is_hetatm: false,
             altloc,
             occupancy,
