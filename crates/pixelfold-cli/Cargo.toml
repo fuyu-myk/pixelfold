@@ -10,6 +10,7 @@ name = "pixelfold"
 path = "src/main.rs"
 
 [dependencies]
+pixelfold-core.workspace = true
 pixelfold-tui.workspace = true
 pixelfold-fetch.workspace = true
 

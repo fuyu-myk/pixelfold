@@ -69,7 +69,7 @@ Two binaries now exist (`pixelfold` from cli, `pixelfold-validate`); `default-me
 `pixelfold-core/src/`:
 
 - `structure.rs` : domain types (`Atom`, `Protein`, `DisplayMode`, `SecondaryStructure`) + pure helpers (b-factor range, C-alpha indices/connections). Also holds the unused heuristic `SecondaryStructureAssignment` (pending removal in the DSSP rewrite).
-- `parser.rs` : pdbtbx PDB/mmCIF loading + backbone H-bond detection + DSSP assignment (ingest and dssp not yet split).
+- `parser.rs` : pdbtbx PDB/mmCIF loading (`build_atom`) + altloc policy (`filter_altlocs`) + backbone H-bond detection + DSSP assignment (ingest and dssp not yet split).
 - `sasa.rs` : Shrake-Rupley SASA (wraps `rust-sasa`) + vdW radius / hydrophobicity tables.
 - `rin.rs` : petgraph H-bond residue interaction network + centrality/components/motifs.
 
@@ -87,7 +87,7 @@ Two binaries now exist (`pixelfold` from cli, `pixelfold-validate`); `default-me
 
 `pixelfold-cli/src/`:
 
-- `main.rs` : `clap` parser, XDG cache dir (via `dirs`, `--cache-dir` override), fetch-on-miss, dispatch to `pixelfold_tui::view`/`search`
+- `main.rs` : `clap` parser (`--no-surface`, `--cache-dir`, `--altloc`, `--fetch`), XDG cache dir (via `dirs`), fetch-on-miss, dispatch to `pixelfold_tui::view`/`search`
 - `resolve.rs` : structure resolver returning a `Resolution` (existing path / cached id / fetch request / error), unit-tested
 
 `pixelfold-tui/src/`:

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
-use clap::{CommandFactory, Parser};
+use clap::{CommandFactory, Parser, ValueEnum};
 
 mod resolve;
 
@@ -27,6 +27,34 @@ struct Cli {
     /// Directory for cached downloads (default: the system cache dir under pixelfold/)
     #[arg(long, value_name = "DIR")]
     cache_dir: Option<PathBuf>,
+
+    /// How to resolve atoms modelled in alternate locations
+    #[arg(long, value_enum, default_value_t = AltlocArg::Occupancy)]
+    altloc: AltlocArg,
+}
+
+/// Alternate-location handling policy for the CLI.
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum AltlocArg {
+    /// Keep the highest-occupancy conformer per atom (default)
+    Occupancy,
+    /// Keep only altloc A (and atoms with no altloc)
+    A,
+    /// Keep only altloc B
+    B,
+    /// Keep every conformer
+    All,
+}
+
+impl From<AltlocArg> for pixelfold_core::AltlocPolicy {
+    fn from(arg: AltlocArg) -> Self {
+        match arg {
+            AltlocArg::Occupancy => pixelfold_core::AltlocPolicy::Occupancy,
+            AltlocArg::A => pixelfold_core::AltlocPolicy::A,
+            AltlocArg::B => pixelfold_core::AltlocPolicy::B,
+            AltlocArg::All => pixelfold_core::AltlocPolicy::All,
+        }
+    }
 }
 
 fn main() -> Result<()> {
@@ -56,7 +84,7 @@ fn main() -> Result<()> {
             dest
         }
     };
-    pixelfold_tui::view(&path, cli.no_surface)
+    pixelfold_tui::view(&path, cli.no_surface, cli.altloc.into())
 }
 
 /// The default cache directory: the system cache dir with a `pixelfold` subdirectory.

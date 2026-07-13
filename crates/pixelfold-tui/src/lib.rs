@@ -2,7 +2,9 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use pixelfold_core::{DisplayMode, Protein, SecondaryStructure, get_calpha_connections};
+use pixelfold_core::{
+    AltlocPolicy, DisplayMode, Protein, SecondaryStructure, get_calpha_connections,
+};
 use pixelfold_render::renderer::{self, Camera};
 
 pub mod search;
@@ -78,10 +80,12 @@ impl App {
         width: f32,
         height: f32,
         skip_surface: bool,
+        altloc: AltlocPolicy,
     ) -> Result<()> {
         self.protein = Some(pixelfold_core::parser::load_protein_with_options(
             path,
             skip_surface,
+            altloc,
         )?);
 
         // Auto-frame the protein when loaded
@@ -121,14 +125,14 @@ impl App {
 }
 
 /// Load a structure and run the interactive viewer.
-pub fn view(path: &Path, skip_surface: bool) -> Result<()> {
+pub fn view(path: &Path, skip_surface: bool, altloc: AltlocPolicy) -> Result<()> {
     let (cols, rows) =
         crossterm::terminal::size().context("failed to query terminal size (not a terminal?)")?;
     let width = cols as f32 * 2.0;
     let height = rows as f32 * 4.0;
 
     let mut app = App::new();
-    app.load_protein(path, width, height, skip_surface)?;
+    app.load_protein(path, width, height, skip_surface, altloc)?;
 
     with_terminal(|terminal| crate::app::run_app(terminal, &mut app))
 }

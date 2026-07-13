@@ -5,7 +5,7 @@ use std::{collections::HashMap, path::Path};
 
 use crate::{
     sasa::SurfaceCalculator,
-    structure::{Atom, Protein, SecondaryStructure},
+    structure::{AltlocPolicy, Atom, Protein, SecondaryStructure, filter_altlocs},
 };
 
 /// Build `Atom` from a pdbtbx hierarchy item.
@@ -55,11 +55,15 @@ fn infer_element(name: &str) -> String {
 
 /// Load a protein structure from a PDB or mmCIF file
 pub fn load_protein<P: AsRef<Path>>(path: P) -> Result<Protein> {
-    load_protein_with_options(path, false)
+    load_protein_with_options(path, false, AltlocPolicy::default())
 }
 
 /// Load a protein structure with additional options
-pub fn load_protein_with_options<P: AsRef<Path>>(path: P, skip_surface: bool) -> Result<Protein> {
+pub fn load_protein_with_options<P: AsRef<Path>>(
+    path: P,
+    skip_surface: bool,
+    altloc: AltlocPolicy,
+) -> Result<Protein> {
     let path = path.as_ref();
     let path_str = path
         .to_str()
@@ -78,10 +82,11 @@ pub fn load_protein_with_options<P: AsRef<Path>>(path: P, skip_surface: bool) ->
     let title = pdb.identifier.as_deref().unwrap_or("Unknown").to_string();
 
     // Use atoms_with_hierarchy to get residue information
-    let mut atoms: Vec<Atom> = pdb
+    let atoms: Vec<Atom> = pdb
         .atoms_with_hierarchy()
         .map(|hierarchy| build_atom(&hierarchy))
         .collect();
+    let mut atoms = filter_altlocs(atoms, altloc);
 
     let hbonds = assign_secondary_structures(&mut atoms);
 

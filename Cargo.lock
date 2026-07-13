@@ -1449,6 +1449,7 @@ dependencies = [
  "anyhow",
  "clap",
  "dirs",
+ "pixelfold-core",
  "pixelfold-fetch",
  "pixelfold-tui",
  "tempfile",

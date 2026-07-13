@@ -291,6 +291,73 @@ pub fn get_calpha_connections(protein: &Protein, ca_indices: &[usize]) -> Vec<(u
     connections
 }
 
+/// Policy for resolving atoms modelled in multiple alternate locations.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum AltlocPolicy {
+    /// Keep the highest-occupancy conformer per atom; ties prefer altloc 'A'.
+    #[default]
+    Occupancy,
+    /// Keep only altloc 'A' and atoms with no altloc.
+    A,
+    /// Keep only altloc 'B' and atoms with no altloc.
+    B,
+    /// Keep every conformer.
+    All,
+}
+
+/// Apply an alternate-location policy. Atoms with no altloc are always kept.
+pub fn filter_altlocs(atoms: Vec<Atom>, policy: AltlocPolicy) -> Vec<Atom> {
+    match policy {
+        AltlocPolicy::All => atoms,
+        AltlocPolicy::A => atoms
+            .into_iter()
+            .filter(|a| a.altloc.is_none() || a.altloc == Some('A'))
+            .collect(),
+        AltlocPolicy::B => atoms
+            .into_iter()
+            .filter(|a| a.altloc.is_none() || a.altloc == Some('B'))
+            .collect(),
+        AltlocPolicy::Occupancy => {
+            // Keep the best conformer per (chain, residue, insertion, atom name).
+            let mut best: std::collections::HashMap<(String, u32, Option<char>, String), usize> =
+                std::collections::HashMap::new();
+            let mut kept: Vec<Atom> = Vec::new();
+
+            for atom in atoms {
+                if atom.altloc.is_none() {
+                    kept.push(atom);
+                    continue;
+                }
+
+                let key = (
+                    atom.chain_id.clone(),
+                    atom.residue_seq,
+                    atom.insertion_code,
+                    atom.name.clone(),
+                );
+                match best.get(&key).copied() {
+                    None => {
+                        best.insert(key, kept.len());
+                        kept.push(atom);
+                    }
+                    Some(idx) => {
+                        let existing = &kept[idx];
+                        // Higher occupancy wins; on a tie the earlier altloc ('A' < 'B') wins.
+                        let replace = atom.occupancy > existing.occupancy
+                            || (atom.occupancy == existing.occupancy
+                                && atom.altloc < existing.altloc);
+                        if replace {
+                            kept[idx] = atom;
+                        }
+                    }
+                }
+            }
+
+            kept
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -331,5 +398,75 @@ mod tests {
 
         let (b_min, b_max) = calculate_bfactor_range(&protein);
         assert!(b_min.is_finite() && b_max.is_finite());
+    }
+
+    fn altloc_atom(name: &str, altloc: Option<char>, occupancy: f32) -> Atom {
+        Atom {
+            serial: 0,
+            name: name.to_string(),
+            element: "C".to_string(),
+            residue_name: "SER".to_string(),
+            residue_seq: 1,
+            chain_id: "A".to_string(),
+            is_hetatm: false,
+            altloc,
+            occupancy,
+            insertion_code: None,
+            model_number: 1,
+            position: Vec3::ZERO,
+            b_factor: 0.0,
+            secondary_structure: SecondaryStructure::Coil,
+        }
+    }
+
+    #[test]
+    fn altloc_occupancy_keeps_highest_and_breaks_ties_with_a() {
+        // Same atom, two conformers: B has higher occupancy so it wins.
+        let kept = filter_altlocs(
+            vec![
+                altloc_atom("OG", Some('A'), 0.4),
+                altloc_atom("OG", Some('B'), 0.6),
+            ],
+            AltlocPolicy::Occupancy,
+        );
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].altloc, Some('B'));
+
+        // On an occupancy tie, altloc 'A' wins even if listed second.
+        let tie = filter_altlocs(
+            vec![
+                altloc_atom("OG", Some('B'), 0.5),
+                altloc_atom("OG", Some('A'), 0.5),
+            ],
+            AltlocPolicy::Occupancy,
+        );
+        assert_eq!(tie.len(), 1);
+        assert_eq!(tie[0].altloc, Some('A'));
+    }
+
+    #[test]
+    fn altloc_a_keeps_a_and_none_drops_b() {
+        let kept = filter_altlocs(
+            vec![
+                altloc_atom("OG", Some('A'), 0.5),
+                altloc_atom("OG", Some('B'), 0.5),
+                altloc_atom("N", None, 1.0),
+            ],
+            AltlocPolicy::A,
+        );
+        assert_eq!(kept.len(), 2);
+        assert!(kept.iter().all(|a| a.altloc != Some('B')));
+    }
+
+    #[test]
+    fn altloc_all_keeps_every_conformer() {
+        let kept = filter_altlocs(
+            vec![
+                altloc_atom("OG", Some('A'), 0.5),
+                altloc_atom("OG", Some('B'), 0.5),
+            ],
+            AltlocPolicy::All,
+        );
+        assert_eq!(kept.len(), 2);
     }
 }

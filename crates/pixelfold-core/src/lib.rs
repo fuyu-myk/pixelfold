@@ -8,6 +8,6 @@ pub mod structure;
 
 pub use sasa::SurfacePoint;
 pub use structure::{
-    Atom, DisplayMode, Protein, SecondaryStructure, calculate_bfactor_range,
+    AltlocPolicy, Atom, DisplayMode, Protein, SecondaryStructure, calculate_bfactor_range,
     get_calpha_connections, get_calpha_indices,
 };
