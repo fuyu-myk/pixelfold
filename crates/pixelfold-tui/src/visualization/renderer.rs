@@ -2,7 +2,6 @@ use glam::{Mat4, Vec3, Vec4};
 
 use crate::{Protein, SecondaryStructure};
 
-
 pub struct Camera {
     pub position: Vec3,
     pub rotation: Vec3, // Euler angles (pitch, yaw, roll)
@@ -66,34 +65,43 @@ impl Camera {
 
         let view_matrix = camera_translation * rotation * center_translation;
         self.cached_view_matrix = Some(view_matrix);
-        
+
         view_matrix
     }
 
     /// Project a 3D point to 2D screen coordinates
     pub fn project_point(&self, point: Vec3, width: f32, height: f32) -> (f32, f32) {
-        let view_matrix = self.cached_view_matrix.expect("View matrix must be computed before projection");
-        
+        let view_matrix = self
+            .cached_view_matrix
+            .expect("View matrix must be computed before projection");
+
         // Transform point by view matrix
         let transformed = view_matrix * Vec4::new(point.x, point.y, point.z, 1.0);
-        
+
         // Apply orthographic projection with zoom
         let x = (transformed.x * self.zoom) + width / 2.0;
         let y = (transformed.y * self.zoom) + height / 2.0;
-        
+
         (x, y)
     }
 
     /// Project a 3D point with depth information (for depth sorting)
-    pub fn project_point_with_depth(&self, point: Vec3, width: f32, height: f32) -> (f32, f32, f32) {
-        let view_matrix = self.cached_view_matrix.expect("View matrix must be computed before projection");
-        
+    pub fn project_point_with_depth(
+        &self,
+        point: Vec3,
+        width: f32,
+        height: f32,
+    ) -> (f32, f32, f32) {
+        let view_matrix = self
+            .cached_view_matrix
+            .expect("View matrix must be computed before projection");
+
         let transformed = view_matrix * Vec4::new(point.x, point.y, point.z, 1.0);
-        
+
         let x = (transformed.x * self.zoom) + width / 2.0;
         let y = (transformed.y * self.zoom) + height / 2.0;
         let z = transformed.z; // Keep depth for sorting
-        
+
         (x, y, z)
     }
 }
@@ -118,7 +126,12 @@ pub struct ProjectedSurfacePoint {
 }
 
 /// Project all atoms in a protein to 2D screen space
-pub fn project_protein(protein: &Protein, camera: &Camera, width: f32, height: f32) -> Vec<ProjectedAtom> {
+pub fn project_protein(
+    protein: &Protein,
+    camera: &Camera,
+    width: f32,
+    height: f32,
+) -> Vec<ProjectedAtom> {
     protein
         .atoms
         .iter()
@@ -137,12 +150,18 @@ pub fn project_protein(protein: &Protein, camera: &Camera, width: f32, height: f
 }
 
 /// Project all surface points in a protein to 2D screen space
-pub fn project_surface(protein: &Protein, camera: &Camera, width: f32, height: f32) -> Vec<ProjectedSurfacePoint> {
+pub fn project_surface(
+    protein: &Protein,
+    camera: &Camera,
+    width: f32,
+    height: f32,
+) -> Vec<ProjectedSurfacePoint> {
     protein
         .surface_points
         .iter()
         .map(|surface_point| {
-            let (x, y, depth) = camera.project_point_with_depth(surface_point.position, width, height);
+            let (x, y, depth) =
+                camera.project_point_with_depth(surface_point.position, width, height);
             ProjectedSurfacePoint {
                 x,
                 y,
@@ -163,7 +182,7 @@ pub fn calculate_center_of_mass(protein: &Protein) -> Vec3 {
         .atoms
         .iter()
         .fold(Vec3::ZERO, |acc, atom| acc + atom.position);
-    
+
     sum / protein.atoms.len() as f32
 }
 
@@ -188,13 +207,13 @@ pub fn calculate_bounds(protein: &Protein) -> (Vec3, Vec3) {
 pub fn auto_frame_protein(protein: &Protein, camera: &mut Camera, width: f32, height: f32) {
     let center = calculate_center_of_mass(protein);
     let (min, max) = calculate_bounds(protein);
-    
+
     // Calculate the extent of the protein
     let extent = max - min;
     let max_extent = extent.x.max(extent.y).max(extent.z);
-    
+
     camera.pan = -center;
-    
+
     // Adjust zoom to fit protein in view with padding
     // Use 1.4 as padding factor to leave ~20% space around the protein on each side
     let padding_factor = 1.4;

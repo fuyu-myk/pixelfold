@@ -5,14 +5,13 @@ use ratatui::widgets::{Block, Cell, Paragraph, Row, Table, TableState};
 use ratatui::{Frame, layout::Rect};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 
-use crate::search::types::{FoundProtein, PageState};
 use crate::search::client::RCSBClient;
 use crate::search::download::DownloadManager;
+use crate::search::types::{FoundProtein, PageState};
 
 pub mod client;
 pub mod download;
 pub mod types;
-
 
 enum SearchMessage {
     Success(Vec<FoundProtein>),
@@ -20,8 +19,8 @@ enum SearchMessage {
 }
 
 enum DownloadMessage {
-    Progress(String, usize),  // (current_file, completed_count)
-    Complete(usize),          // total_downloaded
+    Progress(String, usize), // (current_file, completed_count)
+    Complete(usize),         // total_downloaded
     Error(String),
 }
 
@@ -29,7 +28,12 @@ enum AppState {
     Input(SearchInput),
     Searching(SearchInput, Receiver<SearchMessage>),
     Results(SearchInput, SearchSelection),
-    Downloading(SearchInput, SearchSelection, DownloadProgress, Receiver<DownloadMessage>),
+    Downloading(
+        SearchInput,
+        SearchSelection,
+        DownloadProgress,
+        Receiver<DownloadMessage>,
+    ),
     Done(String),
 }
 
@@ -49,9 +53,12 @@ impl DownloadProgress {
     }
 }
 
-pub fn fetch_structures(terminal: &mut ratatui::Terminal<impl ratatui::backend::Backend>, protein_name: Option<String>) -> Result<()> {
+pub fn fetch_structures(
+    terminal: &mut ratatui::Terminal<impl ratatui::backend::Backend>,
+    protein_name: Option<String>,
+) -> Result<()> {
     let mut state = AppState::Input(SearchInput::new());
-    
+
     if let Some(name) = protein_name {
         if let AppState::Input(ref mut input) = state {
             input.query = name;
@@ -59,79 +66,73 @@ pub fn fetch_structures(terminal: &mut ratatui::Terminal<impl ratatui::backend::
     }
 
     let mut redraw_needed = true;
-    
+
     loop {
         match &mut state {
-            AppState::Searching(input, rx) => {
-                match rx.try_recv() {
-                    Ok(SearchMessage::Success(proteins)) => {
-                        let selection = SearchSelection::new(proteins);
-                        let mut result_input = input.clone();
+            AppState::Searching(input, rx) => match rx.try_recv() {
+                Ok(SearchMessage::Success(proteins)) => {
+                    let selection = SearchSelection::new(proteins);
+                    let mut result_input = input.clone();
 
-                        result_input.is_loading = false;
-                        state = AppState::Results(result_input, selection);
-                        redraw_needed = true;
-                    }
-                    Ok(SearchMessage::Error(err)) => {
-                        let mut err_input = input.clone();
-
-                        err_input.is_loading = false;
-                        err_input.err_msg = Some(err);
-                        state = AppState::Input(err_input);
-                        redraw_needed = true;
-                    }
-                    Err(TryRecvError::Empty) => {
-                        redraw_needed = true;
-                    }
-                    Err(TryRecvError::Disconnected) => {
-                        let mut err_input = input.clone();
-
-                        err_input.is_loading = false;
-                        err_input.err_msg = Some("Search thread disconnected".to_string());
-                        state = AppState::Input(err_input);
-                        redraw_needed = true;
-                    }
+                    result_input.is_loading = false;
+                    state = AppState::Results(result_input, selection);
+                    redraw_needed = true;
                 }
-            }
-            AppState::Downloading(_, _, progress, rx) => {
-                match rx.try_recv() {
-                    Ok(DownloadMessage::Progress(current, completed)) => {
-                        progress.current = current;
-                        progress.completed = completed;
-                        redraw_needed = true;
-                    }
-                    Ok(DownloadMessage::Complete(total)) => {
-                        let message = format!(
-                            "Successfully downloaded {} structure(s) to pixelfold/data/\nPress Esc to exit.",
-                            total
-                        );
+                Ok(SearchMessage::Error(err)) => {
+                    let mut err_input = input.clone();
 
-                        state = AppState::Done(message);
-                        redraw_needed = true;
-                    }
-                    Ok(DownloadMessage::Error(err)) => {
-                        let message = format!(
-                            "Download failed: {}\nPress Esc to exit.",
-                            err
-                        );
-
-                        state = AppState::Done(message);
-                        redraw_needed = true;
-                    }
-                    Err(TryRecvError::Empty) => {
-                        redraw_needed = true;
-                    }
-                    Err(TryRecvError::Disconnected) => {
-                        let message = "Download thread disconnected\nPress any key to exit.".to_string();
-
-                        state = AppState::Done(message);
-                        redraw_needed = true;
-                    }
+                    err_input.is_loading = false;
+                    err_input.err_msg = Some(err);
+                    state = AppState::Input(err_input);
+                    redraw_needed = true;
                 }
-            }
+                Err(TryRecvError::Empty) => {
+                    redraw_needed = true;
+                }
+                Err(TryRecvError::Disconnected) => {
+                    let mut err_input = input.clone();
+
+                    err_input.is_loading = false;
+                    err_input.err_msg = Some("Search thread disconnected".to_string());
+                    state = AppState::Input(err_input);
+                    redraw_needed = true;
+                }
+            },
+            AppState::Downloading(_, _, progress, rx) => match rx.try_recv() {
+                Ok(DownloadMessage::Progress(current, completed)) => {
+                    progress.current = current;
+                    progress.completed = completed;
+                    redraw_needed = true;
+                }
+                Ok(DownloadMessage::Complete(total)) => {
+                    let message = format!(
+                        "Successfully downloaded {} structure(s) to pixelfold/data/\nPress Esc to exit.",
+                        total
+                    );
+
+                    state = AppState::Done(message);
+                    redraw_needed = true;
+                }
+                Ok(DownloadMessage::Error(err)) => {
+                    let message = format!("Download failed: {}\nPress Esc to exit.", err);
+
+                    state = AppState::Done(message);
+                    redraw_needed = true;
+                }
+                Err(TryRecvError::Empty) => {
+                    redraw_needed = true;
+                }
+                Err(TryRecvError::Disconnected) => {
+                    let message =
+                        "Download thread disconnected\nPress any key to exit.".to_string();
+
+                    state = AppState::Done(message);
+                    redraw_needed = true;
+                }
+            },
             _ => {}
         }
-        
+
         if redraw_needed {
             terminal.draw(|frame| ui(frame, &mut state))?;
             redraw_needed = false;
@@ -161,7 +162,7 @@ pub fn fetch_structures(terminal: &mut ratatui::Terminal<impl ratatui::backend::
 
 fn ui(frame: &mut Frame, state: &mut AppState) {
     let area = frame.area();
-    
+
     match state {
         AppState::Input(input) => {
             input.render(frame, area);
@@ -178,7 +179,7 @@ fn ui(frame: &mut Frame, state: &mut AppState) {
                     Constraint::Length(2),
                 ])
                 .split(area);
-            
+
             input.render(frame, chunks[0]);
             selection.render(frame, chunks[1]);
 
@@ -208,20 +209,18 @@ fn ui(frame: &mut Frame, state: &mut AppState) {
                     Constraint::Length(2),
                 ])
                 .split(area);
-            
+
             input.render(frame, chunks[0]);
             selection.render(frame, chunks[1]);
-            
+
             let progress_text = format!(
                 "Downloading: {} ({}/{})",
-                progress.current,
-                progress.completed,
-                progress.total
+                progress.current, progress.completed, progress.total
             );
             let progress_widget = Paragraph::new(progress_text)
                 .style(Style::default().fg(Color::Cyan))
                 .block(Block::bordered().title("Download Progress"));
-            
+
             frame.render_widget(progress_widget, chunks[2]);
         }
         AppState::Done(message) => {
@@ -230,9 +229,9 @@ fn ui(frame: &mut Frame, state: &mut AppState) {
                 .block(
                     Block::bordered()
                         .title("Complete")
-                        .title_alignment(Alignment::Center)
+                        .title_alignment(Alignment::Center),
                 );
-            
+
             frame.render_widget(paragraph, area);
         }
     }
@@ -246,137 +245,135 @@ fn handle_input(state: &mut AppState, key: KeyCode, modifiers: KeyModifiers) -> 
             }
             return Ok(true);
         }
-        KeyCode::Enter => {
-            match state {
-                AppState::Input(input) => {
-                    if !input.query.is_empty() {
-                        let query = input.query.clone();
-                        let mut new_input = input.clone();
-                        new_input.is_loading = true;
-                        
-                        let (tx, rx) = mpsc::channel();
-                        *state = AppState::Searching(new_input, rx);
-                        
-                        std::thread::spawn(move || {
-                            let rt = tokio::runtime::Runtime::new().unwrap();
-                            let client = RCSBClient::new();
-                            
-                            match rt.block_on(client.search(&query)) {
-                                Ok(results) => {
-                                    if results.is_empty() {
-                                        let _ = tx.send(SearchMessage::Error("No results found".to_string()));
-                                    } else {
-                                        let mut proteins: Vec<FoundProtein> = results
-                                            .into_iter()
-                                            .map(FoundProtein::new)
-                                            .collect();
+        KeyCode::Enter => match state {
+            AppState::Input(input) => {
+                if !input.query.is_empty() {
+                    let query = input.query.clone();
+                    let mut new_input = input.clone();
+                    new_input.is_loading = true;
 
-                                        let fetch_futures: Vec<_> = proteins.iter()
-                                            .map(|protein| {
-                                                let pdb_id = protein.pdb_id.clone();
-                                                let client = client.clone();
-                                                async move {
-                                                    client.fetch_entry_data(&pdb_id).await
-                                                }
-                                            })
-                                            .collect();
+                    let (tx, rx) = mpsc::channel();
+                    *state = AppState::Searching(new_input, rx);
 
-                                        let results = rt.block_on(futures::future::join_all(fetch_futures));
-                                        
-                                        for (protein, result) in proteins.iter_mut().zip(results) {
-                                            match result {
-                                                Ok(data) => {
-                                                    protein.title = data.struct_info.title;
-                                                    protein.date = data.rcsb_accession_info.revision_date;
-                                                }
-                                                Err(_) => {}
+                    std::thread::spawn(move || {
+                        let rt = tokio::runtime::Runtime::new().unwrap();
+                        let client = RCSBClient::new();
+
+                        match rt.block_on(client.search(&query)) {
+                            Ok(results) => {
+                                if results.is_empty() {
+                                    let _ = tx
+                                        .send(SearchMessage::Error("No results found".to_string()));
+                                } else {
+                                    let mut proteins: Vec<FoundProtein> =
+                                        results.into_iter().map(FoundProtein::new).collect();
+
+                                    let fetch_futures: Vec<_> = proteins
+                                        .iter()
+                                        .map(|protein| {
+                                            let pdb_id = protein.pdb_id.clone();
+                                            let client = client.clone();
+                                            async move { client.fetch_entry_data(&pdb_id).await }
+                                        })
+                                        .collect();
+
+                                    let results =
+                                        rt.block_on(futures::future::join_all(fetch_futures));
+
+                                    for (protein, result) in proteins.iter_mut().zip(results) {
+                                        match result {
+                                            Ok(data) => {
+                                                protein.title = data.struct_info.title;
+                                                protein.date =
+                                                    data.rcsb_accession_info.revision_date;
                                             }
+                                            Err(_) => {}
                                         }
+                                    }
 
-                                        let _ = tx.send(SearchMessage::Success(proteins));
-                                    }
-                                }
-                                Err(e) => {
-                                    let _ = tx.send(SearchMessage::Error(format!("Search failed: {}", e)));
+                                    let _ = tx.send(SearchMessage::Success(proteins));
                                 }
                             }
-                        });
-                    }
-                }
-                AppState::Results(input, selection) => {
-                    let selected_ids = selection.get_selected_pdb_ids();
-                    if !selected_ids.is_empty() {
-                        let progress = DownloadProgress::new(selected_ids.len());
-                        let input_copy = input.clone();
-                        let selection_copy = selection.clone();
-                        
-                        let (tx, rx) = mpsc::channel();
-                        *state = AppState::Downloading(input_copy, selection_copy, progress, rx);
-                        
-                        let project_dir = env!("CARGO_MANIFEST_DIR");
-                        let output_dir = std::path::PathBuf::from(format!("{}/data", project_dir));
-                        
-                        std::thread::spawn(move || {
-                            let rt = tokio::runtime::Runtime::new().unwrap();
-                            let manager = DownloadManager::new(output_dir, 3);
-                            
-                            let mut completed = 0;
-                            let total = selected_ids.len();
-                            
-                            match rt.block_on(manager.download_multiple(
-                                selected_ids.clone(),
-                                |pdb_id, success| {
-                                    if success {
-                                        completed += 1;
-                                        let _ = tx.send(DownloadMessage::Progress(pdb_id.clone(), completed));
-                                    }
-                                }
-                            )) {
-                                Ok(_) => {
-                                    let _ = tx.send(DownloadMessage::Complete(total));
-                                }
-                                Err(e) => {
-                                    let _ = tx.send(DownloadMessage::Error(format!("{}", e)));
-                                }
+                            Err(e) => {
+                                let _ =
+                                    tx.send(SearchMessage::Error(format!("Search failed: {}", e)));
                             }
-                        });
-                    }
+                        }
+                    });
                 }
-                AppState::Done(_) => {
+            }
+            AppState::Results(input, selection) => {
+                let selected_ids = selection.get_selected_pdb_ids();
+                if !selected_ids.is_empty() {
+                    let progress = DownloadProgress::new(selected_ids.len());
+                    let input_copy = input.clone();
+                    let selection_copy = selection.clone();
+
+                    let (tx, rx) = mpsc::channel();
+                    *state = AppState::Downloading(input_copy, selection_copy, progress, rx);
+
+                    let project_dir = env!("CARGO_MANIFEST_DIR");
+                    let output_dir = std::path::PathBuf::from(format!("{}/data", project_dir));
+
+                    std::thread::spawn(move || {
+                        let rt = tokio::runtime::Runtime::new().unwrap();
+                        let manager = DownloadManager::new(output_dir, 3);
+
+                        let mut completed = 0;
+                        let total = selected_ids.len();
+
+                        match rt.block_on(manager.download_multiple(
+                            selected_ids.clone(),
+                            |pdb_id, success| {
+                                if success {
+                                    completed += 1;
+                                    let _ = tx
+                                        .send(DownloadMessage::Progress(pdb_id.clone(), completed));
+                                }
+                            },
+                        )) {
+                            Ok(_) => {
+                                let _ = tx.send(DownloadMessage::Complete(total));
+                            }
+                            Err(e) => {
+                                let _ = tx.send(DownloadMessage::Error(format!("{}", e)));
+                            }
+                        }
+                    });
+                }
+            }
+            AppState::Done(_) => {
+                return Ok(true);
+            }
+            _ => {}
+        },
+        _ => match state {
+            AppState::Input(input) => {
+                input.handle_key(key);
+            }
+            AppState::Results(input, selection) => {
+                if modifiers.contains(KeyModifiers::CONTROL) && key == KeyCode::Char('c') {
                     return Ok(true);
                 }
-                _ => {}
-            }
-        }
-        _ => {
-            match state {
-                AppState::Input(input) => {
-                    input.handle_key(key);
-                }
-                AppState::Results(input, selection) => {
-                    if modifiers.contains(KeyModifiers::CONTROL) && key == KeyCode::Char('c') {
-                        return Ok(true);
+
+                if key == KeyCode::F(1) {
+                    input.clear();
+                    selection.selected_index = None;
+
+                    for protein in &mut selection.results {
+                        protein.selected = false;
                     }
 
-                    if key == KeyCode::F(1) {
-                        input.clear();
-                        selection.selected_index = None;
+                    *state = AppState::Input(input.clone());
 
-                        for protein in &mut selection.results {
-                            protein.selected = false;
-                        }
-
-                        *state = AppState::Input(input.clone());
-
-                        return Ok(false);
-                    }
-                    selection.handle_key(key);
+                    return Ok(false);
                 }
-                _ => {}
+                selection.handle_key(key);
             }
-        }
+            _ => {}
+        },
     }
-    
+
     Ok(false)
 }
 
@@ -428,7 +425,10 @@ impl SearchInput {
         } else if self.query.is_empty() {
             "Type to search for protein structures, then press Enter".to_string()
         } else {
-            format!("Search: {} (Press Enter to search, F1 to clear)", self.query)
+            format!(
+                "Search: {} (Press Enter to search, F1 to clear)",
+                self.query
+            )
         };
 
         let color = if self.err_msg.is_some() {
@@ -537,26 +537,26 @@ impl SearchSelection {
 
     fn get_clicked_index(&self, _x: u16, y: u16) -> Option<usize> {
         let area = self.last_list_area;
-        
+
         if y < area.y || y >= area.y + area.height {
             return None;
         }
-        
+
         let relative_y = y - area.y;
-        
+
         if relative_y < 2 || relative_y >= area.height.saturating_sub(1) {
             return None;
         }
-        
+
         let display_idx = (relative_y - 2) as usize;
-        
+
         if display_idx >= self.pagination.items_per_page {
             return None;
         }
-        
+
         let page_start = self.pagination.current_page * self.pagination.items_per_page;
         let clicked_idx = page_start + display_idx;
-        
+
         if clicked_idx < self.results.len() {
             Some(clicked_idx)
         } else {
@@ -580,29 +580,28 @@ impl SearchSelection {
 
     fn render(&mut self, f: &mut Frame, area: Rect) {
         self.last_list_area = area;
-        
+
         let available_height = area.height.saturating_sub(4) as usize;
         let page_size = available_height.max(1);
         self.update_page_size(page_size);
-        
+
         let indices = self.current_page_indices(page_size);
 
-        let rows: Vec<Row> = indices.iter()
+        let rows: Vec<Row> = indices
+            .iter()
             .map(|&global_idx| {
                 let protein = &self.results[global_idx];
                 let is_selected = protein.selected;
 
                 let style = if is_selected {
-                    Style::default()
-                        .bg(Color::Green)
-                        .fg(Color::Black)
+                    Style::default().bg(Color::Green).fg(Color::Black)
                 } else {
                     Style::default()
                 };
 
                 let pdb_id = &protein.pdb_id;
                 let name = &protein.title;
-                
+
                 // Format date (YYYY-MM-DD)
                 let date = protein.date.split('T').next().unwrap_or(&protein.date);
 

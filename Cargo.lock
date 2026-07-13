@@ -1407,6 +1407,14 @@ version = "0.5.3"
 [[package]]
 name = "pixelfold-core"
 version = "0.5.3"
+dependencies = [
+ "anyhow",
+ "glam",
+ "nalgebra",
+ "pdbtbx",
+ "petgraph",
+ "rust-sasa",
+]
 
 [[package]]
 name = "pixelfold-fetch"
@@ -1426,14 +1434,11 @@ dependencies = [
  "flate2",
  "futures",
  "glam",
- "nalgebra",
  "nom",
- "pdbtbx",
- "petgraph",
+ "pixelfold-core",
  "ratatui",
  "rayon",
  "reqwest",
- "rust-sasa",
  "serde",
  "serde_json",
  "tokio",

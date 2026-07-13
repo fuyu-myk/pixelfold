@@ -3,7 +3,6 @@ use reqwest::Client;
 
 use crate::search::types::{SearchData, SearchResponse, SearchResult};
 
-
 #[derive(Debug, Clone)]
 pub struct RCSBClient {
     client: reqwest::Client,
@@ -22,7 +21,8 @@ impl RCSBClient {
 
     pub async fn search(&self, query: &str) -> Result<Vec<SearchResult>> {
         let query = build_query(query);
-        let res = self.client
+        let res = self
+            .client
             .post(&self.search_url)
             .json(&query)
             .timeout(std::time::Duration::from_secs(30))
@@ -30,11 +30,7 @@ impl RCSBClient {
             .await?;
 
         if !res.status().is_success() {
-            anyhow::bail!(
-                "RCSB API error: {} - {}",
-                res.status(),
-                res.text().await?
-            );
+            anyhow::bail!("RCSB API error: {} - {}", res.status(), res.text().await?);
         }
 
         let data: SearchResponse = res.json().await?;
@@ -44,7 +40,8 @@ impl RCSBClient {
     pub async fn fetch_entry_data(&self, pdb_id: &str) -> Result<SearchData> {
         let url = format!("{}{}", self.data_url, pdb_id.to_uppercase());
 
-        let res = self.client
+        let res = self
+            .client
             .get(&url)
             .timeout(std::time::Duration::from_secs(30))
             .send()
@@ -63,20 +60,20 @@ impl RCSBClient {
     }
 
     pub async fn download_cif(&self, pdb_id: &str) -> Result<bytes::Bytes> {
-        let url = format!("https://files.wwpdb.org/download/{}.cif.gz", pdb_id.to_uppercase());
+        let url = format!(
+            "https://files.wwpdb.org/download/{}.cif.gz",
+            pdb_id.to_uppercase()
+        );
 
-        let res = self.client
+        let res = self
+            .client
             .get(&url)
             .timeout(std::time::Duration::from_secs(60))
             .send()
             .await?;
 
         if !res.status().is_success() {
-            anyhow::bail!(
-                "Failed to download CIF for {}: {}",
-                pdb_id,
-                res.status(),
-            );
+            anyhow::bail!("Failed to download CIF for {}: {}", pdb_id, res.status(),);
         }
 
         Ok(res.bytes().await?)

@@ -1,12 +1,12 @@
 use anyhow::Result;
 use glam::Vec3;
 use pdbtbx::*;
-use std::{
-    path::Path,
-    collections::HashMap
-};
+use std::{collections::HashMap, path::Path};
 
-use crate::{Atom, Protein, SecondaryStructure, visualization::surface::SurfaceCalculator};
+use crate::{
+    sasa::SurfaceCalculator,
+    structure::{Atom, Protein, SecondaryStructure},
+};
 
 /// Load a protein structure from a PDB or mmCIF file
 pub fn load_protein<P: AsRef<Path>>(path: P) -> Result<Protein> {
@@ -16,9 +16,10 @@ pub fn load_protein<P: AsRef<Path>>(path: P) -> Result<Protein> {
 /// Load a protein structure with additional options
 pub fn load_protein_with_options<P: AsRef<Path>>(path: P, skip_surface: bool) -> Result<Protein> {
     let path = path.as_ref();
-    let path_str = path.to_str()
+    let path_str = path
+        .to_str()
         .ok_or_else(|| anyhow::anyhow!("Invalid path: {}", path.display()))?;
-    
+
     let (pdb, errors) = ReadOptions::default()
         .set_level(StrictnessLevel::Loose)
         .set_only_first_model(true)
@@ -39,7 +40,7 @@ pub fn load_protein_with_options<P: AsRef<Path>>(path: P, skip_surface: bool) ->
             let residue = hierarchy.residue();
             let conformer = hierarchy.conformer();
             let chain = hierarchy.chain();
-            
+
             Atom {
                 serial: atom.serial_number() as u32,
                 name: atom.name().to_string(),
@@ -63,7 +64,12 @@ pub fn load_protein_with_options<P: AsRef<Path>>(path: P, skip_surface: bool) ->
         surface_calculator.calculate_surface(&atoms)
     };
 
-    Ok(Protein { atoms, title, surface_points, hbonds })
+    Ok(Protein {
+        atoms,
+        title,
+        surface_points,
+        hbonds,
+    })
 }
 
 /// Load only backbone atoms (CA, C, N, O) for simplified rendering
@@ -72,17 +78,21 @@ pub fn load_protein_backbone<P: AsRef<Path>>(path: P) -> Result<Protein> {
 }
 
 /// Load backbone atoms with additional options
-pub fn load_protein_backbone_with_options<P: AsRef<Path>>(path: P, skip_surface: bool) -> Result<Protein> {
+pub fn load_protein_backbone_with_options<P: AsRef<Path>>(
+    path: P,
+    skip_surface: bool,
+) -> Result<Protein> {
     let path = path.as_ref();
-    let path_str = path.to_str()
+    let path_str = path
+        .to_str()
         .ok_or_else(|| anyhow::anyhow!("Invalid path: {}", path.display()))?;
-    
+
     let (pdb, errors) = ReadOptions::default()
         .set_level(StrictnessLevel::Loose)
         .set_only_first_model(true)
         .read(path_str)
         .map_err(|e| anyhow::anyhow!("Failed to open file: {:?}", e))?;
-    
+
     if !errors.is_empty() {
         eprintln!("Warning: {} errors while parsing file", errors.len());
     }
@@ -100,7 +110,7 @@ pub fn load_protein_backbone_with_options<P: AsRef<Path>>(path: P, skip_surface:
             let residue = hierarchy.residue();
             let conformer = hierarchy.conformer();
             let chain = hierarchy.chain();
-            
+
             Atom {
                 serial: atom.serial_number() as u32,
                 name: atom.name().to_string(),
@@ -124,7 +134,12 @@ pub fn load_protein_backbone_with_options<P: AsRef<Path>>(path: P, skip_surface:
         surface_calculator.calculate_surface(&atoms)
     };
 
-    Ok(Protein { atoms, title, surface_points, hbonds })
+    Ok(Protein {
+        atoms,
+        title,
+        surface_points,
+        hbonds,
+    })
 }
 
 /// Load only CA (alpha carbon) atoms for minimal rendering of large proteins
@@ -133,17 +148,21 @@ pub fn load_protein_ca_only<P: AsRef<Path>>(path: P) -> Result<Protein> {
 }
 
 /// Load CA atoms with additional options
-pub fn load_protein_ca_only_with_options<P: AsRef<Path>>(path: P, skip_surface: bool) -> Result<Protein> {
+pub fn load_protein_ca_only_with_options<P: AsRef<Path>>(
+    path: P,
+    skip_surface: bool,
+) -> Result<Protein> {
     let path = path.as_ref();
-    let path_str = path.to_str()
+    let path_str = path
+        .to_str()
         .ok_or_else(|| anyhow::anyhow!("Invalid path: {}", path.display()))?;
-    
+
     let (pdb, errors) = ReadOptions::default()
         .set_level(StrictnessLevel::Loose)
         .set_only_first_model(true)
         .read(path_str)
         .map_err(|e| anyhow::anyhow!("Failed to open file: {:?}", e))?;
-    
+
     if !errors.is_empty() {
         eprintln!("Warning: {} errors while parsing file", errors.len());
     }
@@ -158,7 +177,7 @@ pub fn load_protein_ca_only_with_options<P: AsRef<Path>>(path: P, skip_surface: 
             let residue = hierarchy.residue();
             let conformer = hierarchy.conformer();
             let chain = hierarchy.chain();
-            
+
             Atom {
                 serial: atom.serial_number() as u32,
                 name: atom.name().to_string(),
@@ -182,25 +201,30 @@ pub fn load_protein_ca_only_with_options<P: AsRef<Path>>(path: P, skip_surface: 
         surface_calculator.calculate_surface(&atoms)
     };
 
-    Ok(Protein { atoms, title, surface_points, hbonds })
+    Ok(Protein {
+        atoms,
+        title,
+        surface_points,
+        hbonds,
+    })
 }
 
 /// DSSP hydrogen bond for secondary structure assignment and visualization
 #[derive(Clone, Copy, Debug)]
 pub struct HBond {
-    pub donor_residue: usize,        // Residue index (NH donor)
-    pub acceptor_residue: usize,     // Residue index (CO acceptor)
-    pub donor_atom_idx: usize,       // Atom index of N in donor residue
-    pub acceptor_atom_idx: usize,    // Atom index of O in acceptor residue
-    pub energy: f32,                 // kcal/mol
+    pub donor_residue: usize,     // Residue index (NH donor)
+    pub acceptor_residue: usize,  // Residue index (CO acceptor)
+    pub donor_atom_idx: usize,    // Atom index of N in donor residue
+    pub acceptor_atom_idx: usize, // Atom index of O in acceptor residue
+    pub energy: f32,              // kcal/mol
 }
 
 /// DSSP-based secondary structure assigner
-/// 
-/// Reference: Kabsch, W., & Sander, C. (1983). Dictionary of protein secondary structure: 
+///
+/// Reference: Kabsch, W., & Sander, C. (1983). Dictionary of protein secondary structure:
 /// Pattern recognition of hydrogen-bonded and geometrical features. Biopolymers, 22(12), 2577–2637.
 struct DSSPAssigner {
-    energy_threshold: f32,  // kcal/mol, typically -0.5
+    energy_threshold: f32, // kcal/mol, typically -0.5
 }
 
 impl Default for DSSPAssigner {
@@ -224,10 +248,10 @@ impl DSSPAssigner {
     }
 
     /// Find all backbone H-bonds in the protein
-    /// 
+    ///
     /// DSSP definition:
     /// E = 0.084 * { 1/r_ON + 1/r_CH - 1/r_OH - 1/r_CN } * 332 kcal/mol
-    /// 
+    ///
     /// where:
     /// - r_ON = distance from carbonyl O to backbone N
     /// - r_CH = distance from carbonyl C to backbone H
@@ -256,8 +280,8 @@ impl DSSPAssigner {
                     hbonds.push(HBond {
                         donor_residue: j,
                         acceptor_residue: i,
-                        donor_atom_idx: 0,  // Mapped later
-                        acceptor_atom_idx: 0,  // Mapped later
+                        donor_atom_idx: 0,    // Mapped later
+                        acceptor_atom_idx: 0, // Mapped later
                         energy,
                     });
                 }
@@ -268,15 +292,9 @@ impl DSSPAssigner {
     }
 
     /// Calculate DSSP hydrogen bond energy
-    /// 
+    ///
     /// E = 0.084 * { 1/r_ON + 1/r_CH - 1/r_OH - 1/r_CN } * 332 kcal/mol
-    fn calculate_hbond_energy(
-        &self,
-        c: Vec3,
-        o: Vec3,
-        n: Vec3,
-        h: Vec3,
-    ) -> f32 {
+    fn calculate_hbond_energy(&self, c: Vec3, o: Vec3, n: Vec3, h: Vec3) -> f32 {
         const K1: f32 = 0.084;
         const K2: f32 = 332.0;
 
@@ -302,7 +320,7 @@ impl DSSPAssigner {
     }
 
     /// Get N and H atoms from a residue's amide group
-    /// 
+    ///
     /// Note: PDB files typically don't include H atoms unless explicitly modeled.
     /// H position is computed 1.0 Å from N, opposite the direction of C-N bond.
     fn get_nh_atoms(&self, residue: &[Atom]) -> Option<(Vec3, Vec3)> {
@@ -317,12 +335,7 @@ impl DSSPAssigner {
     }
 
     /// Assign secondary structure based on H-bond patterns
-    fn assign_from_hbonds(
-        &self,
-        hbonds: &[HBond],
-        ss: &mut [SecondaryStructure],
-        n: usize,
-    ) {
+    fn assign_from_hbonds(&self, hbonds: &[HBond], ss: &mut [SecondaryStructure], n: usize) {
         // For each residue, track which residues donate H-bonds to it
         let mut acceptor_map: Vec<Vec<usize>> = vec![Vec::new(); n];
         let mut donor_map: Vec<Vec<usize>> = vec![Vec::new(); n];
@@ -396,7 +409,10 @@ impl DSSPAssigner {
         // Detect turns in non-helix, non-sheet regions
         for i in 1..n.saturating_sub(1) {
             if ss[i] == SecondaryStructure::Coil {
-                let prev = ss.get(i.saturating_sub(1)).copied().unwrap_or(SecondaryStructure::Coil);
+                let prev = ss
+                    .get(i.saturating_sub(1))
+                    .copied()
+                    .unwrap_or(SecondaryStructure::Coil);
                 let next = ss.get(i + 1).copied().unwrap_or(SecondaryStructure::Coil);
 
                 // Turn = transition between secondary structures
@@ -409,12 +425,13 @@ impl DSSPAssigner {
 }
 
 /// Group atoms by residue and assign secondary structures using DSSP
-/// 
+///
 /// Returns H-bonds with atom indices mapped from residue indices
 fn assign_secondary_structures(atoms: &mut [Atom]) -> Vec<HBond> {
     let mut residues: HashMap<u32, Vec<Atom>> = HashMap::new();
     for atom in atoms.iter() {
-        residues.entry(atom.residue_seq)
+        residues
+            .entry(atom.residue_seq)
             .or_default()
             .push((*atom).clone());
     }
@@ -434,7 +451,7 @@ fn assign_secondary_structures(atoms: &mut [Atom]) -> Vec<HBond> {
     for (i, &residue_num) in residue_numbers.iter().enumerate() {
         ss_map.insert(residue_num, assignments[i]);
     }
-    
+
     for atom in atoms.iter_mut() {
         if let Some(&ss) = ss_map.get(&atom.residue_seq) {
             atom.secondary_structure = ss;
@@ -447,16 +464,18 @@ fn assign_secondary_structures(atoms: &mut [Atom]) -> Vec<HBond> {
         let acceptor_res_num = residue_numbers[hbond.acceptor_residue];
 
         // N atom in donor residue
-        if let Some(donor_n_idx) = atoms.iter().position(|a| {
-            a.residue_seq == donor_res_num && a.name == "N"
-        }) {
+        if let Some(donor_n_idx) = atoms
+            .iter()
+            .position(|a| a.residue_seq == donor_res_num && a.name == "N")
+        {
             hbond.donor_atom_idx = donor_n_idx;
         }
 
         // O atom in acceptor residue
-        if let Some(acceptor_o_idx) = atoms.iter().position(|a| {
-            a.residue_seq == acceptor_res_num && a.name == "O"
-        }) {
+        if let Some(acceptor_o_idx) = atoms
+            .iter()
+            .position(|a| a.residue_seq == acceptor_res_num && a.name == "O")
+        {
             hbond.acceptor_atom_idx = acceptor_o_idx;
         }
     }

@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-
 /// Response structure from RCSB search API
 #[derive(Debug, Deserialize)]
 pub struct SearchResponse {
@@ -58,17 +57,12 @@ impl FoundProtein {
         if self.title.is_empty() {
             format!("{}", self.pdb_id)
         } else {
-            let res = self.resolution
+            let res = self
+                .resolution
                 .map(|r| format!(" - {:.2}Å", r))
                 .unwrap_or_else(|| " - N/A".to_string());
 
-            format!(
-                "{}: {}{} ({})",
-                self.pdb_id,
-                self.title,
-                res,
-                self.date
-            )
+            format!("{}: {}{} ({})", self.pdb_id, self.title, res, self.date)
         }
     }
 }

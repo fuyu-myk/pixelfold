@@ -1,11 +1,14 @@
-use std::{fs, io::{Read, Write}, path::PathBuf};
+use std::{
+    fs,
+    io::{Read, Write},
+    path::PathBuf,
+};
 
 use anyhow::Result;
 use flate2::read::GzDecoder;
 use futures::stream::StreamExt;
 
 use crate::search::client::RCSBClient;
-
 
 pub struct DownloadManager {
     rscb_client: RCSBClient,
@@ -25,7 +28,7 @@ impl DownloadManager {
     pub async fn download_multiple(
         &self,
         pdb_ids: Vec<String>,
-        mut progress_callback: impl FnMut(String, bool) + Send
+        mut progress_callback: impl FnMut(String, bool) + Send,
     ) -> Result<()> {
         fs::create_dir_all(&self.output_dir)?;
 
@@ -34,9 +37,7 @@ impl DownloadManager {
                 let client = self.rscb_client.clone();
                 let output_dir = self.output_dir.clone();
 
-                async move {
-                    Self::download_single(&client, &id, &output_dir).await
-                }
+                async move { Self::download_single(&client, &id, &output_dir).await }
             })
             .buffer_unordered(self.concurrency)
             .collect::<Vec<Result<String>>>()
