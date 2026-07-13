@@ -1,0 +1,16 @@
+# PixelFold validation benchmark set.
+#
+# Stratified PDB entries that pixelfold-validate compares against reference
+# implementations (DSSP, FreeSASA, PLIP, RING). Add PDB IDs to each stratum;
+# golden reference outputs (one file per entry per tool) live under golden/.
+#
+# Scaffold only: strata are defined but empty until the harness is built.
+
+[strata]
+high_res_monomers = []      # < 2.0 A, clean baseline
+multi_chain_complexes = []  # inter-chain interactions, protein-protein interfaces
+protein_ligand = []         # protein-ligand complexes
+nucleic_acid = []           # nucleic-acid-containing, parser robustness
+metalloproteins = []        # metal coordination
+nmr_ensembles = []          # multi-model path
+pathological = []           # altlocs, insertion codes, missing atoms, no HELIX/SHEET records
