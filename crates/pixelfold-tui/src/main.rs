@@ -1,8 +1,8 @@
 use anyhow::Result;
 use crossterm::event::{self, KeyCode, KeyModifiers};
 use pixelfold_core::{DisplayMode, SecondaryStructure, rin, sasa};
+use pixelfold_render::renderer;
 use pixelfold_tui::App;
-use pixelfold_tui::visualization::renderer;
 use ratatui::prelude::*;
 use ratatui::widgets::canvas::{Canvas, Points};
 use std::env;
@@ -562,7 +562,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
                             && proj2.y <= height
                         {
                             let line_points =
-                                pixelfold_tui::draw_line(proj1.x, proj1.y, proj2.x, proj2.y);
+                                pixelfold_render::draw_line(proj1.x, proj1.y, proj2.x, proj2.y);
 
                             // Color the line based on coloring mode (av of two atoms)
                             let color = if app.use_bfactor_colors {
@@ -570,7 +570,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
                                 let b2 = protein.atoms[idx2].b_factor;
                                 let avg_b = (b1 + b2) / 2.0;
                                 let (r, g, b) =
-                                    pixelfold_tui::bfactor_to_color(avg_b, b_min, b_max);
+                                    pixelfold_render::bfactor_to_color(avg_b, b_min, b_max);
                                 Color::Rgb(r, g, b)
                             } else {
                                 // Use secondary structure color (slightly dimmed for lines)
@@ -626,7 +626,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
                             && proj_acceptor.y >= 0.0
                             && proj_acceptor.y <= height
                         {
-                            let line_points = pixelfold_tui::draw_dashed_line(
+                            let line_points = pixelfold_render::draw_dashed_line(
                                 proj_donor.x,
                                 proj_donor.y,
                                 proj_acceptor.x,
@@ -634,7 +634,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
                                 3, // Dash spacing
                             );
 
-                            let (r, g, b) = pixelfold_tui::hbond_energy_to_color(hbond.energy);
+                            let (r, g, b) = pixelfold_render::hbond_energy_to_color(hbond.energy);
 
                             ctx.draw(&Points {
                                 coords: &line_points,
@@ -698,7 +698,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
                                     // B-factor coloring
                                     let b_factor = protein.atoms[*original_idx].b_factor;
                                     let (r, g, b) =
-                                        pixelfold_tui::bfactor_to_color(b_factor, b_min, b_max);
+                                        pixelfold_render::bfactor_to_color(b_factor, b_min, b_max);
                                     Color::Rgb(r, g, b)
                                 } else {
                                     // Secondary structure coloring

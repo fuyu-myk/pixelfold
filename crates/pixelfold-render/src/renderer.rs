@@ -1,6 +1,6 @@
 use glam::{Mat4, Vec3, Vec4};
 
-use crate::{Protein, SecondaryStructure};
+use pixelfold_core::{Protein, SecondaryStructure};
 
 pub struct Camera {
     pub position: Vec3,

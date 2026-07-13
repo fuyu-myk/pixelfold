@@ -11,13 +11,13 @@ path = "src/main.rs"
 
 [dependencies]
 pixelfold-core.workspace = true
+pixelfold-render.workspace = true
 
 anyhow.workspace = true
 bytes.workspace = true
 crossterm.workspace = true
 flate2.workspace = true
 futures.workspace = true
-glam.workspace = true
 nom.workspace = true
 ratatui.workspace = true
 rayon.workspace = true

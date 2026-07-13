@@ -1423,6 +1423,10 @@ version = "0.5.3"
 [[package]]
 name = "pixelfold-render"
 version = "0.5.3"
+dependencies = [
+ "glam",
+ "pixelfold-core",
+]
 
 [[package]]
 name = "pixelfold-tui"
@@ -1433,9 +1437,9 @@ dependencies = [
  "crossterm 0.29.0",
  "flate2",
  "futures",
- "glam",
  "nom",
  "pixelfold-core",
+ "pixelfold-render",
  "ratatui",
  "rayon",
  "reqwest",

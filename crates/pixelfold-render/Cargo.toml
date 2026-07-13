@@ -6,3 +6,6 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+pixelfold-core.workspace = true
+
+glam.workspace = true
