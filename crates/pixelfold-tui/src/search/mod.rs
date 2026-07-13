@@ -55,6 +55,7 @@ impl DownloadProgress {
 pub fn fetch_structures(
     terminal: &mut ratatui::Terminal<impl ratatui::backend::Backend>,
     protein_name: Option<String>,
+    cache_dir: std::path::PathBuf,
 ) -> Result<()> {
     let mut state = AppState::Input(SearchInput::new());
 
@@ -105,8 +106,9 @@ pub fn fetch_structures(
                 }
                 Ok(DownloadMessage::Complete(total)) => {
                     let message = format!(
-                        "Successfully downloaded {} structure(s) to pixelfold/data/\nPress Esc to exit.",
-                        total
+                        "Successfully downloaded {} structure(s) to {}\nPress Esc to exit.",
+                        total,
+                        cache_dir.display()
                     );
 
                     state = AppState::Done(message);
@@ -140,7 +142,8 @@ pub fn fetch_structures(
         if event::poll(std::time::Duration::from_millis(16))? {
             match event::read()? {
                 event::Event::Key(key) => {
-                    let should_quit = handle_input(&mut state, key.code, key.modifiers)?;
+                    let should_quit =
+                        handle_input(&mut state, key.code, key.modifiers, &cache_dir)?;
                     redraw_needed = true;
 
                     if should_quit {
@@ -236,7 +239,12 @@ fn ui(frame: &mut Frame, state: &mut AppState) {
     }
 }
 
-fn handle_input(state: &mut AppState, key: KeyCode, modifiers: KeyModifiers) -> Result<bool> {
+fn handle_input(
+    state: &mut AppState,
+    key: KeyCode,
+    modifiers: KeyModifiers,
+    cache_dir: &std::path::Path,
+) -> Result<bool> {
     match key {
         KeyCode::Esc => {
             if matches!(state, AppState::Downloading(..)) {
@@ -311,8 +319,7 @@ fn handle_input(state: &mut AppState, key: KeyCode, modifiers: KeyModifiers) -> 
                     let (tx, rx) = mpsc::channel();
                     *state = AppState::Downloading(input_copy, selection_copy, progress, rx);
 
-                    let project_dir = env!("CARGO_MANIFEST_DIR");
-                    let output_dir = std::path::PathBuf::from(format!("{}/data", project_dir));
+                    let output_dir = cache_dir.to_path_buf();
 
                     std::thread::spawn(move || {
                         let rt = tokio::runtime::Runtime::new().unwrap();

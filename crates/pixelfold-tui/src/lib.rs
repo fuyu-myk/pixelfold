@@ -1,16 +1,15 @@
 use std::collections::HashSet;
+use std::path::Path;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use pixelfold_core::{DisplayMode, Protein, SecondaryStructure, get_calpha_connections};
 use pixelfold_render::renderer::{self, Camera};
 
 pub mod search;
 
 mod app;
-mod args;
 mod inputs;
 mod ui;
-pub use args::run;
 
 pub struct App {
     pub protein: Option<Protein>,
@@ -75,7 +74,7 @@ impl App {
 
     pub fn load_protein(
         &mut self,
-        path: &str,
+        path: &Path,
         width: f32,
         height: f32,
         skip_surface: bool,
@@ -119,6 +118,39 @@ impl App {
             }
         }
     }
+}
+
+/// Load a structure and run the interactive viewer.
+pub fn view(path: &Path, skip_surface: bool) -> Result<()> {
+    let (cols, rows) =
+        crossterm::terminal::size().context("failed to query terminal size (not a terminal?)")?;
+    let width = cols as f32 * 2.0;
+    let height = rows as f32 * 4.0;
+
+    let mut app = App::new();
+    app.load_protein(path, width, height, skip_surface)?;
+
+    with_terminal(|terminal| crate::app::run_app(terminal, &mut app))
+}
+
+/// Run the RCSB search-and-fetch interface, caching downloads to `cache_dir`.
+pub fn search(query: Option<String>, cache_dir: std::path::PathBuf) -> Result<()> {
+    with_terminal(|terminal| crate::search::fetch_structures(terminal, query, cache_dir))
+}
+
+/// Set up the terminal (alternate screen + mouse capture), run `f`, then restore.
+fn with_terminal<F>(f: F) -> Result<()>
+where
+    F: FnOnce(&mut ratatui::DefaultTerminal) -> Result<()>,
+{
+    let mut terminal = ratatui::init();
+    crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture)?;
+
+    let result = f(&mut terminal);
+    let _ = crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture);
+
+    ratatui::restore();
+    result
 }
 
 /// Update the set of highlighted atom indices based on screen-space proximity
