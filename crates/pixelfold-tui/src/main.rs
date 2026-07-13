@@ -1,7 +1,7 @@
 use anyhow::Result;
 use crossterm::event::{self, KeyCode, KeyModifiers};
-use pixelfold::visualization::{network, renderer, surface};
-use pixelfold::{
+use pixelfold_tui::visualization::{network, renderer, surface};
+use pixelfold_tui::{
     App, DisplayMode, SecondaryStructure,
 };
 use ratatui::prelude::*;
@@ -69,7 +69,7 @@ fn main() -> Result<()> {
     )?;
     
     let result = if args.iter().any(|arg| arg == "--fetch" || arg == "-f") {
-        pixelfold::search::fetch_structures(&mut terminal, protein_name)
+        pixelfold_tui::search::fetch_structures(&mut terminal, protein_name)
     } else {
         if let Some(name) = protein_name {
             // Initial terminal size
@@ -230,7 +230,7 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
                 }
                 app.selected_atom_idx = Some(app.candidate_atoms[app.candidate_selection_idx].0);
                 app.redraw_needed = true;
-                pixelfold::update_highlighted_atoms(app, width, height);
+                pixelfold_tui::update_highlighted_atoms(app, width, height);
             } else {
                 app.redraw_needed = true;
                 app.projected_atom_cache = None;
@@ -261,7 +261,7 @@ fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers, width: f3
                 app.candidate_selection_idx = (app.candidate_selection_idx + 1) % app.candidate_atoms.len();
                 app.selected_atom_idx = Some(app.candidate_atoms[app.candidate_selection_idx].0);
                 app.redraw_needed = true;
-                pixelfold::update_highlighted_atoms(app, width, height);
+                pixelfold_tui::update_highlighted_atoms(app, width, height);
             } else {
                 app.redraw_needed = true;
                 app.projected_atom_cache = None;
@@ -409,7 +409,7 @@ fn handle_mouse(app: &mut App, mouse: event::MouseEvent, _terminal_size: Rect) -
             let click_y = canvas_height - (mouse.row as f32 * 4.0);
             
             if let Some(ref protein) = app.protein {
-                let candidates = pixelfold::pick_atoms_along_ray(
+                let candidates = pixelfold_tui::pick_atoms_along_ray(
                     protein,
                     &mut app.camera,
                     click_x,
@@ -422,7 +422,7 @@ fn handle_mouse(app: &mut App, mouse: event::MouseEvent, _terminal_size: Rect) -
                     app.candidate_atoms = candidates.into_iter().take(5).collect(); // Top 5 candidates
                     app.candidate_selection_idx = 0;
                     app.selected_atom_idx = Some(app.candidate_atoms[0].0);
-                    pixelfold::update_highlighted_atoms(app, canvas_width, canvas_height);
+                    pixelfold_tui::update_highlighted_atoms(app, canvas_width, canvas_height);
                 } else {
                     app.selected_atom_idx = None;
                     app.candidate_atoms.clear();
@@ -503,7 +503,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
                 
                 // Calculate B-factor range if using B-factor coloring
                 let (b_min, b_max) = if app.use_bfactor_colors {
-                    pixelfold::calculate_bfactor_range(protein)
+                    pixelfold_tui::calculate_bfactor_range(protein)
                 } else {
                     (0.0, 100.0)
                 };
@@ -539,14 +539,14 @@ fn ui(frame: &mut Frame, app: &mut App) {
                            proj2.x >= 0.0 && proj2.x <= width && 
                            proj2.y >= 0.0 && proj2.y <= height {
                             
-                            let line_points = pixelfold::draw_line(proj1.x, proj1.y, proj2.x, proj2.y);
+                            let line_points = pixelfold_tui::draw_line(proj1.x, proj1.y, proj2.x, proj2.y);
                             
                             // Color the line based on coloring mode (av of two atoms)
                             let color = if app.use_bfactor_colors {
                                 let b1 = protein.atoms[idx1].b_factor;
                                 let b2 = protein.atoms[idx2].b_factor;
                                 let avg_b = (b1 + b2) / 2.0;
-                                let (r, g, b) = pixelfold::bfactor_to_color(avg_b, b_min, b_max);
+                                let (r, g, b) = pixelfold_tui::bfactor_to_color(avg_b, b_min, b_max);
                                 Color::Rgb(r, g, b)
                             } else {
                                 // Use secondary structure color (slightly dimmed for lines)
@@ -574,7 +574,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
                 // Draw hydrogen bonds (if enabled)
                 if app.show_hydrogen_bonds {
                     // Filter H-bonds by energy threshold
-                    let visible_hbonds: Vec<&pixelfold::parser::HBond> = protein.hbonds
+                    let visible_hbonds: Vec<&pixelfold_tui::parser::HBond> = protein.hbonds
                         .iter()
                         .filter(|hb| hb.energy < app.hbond_energy_threshold)
                         .collect();
@@ -597,7 +597,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
                            proj_acceptor.x >= 0.0 && proj_acceptor.x <= width && 
                            proj_acceptor.y >= 0.0 && proj_acceptor.y <= height {
                             
-                            let line_points = pixelfold::draw_dashed_line(
+                            let line_points = pixelfold_tui::draw_dashed_line(
                                 proj_donor.x, 
                                 proj_donor.y, 
                                 proj_acceptor.x, 
@@ -605,7 +605,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
                                 3  // Dash spacing
                             );
                             
-                            let (r, g, b) = pixelfold::hbond_energy_to_color(hbond.energy);
+                            let (r, g, b) = pixelfold_tui::hbond_energy_to_color(hbond.energy);
                             
                             ctx.draw(&Points {
                                 coords: &line_points,
@@ -660,7 +660,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
                                 } else if app.use_bfactor_colors {
                                     // B-factor coloring
                                     let b_factor = protein.atoms[*original_idx].b_factor;
-                                    let (r, g, b) = pixelfold::bfactor_to_color(b_factor, b_min, b_max);
+                                    let (r, g, b) = pixelfold_tui::bfactor_to_color(b_factor, b_min, b_max);
                                     Color::Rgb(r, g, b)
                                 } else {
                                     // Secondary structure coloring
@@ -770,7 +770,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
         
         let atom_count = match app.display_mode {
             DisplayMode::AllAtoms => protein.atoms.len(),
-            DisplayMode::Backbone => pixelfold::get_calpha_indices(protein).len(),
+            DisplayMode::Backbone => pixelfold_tui::get_calpha_indices(protein).len(),
         };
         
         let info_text = format!(

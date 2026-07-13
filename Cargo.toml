@@ -1,9 +1,19 @@
-[package]
-name = "pixelfold"
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
 version = "0.5.3"
 edition = "2024"
+license = "MIT"
+repository = "https://github.com/fuyu-myk/pixelfold"
 
-[dependencies]
+[workspace.dependencies]
+pixelfold-core = { path = "crates/pixelfold-core" }
+pixelfold-render = { path = "crates/pixelfold-render" }
+pixelfold-fetch = { path = "crates/pixelfold-fetch" }
+pixelfold-tui = { path = "crates/pixelfold-tui" }
+
 anyhow = "1.0.100"
 bytes = "1.11.0"
 crossterm = "0.29.0"

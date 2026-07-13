@@ -1,0 +1,30 @@
+[package]
+name = "pixelfold-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "pixelfold"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+bytes.workspace = true
+crossterm.workspace = true
+flate2.workspace = true
+futures.workspace = true
+glam.workspace = true
+nalgebra.workspace = true
+nom.workspace = true
+pdbtbx.workspace = true
+petgraph.workspace = true
+ratatui.workspace = true
+rayon.workspace = true
+reqwest.workspace = true
+rust-sasa.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
