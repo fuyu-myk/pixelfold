@@ -37,10 +37,6 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App) {
         app.last_canvas_width = main_area.width as f32 * 2.0;
         app.last_canvas_height = main_area.height as f32 * 4.0;
 
-        if app.camera.cached_view_matrix.is_none() {
-            app.camera.get_view_matrix();
-        }
-
         let width = main_area.width as f32 * 2.0;
         let height = main_area.height as f32 * 4.0;
 

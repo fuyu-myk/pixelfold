@@ -178,11 +178,6 @@ pub fn update_highlighted_atoms(app: &mut App, width: f32, height: f32) {
     let selected_chain_id = &selected_atom.chain_id;
     let selected_position = selected_atom.position;
 
-    // Project all atoms to screen space
-    if app.camera.cached_view_matrix.is_none() {
-        app.camera.get_view_matrix();
-    }
-
     let projected = renderer::project_protein(protein, &app.camera, width, height);
 
     // Get selected atom's screen position
@@ -215,17 +210,12 @@ pub fn update_highlighted_atoms(app: &mut App, width: f32, height: f32) {
 /// Returns a sorted list of (atom_idx, distance_in_pixels) pairs
 pub fn pick_atoms_along_ray(
     protein: &Protein,
-    camera: &mut Camera,
+    camera: &Camera,
     click_x: f32,
     click_y: f32,
     width: f32,
     height: f32,
 ) -> Vec<(usize, f32)> {
-    // Project all atoms to screen space
-    if camera.cached_view_matrix.is_none() {
-        camera.get_view_matrix();
-    }
-
     let projected = renderer::project_protein(protein, camera, width, height);
 
     let click_radius = 10.0; // Base radius in pixels
@@ -243,8 +233,9 @@ pub fn pick_atoms_along_ray(
         }
     }
 
-    // Sort by screen distance first, then by depth (closer to camera wins ties)
-    candidates.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.2.total_cmp(&b.2)));
+    // Sort by screen distance first, then by depth. Larger depth is nearer the
+    // viewer (drawn on top by the painter's algorithm), so it wins ties.
+    candidates.sort_by(|a, b| a.1.total_cmp(&b.1).then(b.2.total_cmp(&a.2)));
 
     // Return (atom_idx, screen_distance) pairs
     candidates

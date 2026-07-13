@@ -1,23 +1,29 @@
-use glam::{Mat4, Vec3, Vec4};
+use glam::{Quat, Vec2, Vec3};
 
 use pixelfold_core::{Protein, SecondaryStructure};
 
 pub struct Camera {
-    pub position: Vec3,
-    pub rotation: Vec3, // Euler angles (pitch, yaw, roll)
+    /// Accumulated orientation as a unit quaternion.
+    pub orientation: Quat,
+    /// Rotation pivot: the structure center, set by `auto_frame_protein`.
+    pub center: Vec3,
+    /// Screen-space pan offset in pixels, independent of orientation.
+    pub pan: Vec2,
+    /// Current zoom (screen pixels per Angstrom).
     pub zoom: f32,
-    pub pan: Vec3,
-    pub cached_view_matrix: Option<Mat4>,
+    /// Zoom that fits the structure, set by `auto_frame_protein`. The manual
+    /// zoom clamp is relative to this, so it works at any structure scale.
+    pub fit_zoom: f32,
 }
 
 impl Default for Camera {
     fn default() -> Self {
         Self {
-            position: Vec3::new(0.0, 0.0, 100.0),
-            rotation: Vec3::ZERO,
+            orientation: Quat::IDENTITY,
+            center: Vec3::ZERO,
+            pan: Vec2::ZERO,
             zoom: 1.0,
-            pan: Vec3::ZERO,
-            cached_view_matrix: None,
+            fit_zoom: 1.0,
         }
     }
 }
@@ -27,82 +33,44 @@ impl Camera {
         Self::default()
     }
 
-    /// Rotate camera by delta angles (in radians)
+    /// Rotate about the screen axes (trackball feel). The incremental rotation
+    /// is pre-multiplied, so it composes in camera space regardless of the
+    /// current orientation, and the quaternion is renormalised to avoid drift.
     pub fn rotate(&mut self, pitch: f32, yaw: f32, roll: f32) {
-        self.rotation.x += pitch;
-        self.rotation.y += yaw;
-        self.rotation.z += roll;
-        self.cached_view_matrix = None;
+        let delta =
+            Quat::from_rotation_x(pitch) * Quat::from_rotation_y(yaw) * Quat::from_rotation_z(roll);
+        self.orientation = (delta * self.orientation).normalize();
     }
 
-    /// Zoom in (positive) or out (negative)
+    /// Zoom in (positive delta) or out (negative), scaling the current zoom so
+    /// the step stays proportional at any scale, clamped around the fit zoom.
     pub fn adjust_zoom(&mut self, delta: f32) {
-        self.zoom = (self.zoom + delta).clamp(0.1, 10.0);
-        self.cached_view_matrix = None;
+        self.zoom = (self.zoom * (1.0 + delta)).clamp(self.fit_zoom * 0.1, self.fit_zoom * 10.0);
     }
 
-    /// Pan camera in screen space
+    /// Pan the view in screen space (pixels), independent of orientation.
     pub fn pan_camera(&mut self, dx: f32, dy: f32) {
         self.pan.x += dx;
         self.pan.y += dy;
-        self.cached_view_matrix = None;
     }
 
-    /// Get the view-projection matrix for transforming 3D points
-    pub fn get_view_matrix(&mut self) -> Mat4 {
-        if let Some(matrix) = self.cached_view_matrix {
-            return matrix;
-        }
-
-        // Create rotation matrix from Euler angles
-        let rotation_x = Mat4::from_rotation_x(self.rotation.x);
-        let rotation_y = Mat4::from_rotation_y(self.rotation.y);
-        let rotation_z = Mat4::from_rotation_z(self.rotation.z);
-        let rotation = rotation_z * rotation_y * rotation_x;
-
-        let center_translation = Mat4::from_translation(self.pan);
-        let camera_translation = Mat4::from_translation(self.position);
-
-        let view_matrix = camera_translation * rotation * center_translation;
-        self.cached_view_matrix = Some(view_matrix);
-
-        view_matrix
-    }
-
-    /// Project a 3D point to 2D screen coordinates
-    pub fn project_point(&self, point: Vec3, width: f32, height: f32) -> (f32, f32) {
-        let view_matrix = self
-            .cached_view_matrix
-            .expect("View matrix must be computed before projection");
-
-        // Transform point by view matrix
-        let transformed = view_matrix * Vec4::new(point.x, point.y, point.z, 1.0);
-
-        // Apply orthographic projection with zoom
-        let x = (transformed.x * self.zoom) + width / 2.0;
-        let y = (transformed.y * self.zoom) + height / 2.0;
-
-        (x, y)
-    }
-
-    /// Project a 3D point with depth information (for depth sorting)
+    /// Project a 3D point to screen coordinates plus a depth value for sorting.
+    ///
+    /// The point is centered on `center`, rotated by `orientation`, scaled by
+    /// `zoom`, then offset by the screen-space `pan`. Because `pan` is added
+    /// after projection, panning always moves the view along the screen axes.
+    /// Screen y increases upward (the ratatui Canvas has a lower-left origin).
     pub fn project_point_with_depth(
         &self,
         point: Vec3,
         width: f32,
         height: f32,
     ) -> (f32, f32, f32) {
-        let view_matrix = self
-            .cached_view_matrix
-            .expect("View matrix must be computed before projection");
+        let view = self.orientation * (point - self.center);
+        let x = view.x * self.zoom + width / 2.0 + self.pan.x;
+        let y = view.y * self.zoom + height / 2.0 + self.pan.y;
 
-        let transformed = view_matrix * Vec4::new(point.x, point.y, point.z, 1.0);
-
-        let x = (transformed.x * self.zoom) + width / 2.0;
-        let y = (transformed.y * self.zoom) + height / 2.0;
-        let z = transformed.z; // Keep depth for sorting
-
-        (x, y, z)
+        (x, y, view.z)
     }
 }
 
@@ -203,22 +171,140 @@ pub fn calculate_bounds(protein: &Protein) -> (Vec3, Vec3) {
     (min, max)
 }
 
-/// Auto-frame the camera to fit the protein in view
+/// Auto-frame the camera to fit the protein: reset the orientation and pan,
+/// pivot on the center of mass, and zoom to fit with padding.
 pub fn auto_frame_protein(protein: &Protein, camera: &mut Camera, width: f32, height: f32) {
     let center = calculate_center_of_mass(protein);
     let (min, max) = calculate_bounds(protein);
 
-    // Calculate the extent of the protein
     let extent = max - min;
     let max_extent = extent.x.max(extent.y).max(extent.z);
 
-    camera.pan = -center;
+    camera.orientation = Quat::IDENTITY;
+    camera.center = center;
+    camera.pan = Vec2::ZERO;
 
-    // Adjust zoom to fit protein in view with padding
-    // Use 1.4 as padding factor to leave ~20% space around the protein on each side
+    // 1.4 leaves ~20% space around the protein on each side.
     let padding_factor = 1.4;
     let viewport_size = width.min(height);
     if max_extent > 0.0 {
-        camera.zoom = viewport_size / (max_extent * padding_factor);
+        camera.fit_zoom = viewport_size / (max_extent * padding_factor);
+        camera.zoom = camera.fit_zoom;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pixelfold_core::{Atom, SecondaryStructure};
+    use std::f32::consts::PI;
+
+    fn atom_at(x: f32) -> Atom {
+        Atom {
+            serial: 0,
+            name: "CA".to_string(),
+            residue_name: "ALA".to_string(),
+            residue_seq: 1,
+            chain_id: "A".to_string(),
+            position: Vec3::new(x, 0.0, 0.0),
+            b_factor: 0.0,
+            secondary_structure: SecondaryStructure::Coil,
+        }
+    }
+
+    #[test]
+    fn center_projects_to_screen_center_regardless_of_orientation() {
+        let mut cam = Camera::new();
+        cam.center = Vec3::new(3.0, -2.0, 5.0);
+        cam.zoom = 2.5;
+        cam.rotate(0.7, 1.3, 0.2);
+
+        let (x, y, _) = cam.project_point_with_depth(cam.center, 100.0, 80.0);
+        assert!((x - 50.0).abs() < 1e-3, "x = {x}");
+        assert!((y - 40.0).abs() < 1e-3, "y = {y}");
+    }
+
+    #[test]
+    fn pan_is_screen_space_and_orientation_independent() {
+        let mut cam = Camera::new();
+        cam.center = Vec3::new(1.0, 2.0, 3.0);
+        cam.zoom = 1.7;
+        cam.rotate(0.9, -0.4, 1.1);
+
+        let p = Vec3::new(10.0, -5.0, 4.0);
+        let (x0, y0, _) = cam.project_point_with_depth(p, 200.0, 150.0);
+        cam.pan_camera(12.0, -7.0);
+        let (x1, y1, _) = cam.project_point_with_depth(p, 200.0, 150.0);
+
+        assert!((x1 - x0 - 12.0).abs() < 1e-3, "dx = {}", x1 - x0);
+        assert!((y1 - y0 + 7.0).abs() < 1e-3, "dy = {}", y1 - y0);
+    }
+
+    #[test]
+    fn rotation_stays_normalized() {
+        let mut cam = Camera::new();
+        for _ in 0..100 {
+            cam.rotate(0.3, 0.5, 0.2);
+        }
+        assert!((cam.orientation.length() - 1.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn full_turn_returns_to_start() {
+        let mut cam = Camera::new();
+        let steps = 1000;
+        let step = 2.0 * PI / steps as f32;
+        for _ in 0..steps {
+            cam.rotate(0.0, step, 0.0);
+        }
+        let dot = cam.orientation.dot(Quat::IDENTITY).abs();
+        assert!(dot > 0.999, "dot = {dot}");
+    }
+
+    #[test]
+    fn zoom_scales_offset_from_center() {
+        let mut cam = Camera::new();
+        let p = Vec3::new(4.0, 0.0, 0.0);
+        cam.zoom = 1.0;
+        let (x1, _, _) = cam.project_point_with_depth(p, 100.0, 100.0);
+        cam.zoom = 2.0;
+        let (x2, _, _) = cam.project_point_with_depth(p, 100.0, 100.0);
+        assert!(((x2 - 50.0) - 2.0 * (x1 - 50.0)).abs() < 1e-3);
+    }
+
+    #[test]
+    fn auto_frame_resets_orientation_and_pan() {
+        let protein = Protein {
+            atoms: vec![atom_at(-5.0), atom_at(5.0)],
+            title: String::new(),
+            surface_points: vec![],
+            hbonds: vec![],
+        };
+        let mut cam = Camera::new();
+        cam.rotate(1.0, 2.0, 3.0);
+        cam.pan_camera(50.0, 30.0);
+
+        auto_frame_protein(&protein, &mut cam, 100.0, 100.0);
+
+        assert!(cam.orientation.dot(Quat::IDENTITY).abs() > 0.999);
+        assert_eq!(cam.pan, Vec2::ZERO);
+        assert_eq!(cam.center, Vec3::ZERO);
+    }
+
+    #[test]
+    fn manual_zoom_is_relative_to_fit() {
+        let protein = Protein {
+            atoms: vec![atom_at(-4.0), atom_at(4.0)],
+            title: String::new(),
+            surface_points: vec![],
+            hbonds: vec![],
+        };
+        let mut cam = Camera::new();
+        auto_frame_protein(&protein, &mut cam, 152.0, 152.0);
+
+        let fit = cam.zoom;
+        assert!(fit > 10.0, "fit = {fit}"); // exceeds the old fixed clamp band
+        cam.adjust_zoom(0.1);
+        assert!(cam.zoom > fit, "zoom in should increase from the fit");
     }
 }

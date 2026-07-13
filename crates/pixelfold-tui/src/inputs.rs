@@ -99,7 +99,7 @@ pub(crate) fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers
             } else {
                 app.redraw_needed = true;
                 app.projected_atom_cache = None;
-                app.camera.pan_camera(0.0, -pan_speed);
+                app.camera.pan_camera(0.0, pan_speed);
             }
         }
         KeyCode::Down => {
@@ -132,18 +132,18 @@ pub(crate) fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers
             } else {
                 app.redraw_needed = true;
                 app.projected_atom_cache = None;
-                app.camera.pan_camera(0.0, pan_speed);
+                app.camera.pan_camera(0.0, -pan_speed);
             }
         }
         KeyCode::Left => {
             app.redraw_needed = true;
             app.projected_atom_cache = None;
-            app.camera.pan_camera(pan_speed, 0.0);
+            app.camera.pan_camera(-pan_speed, 0.0);
         }
         KeyCode::Right => {
             app.redraw_needed = true;
             app.projected_atom_cache = None;
-            app.camera.pan_camera(-pan_speed, 0.0);
+            app.camera.pan_camera(pan_speed, 0.0);
         }
 
         // Inspect mode
@@ -156,6 +156,7 @@ pub(crate) fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers
                 app.candidate_atoms.clear();
                 app.candidate_selection_idx = 0;
                 app.residue_highlight = false;
+                app.projected_atom_cache = None;
             }
         }
         KeyCode::Char('r') => {
@@ -280,7 +281,7 @@ pub(crate) fn handle_mouse(app: &mut App, mouse: event::MouseEvent) -> Result<()
             if let Some(ref protein) = app.protein {
                 let candidates = crate::pick_atoms_along_ray(
                     protein,
-                    &mut app.camera,
+                    &app.camera,
                     click_x,
                     click_y,
                     canvas_width,

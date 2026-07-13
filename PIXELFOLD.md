@@ -75,7 +75,7 @@ Two binaries now exist (`pixelfold` from cli, `pixelfold-validate`); `default-me
 
 `pixelfold-render/src/`:
 
-- `renderer.rs` : `Camera` (Euler rotation, cached view matrix, orthographic projection), `ProjectedAtom`/`ProjectedSurfacePoint`, projection + auto-frame
+- `renderer.rs` : `Camera` (quaternion orientation, screen-space pan, fit-relative zoom, orthographic projection; recomputed per frame, no cached matrix), `ProjectedAtom`/`ProjectedSurfacePoint`, projection + auto-frame
 - `draw.rs` : Bresenham line/dashed-line + b-factor/hbond/hydrophobicity color mapping
 
 `pixelfold-fetch/src/`:
