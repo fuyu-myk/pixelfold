@@ -13,9 +13,17 @@ pub enum DisplayMode {
 pub struct Atom {
     pub serial: u32,
     pub name: String,
+    /// Element symbol (e.g. "C", "Ca", "Fe"), parsed from the structure's
+    /// element column so a calcium ion is distinct from a C-alpha carbon.
+    pub element: String,
     pub residue_name: String,
     pub residue_seq: u32,
     pub chain_id: String,
+    pub is_hetatm: bool,
+    pub altloc: Option<char>,
+    pub occupancy: f32,
+    pub insertion_code: Option<char>,
+    pub model_number: usize,
     pub position: Vec3,
     pub b_factor: f32,
     pub secondary_structure: SecondaryStructure,
@@ -291,9 +299,15 @@ mod tests {
         Atom {
             serial: 0,
             name: "CA".to_string(),
+            element: "C".to_string(),
             residue_name: "ALA".to_string(),
             residue_seq: 1,
             chain_id: "A".to_string(),
+            is_hetatm: false,
+            altloc: None,
+            occupancy: 1.0,
+            insertion_code: None,
+            model_number: 1,
             position: Vec3::ZERO,
             b_factor: b,
             secondary_structure: SecondaryStructure::Coil,

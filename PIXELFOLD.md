@@ -46,7 +46,7 @@ The Cargo workspace exists. `pixelfold-core` holds the extracted analysis code (
 Crates:
 
 - `[ ]` `crates/pixelfold-core/` : the library (pure, dependency-light)
-  - `[~]` `structure/` : Atom/Residue/Chain/Model + mmCIF/PDB ingest. (today: `core/src/structure.rs` holds `Atom`/`Protein`; ingest in `core/src/parser.rs`; no first-class Residue/Chain; `String` fields; missing element/hetatm/altloc/occupancy/insertion/multi-model)
+  - `[~]` `structure/` : Atom/Residue/Chain/Model + mmCIF/PDB ingest. (today: `core/src/structure.rs` holds `Atom`/`Protein`; ingest in `core/src/parser.rs`; `Atom` now carries element/is_hetatm/altloc/occupancy/insertion_code/model_number; still `String` fields (byte arrays later); no first-class Residue/Chain; entity_id not exposed by pdbtbx; single-model only)
   - `[ ]` `spatial/` : uniform grid / cell list, cell size = max interaction cutoff (~6 A). O(N) build, O(1) neighbour queries; powers interactions, `within` selections, SASA neighbours, clash detection
   - `[ ]` `select/` : selection language, `nom` parser to atom-index bitset
   - `[~]` `dssp/` : secondary structure + Kabsch-Sander backbone H-bond energies. (today: inside `core/src/parser.rs`, not yet split out; amide hydrogen not inferred, so energies are not yet correct)

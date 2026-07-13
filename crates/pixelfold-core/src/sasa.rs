@@ -46,7 +46,7 @@ impl SurfaceCalculator {
             .iter()
             .enumerate()
             .map(|(idx, atom)| {
-                let vdw_radius = get_vdw_radius(&atom.name);
+                let vdw_radius = get_vdw_radius(&atom.element);
                 SasaAtom {
                     position: Point3::new(atom.position.x, atom.position.y, atom.position.z),
                     radius: vdw_radius,
@@ -73,7 +73,7 @@ impl SurfaceCalculator {
             // Only generate surface points for atoms with accessible surface
             if sasa_value > 0.1 {
                 // Threshold (avoids atoms with tiny SASA)
-                let vdw_radius = get_vdw_radius(&atom.name);
+                let vdw_radius = get_vdw_radius(&atom.element);
                 let surface_radius = vdw_radius + self.probe_radius;
                 let hydrophobicity = get_hydrophobicity(&atom.residue_name);
 
@@ -120,35 +120,28 @@ impl SurfaceCalculator {
     }
 }
 
-/// Get van der Waals radius for an atom based on element
+/// Van der Waals radius (Angstroms) for an element symbol.
 ///
-/// Values are obtained from Bondi (1964) J. Phys. Chem. 68: 441-451
-pub fn get_vdw_radius(atom_name: &str) -> f32 {
-    // Extract element from atom name (first 1-2 characters, trimmed)
-    let element = atom_name
-        .trim_start_matches(|c: char| c.is_numeric())
-        .chars()
-        .take(2)
-        .collect::<String>()
-        .trim()
-        .to_uppercase();
-
-    match element.as_str() {
-        "CA" if atom_name.starts_with("CA") && atom_name.len() > 2 => 1.97, // Calcium ion
-        "C" | "CA" | "CB" | "CG" | "CD" | "CE" | "CZ" => 1.70,              // Carbon
-        "N" | "NE" | "NH" | "NZ" | "ND" => 1.55,                            // Nitrogen
-        "O" | "OD" | "OE" | "OG" | "OH" | "OXT" => 1.52,                    // Oxygen
-        "S" | "SD" | "SG" => 1.80,                                          // Sulfur
-        "P" => 1.80,                                                        // Phosphorus
-        "H" => 1.20,                                                        // Hydrogen
-        "F" => 1.47,                                                        // Fluorine
-        "CL" => 1.75,                                                       // Chlorine
-        "BR" => 1.85,                                                       // Bromine
-        "I" => 1.98,                                                        // Iodine
-        "FE" => 1.80,                                                       // Iron
-        "ZN" => 1.39,                                                       // Zinc
-        "MG" => 1.73,                                                       // Magnesium
-        _ => 1.70,                                                          // Default to carbon
+/// Values from Bondi (1964) J. Phys. Chem. 68: 441-451. Keyed on the element,
+/// not the atom name, so a calcium ion ("Ca") and a C-alpha carbon ("C") get
+/// their correct, different radii.
+pub fn get_vdw_radius(element: &str) -> f32 {
+    match element.to_uppercase().as_str() {
+        "C" => 1.70,
+        "N" => 1.55,
+        "O" => 1.52,
+        "S" => 1.80,
+        "P" => 1.80,
+        "H" => 1.20,
+        "F" => 1.47,
+        "CL" => 1.75,
+        "BR" => 1.85,
+        "I" => 1.98,
+        "FE" => 1.80,
+        "ZN" => 1.39,
+        "MG" => 1.73,
+        "CA" => 1.97, // calcium
+        _ => 1.70,    // default to carbon
     }
 }
 
@@ -248,10 +241,18 @@ mod tests {
     #[test]
     fn test_vdw_radii() {
         assert_eq!(get_vdw_radius("C"), 1.70);
-        assert_eq!(get_vdw_radius("CA"), 1.70); // C-alpha carbon
         assert_eq!(get_vdw_radius("N"), 1.55);
         assert_eq!(get_vdw_radius("O"), 1.52);
         assert_eq!(get_vdw_radius("S"), 1.80);
+    }
+
+    #[test]
+    fn vdw_distinguishes_calcium_from_carbon() {
+        // The element column, not the atom name, drives the radius: a calcium
+        // ion (element "Ca") and a C-alpha carbon (element "C") differ.
+        assert_eq!(get_vdw_radius("Ca"), 1.97);
+        assert_eq!(get_vdw_radius("C"), 1.70);
+        assert_ne!(get_vdw_radius("Ca"), get_vdw_radius("C"));
     }
 
     #[test]
