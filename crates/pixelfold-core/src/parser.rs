@@ -98,11 +98,19 @@ pub fn load_protein_with_options<P: AsRef<Path>>(
         surface_calculator.calculate_surface(&atoms)
     };
 
+    // A structure whose biological unit differs from the deposited asymmetric
+    // unit is only detectable from the raw file; a gzip or read error just
+    // means no warning.
+    let assembly = std::fs::read_to_string(path)
+        .ok()
+        .and_then(|text| crate::assembly::detect_partial_assembly(&text));
+
     Ok(Protein {
         atoms,
         title,
         surface_points,
         hbonds,
+        assembly,
     })
 }
 
@@ -157,6 +165,7 @@ pub fn load_protein_backbone_with_options<P: AsRef<Path>>(
         title,
         surface_points,
         hbonds,
+        assembly: None,
     })
 }
 
@@ -208,6 +217,7 @@ pub fn load_protein_ca_only_with_options<P: AsRef<Path>>(
         title,
         surface_points,
         hbonds,
+        assembly: None,
     })
 }
 

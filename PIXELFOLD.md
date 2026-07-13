@@ -68,8 +68,9 @@ Two binaries now exist (`pixelfold` from cli, `pixelfold-validate`); `default-me
 
 `pixelfold-core/src/`:
 
-- `structure.rs` : domain types (`Atom`, `Protein`, `DisplayMode`, `SecondaryStructure`) + pure helpers (b-factor range, C-alpha indices/connections). Also holds the unused heuristic `SecondaryStructureAssignment` (pending removal in the DSSP rewrite).
+- `structure.rs` : domain types (`Atom`, `Protein`, `BiologicalAssembly`, `DisplayMode`, `SecondaryStructure`) + pure helpers (b-factor range, C-alpha indices/connections). Also holds the unused heuristic `SecondaryStructureAssignment` (pending removal in the DSSP rewrite).
 - `parser.rs` : pdbtbx PDB/mmCIF loading (`build_atom`) + altloc policy (`filter_altlocs`) + backbone H-bond detection + DSSP assignment (ingest and dssp not yet split).
+- `assembly.rs` : pure `detect_partial_assembly` reading `_pdbx_struct_assembly` / `REMARK 350` from the raw file (pdbtbx does not parse them), flagging when the biological unit needs symmetry expansion beyond the deposited coordinates. Detection only; generation is later work.
 - `sasa.rs` : Shrake-Rupley SASA (wraps `rust-sasa`) + vdW radius / hydrophobicity tables.
 - `rin.rs` : petgraph H-bond residue interaction network + centrality/components/motifs.
 
@@ -95,7 +96,7 @@ Two binaries now exist (`pixelfold` from cli, `pixelfold-validate`); `default-me
 - `lib.rs` : mutable `App` state, screen-space picking/highlight, and the public entry points `view(path, skip_surface)` / `search(query, cache_dir)` over a `with_terminal` helper
 - `app.rs` : `run_app()` event loop
 - `inputs.rs` : `handle_input` (keyboard) + `handle_mouse` (click picking)
-- `ui.rs` : `ui()` per-frame render (canvas, info bar, inspect panel)
+- `ui.rs` : `ui()` per-frame render (canvas, info bar, inspect panel, plus a highlighted header line when the loaded coordinates are a partial biological assembly)
 - `search/mod.rs` : search-mode TUI (state machine, widgets, thread/runtime orchestration over `pixelfold-fetch`)
 - `search/types.rs` : `FoundProtein` UI row model + `PageState` pagination
 

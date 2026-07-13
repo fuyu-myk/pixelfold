@@ -62,6 +62,26 @@ pub struct Protein {
     pub title: String,
     pub surface_points: Vec<SurfacePoint>,
     pub hbonds: Vec<HBond>,
+    /// Set when the file declares a biological assembly that differs from the
+    /// deposited asymmetric unit (the coordinates shown). `None` when the
+    /// deposited coordinates already are the biological unit, or when no
+    /// assembly is declared.
+    pub assembly: Option<BiologicalAssembly>,
+}
+
+/// A biological assembly whose symmetry expansion differs from the deposited
+/// asymmetric unit. Present only when the primary assembly applies more than the
+/// identity operator, so the deposited coordinates are a partial view of the
+/// functional unit. Assembly generation itself is not yet performed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BiologicalAssembly {
+    /// Number of symmetry operators the primary assembly applies. Greater than
+    /// one means the deposited coordinates are only part of the biological unit.
+    pub operator_count: usize,
+    /// Human-readable oligomeric state stated in the file, if any (mmCIF
+    /// `oligomeric_details` or PDB `REMARK 350` biological-unit line, for
+    /// example "tetrameric"). `None` when the file does not state one.
+    pub oligomer: Option<String>,
 }
 
 pub struct SecondaryStructureAssignment {
@@ -394,6 +414,7 @@ mod tests {
             title: String::new(),
             surface_points: Vec::new(),
             hbonds: Vec::new(),
+            assembly: None,
         };
 
         let (b_min, b_max) = calculate_bfactor_range(&protein);

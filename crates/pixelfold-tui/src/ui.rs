@@ -10,16 +10,37 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App) {
     let area = frame.area();
 
     if let Some(ref protein) = app.protein {
-        // Info bar (1 line)
+        // A biological assembly that differs from the deposited coordinates gets
+        // its own header line so the partial view is not mistaken for complete.
+        let assembly_note = protein.assembly.as_ref().map(|assembly| match &assembly.oligomer {
+            Some(oligomer) => format!(
+                " Showing asymmetric unit; biological assembly is {} ({} symmetry operators, not yet generated) ",
+                oligomer, assembly.operator_count
+            ),
+            None => format!(
+                " Showing asymmetric unit; biological assembly applies {} symmetry operators (not yet generated) ",
+                assembly.operator_count
+            ),
+        });
+
+        let header_height = if assembly_note.is_some() { 2 } else { 1 };
         let vertical_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(1), // Top info bar
-                Constraint::Min(0),    // Content area (canvas + optional inspect panel)
+                Constraint::Length(header_height), // Info bar (+ optional assembly note)
+                Constraint::Min(0),                // Content area (canvas + optional inspect panel)
             ])
             .split(area);
 
-        let info_bar_area = vertical_chunks[0];
+        let (info_bar_area, assembly_note_area) = if assembly_note.is_some() {
+            let header_chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Length(1), Constraint::Length(1)])
+                .split(vertical_chunks[0]);
+            (header_chunks[0], Some(header_chunks[1]))
+        } else {
+            (vertical_chunks[0], None)
+        };
         let content_area = vertical_chunks[1];
 
         // Canvas and optional inspect panel (left: main view, right: info panel)
@@ -412,6 +433,15 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App) {
                 .style(Style::default().fg(Color::White)),
             info_bar_area,
         );
+
+        if let (Some(area), Some(note)) = (assembly_note_area, assembly_note) {
+            frame.render_widget(
+                ratatui::widgets::Paragraph::new(note)
+                    .alignment(Alignment::Center)
+                    .style(Style::default().fg(Color::Yellow).bold()),
+                area,
+            );
+        }
 
         // Render atom info panel if an atom is selected
         if let Some(atom_idx) = app.selected_atom_idx {

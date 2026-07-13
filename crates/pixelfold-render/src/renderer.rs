@@ -285,6 +285,7 @@ mod tests {
             title: String::new(),
             surface_points: vec![],
             hbonds: vec![],
+            assembly: None,
         };
         let mut cam = Camera::new();
         cam.rotate(1.0, 2.0, 3.0);
@@ -304,6 +305,7 @@ mod tests {
             title: String::new(),
             surface_points: vec![],
             hbonds: vec![],
+            assembly: None,
         };
         let mut cam = Camera::new();
         auto_frame_protein(&protein, &mut cam, 152.0, 152.0);
