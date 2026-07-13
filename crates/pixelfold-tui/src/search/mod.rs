@@ -2,7 +2,7 @@ use anyhow::Result;
 use crossterm::event::{self, KeyCode, KeyModifiers};
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Cell, Paragraph, Row, Table, TableState};
-use ratatui::{layout::Rect, Frame};
+use ratatui::{Frame, layout::Rect};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 
 use pixelfold_fetch::client::RCSBClient;
