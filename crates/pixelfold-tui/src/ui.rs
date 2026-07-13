@@ -174,7 +174,7 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App) {
                 // Draw hydrogen bonds (if enabled)
                 if app.show_hydrogen_bonds {
                     // Filter H-bonds by energy threshold
-                    let visible_hbonds: Vec<&pixelfold_core::parser::HBond> = protein
+                    let visible_hbonds: Vec<&pixelfold_core::dssp::HBond> = protein
                         .hbonds
                         .iter()
                         .filter(|hb| hb.energy < app.hbond_energy_threshold)

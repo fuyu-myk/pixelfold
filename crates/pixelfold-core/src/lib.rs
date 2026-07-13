@@ -2,12 +2,14 @@
 //! SASA, interactions, and residue interaction network.
 
 pub mod assembly;
+pub mod dssp;
 pub mod fixed_str;
 pub mod parser;
 pub mod rin;
 pub mod sasa;
 pub mod structure;
 
+pub use dssp::HBond;
 pub use fixed_str::FixedStr;
 pub use sasa::SurfacePoint;
 pub use structure::{

@@ -1,7 +1,7 @@
 use glam::Vec3;
 
+use crate::dssp::HBond;
 use crate::fixed_str::FixedStr;
-use crate::parser::HBond;
 use crate::sasa::SurfacePoint;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
