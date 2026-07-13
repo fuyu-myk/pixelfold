@@ -1435,7 +1435,7 @@ checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
 name = "pixelfold-cli"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "anyhow",
  "clap",
@@ -1448,7 +1448,7 @@ dependencies = [
 
 [[package]]
 name = "pixelfold-core"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "anyhow",
  "glam",
@@ -1460,7 +1460,7 @@ dependencies = [
 
 [[package]]
 name = "pixelfold-fetch"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1474,7 +1474,7 @@ dependencies = [
 
 [[package]]
 name = "pixelfold-render"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "glam",
  "pixelfold-core",
@@ -1482,7 +1482,7 @@ dependencies = [
 
 [[package]]
 name = "pixelfold-tui"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "anyhow",
  "crossterm 0.29.0",
@@ -1497,7 +1497,7 @@ dependencies = [
 
 [[package]]
 name = "pixelfold-validate"
-version = "0.5.3"
+version = "0.5.4"
 
 [[package]]
 name = "portable-atomic"
