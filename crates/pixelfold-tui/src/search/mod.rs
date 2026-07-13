@@ -2,15 +2,14 @@ use anyhow::Result;
 use crossterm::event::{self, KeyCode, KeyModifiers};
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Cell, Paragraph, Row, Table, TableState};
-use ratatui::{Frame, layout::Rect};
+use ratatui::{layout::Rect, Frame};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 
-use crate::search::client::RCSBClient;
-use crate::search::download::DownloadManager;
+use pixelfold_fetch::client::RCSBClient;
+use pixelfold_fetch::download::DownloadManager;
+
 use crate::search::types::{FoundProtein, PageState};
 
-pub mod client;
-pub mod download;
 pub mod types;
 
 enum SearchMessage {

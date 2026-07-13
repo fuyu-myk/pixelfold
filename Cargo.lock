@@ -1419,6 +1419,16 @@ dependencies = [
 [[package]]
 name = "pixelfold-fetch"
 version = "0.5.3"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "flate2",
+ "futures",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio-stream",
+]
 
 [[package]]
 name = "pixelfold-render"
@@ -1433,20 +1443,16 @@ name = "pixelfold-tui"
 version = "0.5.3"
 dependencies = [
  "anyhow",
- "bytes",
  "crossterm 0.29.0",
- "flate2",
  "futures",
  "nom",
  "pixelfold-core",
+ "pixelfold-fetch",
  "pixelfold-render",
  "ratatui",
  "rayon",
- "reqwest",
  "serde",
- "serde_json",
  "tokio",
- "tokio-stream",
 ]
 
 [[package]]

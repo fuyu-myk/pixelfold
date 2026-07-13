@@ -1,7 +1,7 @@
 use anyhow::Result;
 use reqwest::Client;
 
-use crate::search::types::{SearchData, SearchResponse, SearchResult};
+use crate::types::{SearchData, SearchResponse, SearchResult};
 
 #[derive(Debug, Clone)]
 pub struct RCSBClient {

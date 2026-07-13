@@ -8,7 +8,7 @@ use anyhow::Result;
 use flate2::read::GzDecoder;
 use futures::stream::StreamExt;
 
-use crate::search::client::RCSBClient;
+use crate::client::RCSBClient;
 
 pub struct DownloadManager {
     rscb_client: RCSBClient,
