@@ -1,8 +1,13 @@
 # PixelFold
 
+[![CI](https://github.com/fuyu-myk/pixelfold/actions/workflows/ci.yml/badge.svg)](https://github.com/fuyu-myk/pixelfold/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A terminal-based 3D protein structure viewer using Braille Unicode characters for high-resolution visualization.
+
+## Demo
+
+![PixelFold demo](docs/demo.gif)
 
 ## Features
 
@@ -16,13 +21,17 @@ A terminal-based 3D protein structure viewer using Braille Unicode characters fo
 
 ## Installation
 
-Clone this repository and run the following command:
+Clone this repository, then install the `pixelfold` binary onto your `PATH`:
 
 ```bash
-cargo install --path .
+cargo install --path crates/pixelfold-cli
 ```
 
-The binary will be available at `target/release/pixelfold`.
+Or build it in place (the binary is written to `target/release/pixelfold`):
+
+```bash
+cargo build --release
+```
 
 ## Usage
 
@@ -33,8 +42,8 @@ pixelfold data/protein.pdb
 # Or with mmCIF format
 pixelfold data/protein.cif
 
-# Alternatively, simply input the name of the file
-pixelfold protein
+# Or a 4-character PDB id, auto-downloaded from RCSB into the cache
+pixelfold 1CRN
 ```
 
 ### Controls
@@ -73,47 +82,25 @@ pixelfold protein
 
 ### Architecture
 
-The project consists of several modules:
+The project is a Cargo workspace of focused crates:
 
-- [**`client`**](src/search/client.rs): Interacts with the RCSB database using the publicly available api
-  - Leverages the `reqwest` library to do POST and GET requests
-  - Automatic building of the request json for searches
+- [**`pixelfold-core`**](crates/pixelfold-core/src): pure analysis library, free of terminal and rendering dependencies
+  - [`parser`](crates/pixelfold-core/src/parser.rs): loads PDB/mmCIF via `pdbtbx`, with alternate-location handling, backbone H-bond detection, and DSSP secondary-structure assignment
+  - [`sasa`](crates/pixelfold-core/src/sasa.rs): solvent-accessible surface (Shrake-Rupley via `rust-sasa`), van der Waals radii, and Kyte-Doolittle hydrophobicity coloring
+  - [`rin`](crates/pixelfold-core/src/rin.rs): residue interaction network over `petgraph` with degree centrality, connected components, and motif detection
+  - [`assembly`](crates/pixelfold-core/src/assembly.rs): detects when the deposited coordinates are only part of the biological assembly
 
-- [**`download`**](src/search/download.rs): Handles downloading of protein structures and file decompression
-  - Concurrent downloading for faster downloads
-  - Utilizes the `flate2` library to decompress gzipped files
+- [**`pixelfold-render`**](crates/pixelfold-render/src): scene projection and drawing
+  - [`renderer`](crates/pixelfold-render/src/renderer.rs): orthographic projection, quaternion camera (rotate/zoom/pan, auto-framing), and depth sorting for atom occlusion
+  - [`draw`](crates/pixelfold-render/src/draw.rs): Bresenham lines and b-factor/H-bond/hydrophobicity color mapping
 
-- [**`search`**](src/search/mod.rs): Handles the search function of the TUI application
-  - Search and download operations run in background threads that communicate back to teh main UI thread via `mpsc` channels
-  - Real-time progress updates for each completed download/search
+- [**`pixelfold-fetch`**](crates/pixelfold-fetch/src): RCSB search and structure download
+  - [`client`](crates/pixelfold-fetch/src/client.rs): async `reqwest` wrapper around the RCSB API
+  - [`download`](crates/pixelfold-fetch/src/download.rs): concurrent download with `flate2` gzip decompression
 
-- [**`parser`**](src/parser.rs): Loads PDB/mmCIF files using `pdbtbx` and converts to internal data structures
-  - `load_protein()`: Load all atoms
-  - `load_protein_backbone()`: Load only backbone atoms (CA, C, N, O)
-  - `load_protein_ca_only()`: Load only alpha carbons for large proteins
+- [**`pixelfold-tui`**](crates/pixelfold-tui/src): the `ratatui` front-end (Braille canvas, input handling, and the search interface, whose background threads report to the UI thread via `mpsc` channels)
 
-- [**`renderer`**](src/visualization/renderer.rs): Handles 3D-to-2D projection and camera controls
-  - Orthographic projection with rotation/zoom/pan
-  - Depth sorting for proper atom occlusion
-  - Camera utilities (auto-framing, bounds calculation)
-
-- [**`surface`**](src/visualization/surface.rs): Solvent-accessible surface calculation using Shrake-Rupley algorithm
-  - Powered by `rust-sasa` library for optimized performance
-  - Fibonacci spiral sphere point generation for uniform sampling
-  - Van der Waals radii lookup for common atoms
-  - Solvent accessibility testing with 1.4Å water probe radius
-  - Kyte-Doolittle hydrophobicity scale for surface coloring
-  - Parallel computation for large proteins
-
-- [**`network`**](src/visualization/network.rs): H-bond network analysis using graph theory
-  - Builds directed graph of residue-level H-bond networks using `petgraph`
-  - Node types: ResidueNode (residue metadata, secondary structure, atom indices)
-  - Edge types: HBondEdge (energy, bond type, atom indices)
-  - Network analysis: degree centrality, connected components, motif detection
-  - Detects structural patterns: α-helix ladders (i→i+4), β-sheet patterns, turns
-  - Energy-based filtering for threshold-dependent analysis
-
-- [**`main`**](src/main.rs): TUI application using `ratatui` with Braille canvas rendering
+- [**`pixelfold-cli`**](crates/pixelfold-cli/src): the `pixelfold` binary: argument parsing, a path/PDB-id resolver, and fetch-on-miss caching
 
 ### Why Braille?
 
@@ -130,7 +117,7 @@ Braille Unicode characters provide **8× higher resolution** compared to ASCII:
 - **`pdbtbx`**: PDB and mmCIF parsing
 - **`glam`**: 3D math library (vectors, matrices)
 - **`petgraph`**: Graph data structures and algorithms for H-bond network analysis
-- **`rayon`**: Data parallelism for performance optimization
+- **`rust-sasa`**: Shrake-Rupley solvent-accessible surface calculation
 - **`anyhow`**: Error handling
 - **`tokio`**: Async calls for API interaction
 - **`reqwest`**: API interaction
@@ -161,20 +148,6 @@ Braille Unicode characters provide **8× higher resolution** compared to ASCII:
 8. Press V to toggle surface visualization
 9. Use up/down arrows to adjust surface point density
 10. Use +/- to zoom in on specific regions
-
-## Future TODO
-
-- [x] Bond rendering between atoms (alpha carbons)
-- [x] Solvent-accessible surface visualization with hydrophobicity coloring
-- [x] Hydrogen bond visualization with energy-based coloring
-- [x] H-bond network analysis
-- [x] More information regarding each search query
-- [ ] Downloads across multiple search queries
-- [ ] More search options
-- [ ] Multiple selection and filtering modes
-- [ ] Save/load camera positions
-- [ ] Animation and structure comparison
-- [ ] Electrostatic potential surface coloring (via APBS integration)
 
 ## Citations
 
