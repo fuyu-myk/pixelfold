@@ -73,11 +73,11 @@ pub(crate) fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers
                 app.redraw_needed = true;
 
                 // Recompute network analysis if network mode is active
-                if app.show_hbond_network {
-                    if let Some(ref graph) = app.hbond_graph {
-                        let filtered = graph.filter_by_energy(app.hbond_energy_threshold);
-                        app.network_analysis = Some(filtered.analyze());
-                    }
+                if app.show_hbond_network
+                    && let Some(ref graph) = app.hbond_graph
+                {
+                    let filtered = graph.filter_by_energy(app.hbond_energy_threshold);
+                    app.network_analysis = Some(filtered.analyze());
                 }
             } else if app.show_surface {
                 app.surface_point_density = (app.surface_point_density + 25).min(500);
@@ -109,11 +109,11 @@ pub(crate) fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers
                 app.redraw_needed = true;
 
                 // Recompute network analysis if network mode is active
-                if app.show_hbond_network {
-                    if let Some(ref graph) = app.hbond_graph {
-                        let filtered = graph.filter_by_energy(app.hbond_energy_threshold);
-                        app.network_analysis = Some(filtered.analyze());
-                    }
+                if app.show_hbond_network
+                    && let Some(ref graph) = app.hbond_graph
+                {
+                    let filtered = graph.filter_by_energy(app.hbond_energy_threshold);
+                    app.network_analysis = Some(filtered.analyze());
                 }
             } else if app.show_surface {
                 app.surface_point_density = (app.surface_point_density.saturating_sub(25)).max(100);
@@ -203,15 +203,13 @@ pub(crate) fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers
             app.redraw_needed = true;
 
             // Compute surface on-demand if not already computed
-            if app.show_surface {
-                if let Some(ref mut protein) = app.protein {
-                    if protein.surface_points.is_empty() {
-                        let surface_calculator =
-                            sasa::SurfaceCalculator::new(1.4, app.surface_point_density);
-                        protein.surface_points =
-                            surface_calculator.calculate_surface(&protein.atoms);
-                    }
-                }
+            if app.show_surface
+                && let Some(ref mut protein) = app.protein
+                && protein.surface_points.is_empty()
+            {
+                let surface_calculator =
+                    sasa::SurfaceCalculator::new(1.4, app.surface_point_density);
+                protein.surface_points = surface_calculator.calculate_surface(&protein.atoms);
             }
         }
 
@@ -221,10 +219,11 @@ pub(crate) fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers
             app.redraw_needed = true;
 
             // Build H-bond graph on first activation
-            if app.show_hydrogen_bonds && app.hbond_graph.is_none() {
-                if let Some(ref protein) = app.protein {
-                    app.hbond_graph = Some(rin::HBondGraph::build(protein));
-                }
+            if app.show_hydrogen_bonds
+                && app.hbond_graph.is_none()
+                && let Some(ref protein) = app.protein
+            {
+                app.hbond_graph = Some(rin::HBondGraph::build(protein));
             }
         }
 
@@ -235,10 +234,10 @@ pub(crate) fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers
 
             // Compute network analysis on first activation
             if app.show_hbond_network {
-                if app.hbond_graph.is_none() {
-                    if let Some(ref protein) = app.protein {
-                        app.hbond_graph = Some(rin::HBondGraph::build(protein));
-                    }
+                if app.hbond_graph.is_none()
+                    && let Some(ref protein) = app.protein
+                {
+                    app.hbond_graph = Some(rin::HBondGraph::build(protein));
                 }
 
                 if let Some(ref graph) = app.hbond_graph {
@@ -261,47 +260,44 @@ pub(crate) fn handle_mouse(app: &mut App, mouse: event::MouseEvent) -> Result<()
         return Ok(());
     }
 
-    match mouse.kind {
-        MouseEventKind::Down(event::MouseButton::Left) => {
-            app.redraw_needed = true;
-            app.projected_atom_cache = None;
+    if let MouseEventKind::Down(event::MouseButton::Left) = mouse.kind {
+        app.redraw_needed = true;
+        app.projected_atom_cache = None;
 
-            // Use the canvas dimensions from the last render
-            let canvas_width = app.last_canvas_width;
-            let canvas_height = app.last_canvas_height;
+        // Use the canvas dimensions from the last render
+        let canvas_width = app.last_canvas_width;
+        let canvas_height = app.last_canvas_height;
 
-            if canvas_width == 0.0 || canvas_height == 0.0 {
-                return Ok(()); // Not yet rendered
-            }
+        if canvas_width == 0.0 || canvas_height == 0.0 {
+            return Ok(()); // Not yet rendered
+        }
 
-            // Convert terminal coordinates to canvas coordinates
-            let click_x = mouse.column as f32 * 2.0;
-            let click_y = canvas_height - (mouse.row as f32 * 4.0);
+        // Convert terminal coordinates to canvas coordinates
+        let click_x = mouse.column as f32 * 2.0;
+        let click_y = canvas_height - (mouse.row as f32 * 4.0);
 
-            if let Some(ref protein) = app.protein {
-                let candidates = crate::pick_atoms_along_ray(
-                    protein,
-                    &app.camera,
-                    click_x,
-                    click_y,
-                    canvas_width,
-                    canvas_height,
-                );
+        if let Some(ref protein) = app.protein {
+            let candidates = crate::pick_atoms_along_ray(
+                protein,
+                &app.camera,
+                click_x,
+                click_y,
+                canvas_width,
+                canvas_height,
+            );
 
-                if !candidates.is_empty() {
-                    app.candidate_atoms = candidates.into_iter().take(5).collect(); // Top 5 candidates
-                    app.candidate_selection_idx = 0;
-                    app.selected_atom_idx = Some(app.candidate_atoms[0].0);
-                    crate::update_highlighted_atoms(app, canvas_width, canvas_height);
-                } else {
-                    app.selected_atom_idx = None;
-                    app.candidate_atoms.clear();
-                    app.candidate_selection_idx = 0;
-                    app.highlighted_atom_indices.clear();
-                }
+            if !candidates.is_empty() {
+                app.candidate_atoms = candidates.into_iter().take(5).collect(); // Top 5 candidates
+                app.candidate_selection_idx = 0;
+                app.selected_atom_idx = Some(app.candidate_atoms[0].0);
+                crate::update_highlighted_atoms(app, canvas_width, canvas_height);
+            } else {
+                app.selected_atom_idx = None;
+                app.candidate_atoms.clear();
+                app.candidate_selection_idx = 0;
+                app.highlighted_atom_indices.clear();
             }
         }
-        _ => {}
     }
 
     Ok(())

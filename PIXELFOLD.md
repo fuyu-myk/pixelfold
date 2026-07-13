@@ -68,7 +68,7 @@ Two binaries now exist (`pixelfold` from cli, `pixelfold-validate`); `default-me
 
 `pixelfold-core/src/`:
 
-- `structure.rs` : domain types (`Atom`, `Protein`, `BiologicalAssembly`, `DisplayMode`, `SecondaryStructure`) + pure helpers (b-factor range, C-alpha indices/connections). Also holds the unused heuristic `SecondaryStructureAssignment` (pending removal in the DSSP rewrite).
+- `structure.rs` : domain types (`Atom`, `Protein`, `BiologicalAssembly`, `DisplayMode`, `SecondaryStructure`) + pure helpers (b-factor range, C-alpha indices/connections).
 - `parser.rs` : pdbtbx PDB/mmCIF loading (`build_atom`) + altloc policy (`filter_altlocs`) + backbone H-bond detection + DSSP assignment (ingest and dssp not yet split).
 - `assembly.rs` : pure `detect_partial_assembly` reading `_pdbx_struct_assembly` / `REMARK 350` from the raw file (pdbtbx does not parse them), flagging when the biological unit needs symmetry expansion beyond the deposited coordinates. Detection only; generation is later work.
 - `sasa.rs` : Shrake-Rupley SASA (wraps `rust-sasa`) + vdW radius / hydrophobicity tables.

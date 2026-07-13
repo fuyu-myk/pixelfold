@@ -59,10 +59,10 @@ pub fn fetch_structures(
 ) -> Result<()> {
     let mut state = AppState::Input(SearchInput::new());
 
-    if let Some(name) = protein_name {
-        if let AppState::Input(ref mut input) = state {
-            input.query = name;
-        }
+    if let Some(name) = protein_name
+        && let AppState::Input(ref mut input) = state
+    {
+        input.query = name;
     }
 
     let mut redraw_needed = true;
@@ -291,13 +291,9 @@ fn handle_input(
                                         rt.block_on(futures::future::join_all(fetch_futures));
 
                                     for (protein, result) in proteins.iter_mut().zip(results) {
-                                        match result {
-                                            Ok(data) => {
-                                                protein.title = data.struct_info.title;
-                                                protein.date =
-                                                    data.rcsb_accession_info.revision_date;
-                                            }
-                                            Err(_) => {}
+                                        if let Ok(data) = result {
+                                            protein.title = data.struct_info.title;
+                                            protein.date = data.rcsb_accession_info.revision_date;
                                         }
                                     }
 
@@ -507,7 +503,7 @@ impl SearchSelection {
         if old_page_size != page_size {
             let current_item = self.selected_index;
             self.pagination.items_per_page = page_size;
-            self.pagination.total_pages = (self.results.len() + page_size - 1) / page_size;
+            self.pagination.total_pages = self.results.len().div_ceil(page_size);
 
             if let Some(idx) = current_item {
                 self.pagination.current_page = idx / page_size;
@@ -534,13 +530,12 @@ impl SearchSelection {
     }
 
     fn handle_mouse(&mut self, event: event::MouseEvent) {
-        if event.kind == event::MouseEventKind::Down(event::MouseButton::Left) {
-            if let Some(idx) = self.get_clicked_index(event.column, event.row) {
-                if idx < self.results.len() {
-                    self.selected_index = Some(idx);
-                    self.toggle_selection(idx);
-                }
-            }
+        if event.kind == event::MouseEventKind::Down(event::MouseButton::Left)
+            && let Some(idx) = self.get_clicked_index(event.column, event.row)
+            && idx < self.results.len()
+        {
+            self.selected_index = Some(idx);
+            self.toggle_selection(idx);
         }
     }
 

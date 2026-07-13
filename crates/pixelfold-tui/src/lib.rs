@@ -42,6 +42,12 @@ pub struct App {
     pub network_analysis: Option<pixelfold_core::rin::NetworkAnalysis>,
 }
 
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl App {
     pub fn new() -> Self {
         Self {

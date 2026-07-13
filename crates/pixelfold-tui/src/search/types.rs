@@ -24,7 +24,7 @@ impl FoundProtein {
 
     pub fn fmt_for_display(&self) -> String {
         if self.title.is_empty() {
-            format!("{}", self.pdb_id)
+            self.pdb_id.to_string()
         } else {
             let res = self
                 .resolution
@@ -45,7 +45,7 @@ pub struct PageState {
 
 impl PageState {
     pub fn new(total: usize) -> Self {
-        let total_pages = (total + 9) / 10;
+        let total_pages = total.div_ceil(10);
 
         Self {
             current_page: 0,

@@ -1,7 +1,7 @@
 use std::{
     fs,
     io::{Read, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use anyhow::Result;
@@ -58,7 +58,7 @@ impl DownloadManager {
     pub async fn download_single(
         client: &RCSBClient,
         pdb_id: &str,
-        output_dir: &PathBuf,
+        output_dir: &Path,
     ) -> Result<String> {
         let bytes = client.download_cif(pdb_id).await?;
         let decompressed = Self::decompress(&bytes)?;
