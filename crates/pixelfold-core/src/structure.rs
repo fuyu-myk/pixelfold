@@ -212,12 +212,16 @@ impl SecondaryStructureAssignment {
 
 /// Calculate B-factor percentiles for normalization
 pub fn calculate_bfactor_range(protein: &Protein) -> (f32, f32) {
-    if protein.atoms.is_empty() {
+    let mut b_factors: Vec<f32> = protein
+        .atoms
+        .iter()
+        .map(|a| a.b_factor)
+        .filter(|b| b.is_finite())
+        .collect();
+    if b_factors.is_empty() {
         return (0.0, 100.0);
     }
-
-    let mut b_factors: Vec<f32> = protein.atoms.iter().map(|a| a.b_factor).collect();
-    b_factors.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    b_factors.sort_by(f32::total_cmp);
 
     // Avoiding outliers
     let idx_min = (b_factors.len() as f32 * 0.02) as usize;
@@ -277,4 +281,41 @@ pub fn get_calpha_connections(protein: &Protein, ca_indices: &[usize]) -> Vec<(u
     }
 
     connections
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn atom_with_bfactor(b: f32) -> Atom {
+        Atom {
+            serial: 0,
+            name: "CA".to_string(),
+            residue_name: "ALA".to_string(),
+            residue_seq: 1,
+            chain_id: "A".to_string(),
+            position: Vec3::ZERO,
+            b_factor: b,
+            secondary_structure: SecondaryStructure::Coil,
+        }
+    }
+
+    #[test]
+    fn bfactor_range_does_not_panic_on_nan() {
+        // Real PDB files contain NaN coordinates and B-factors; the depth/value
+        // sorts must not panic on them.
+        let protein = Protein {
+            atoms: vec![
+                atom_with_bfactor(10.0),
+                atom_with_bfactor(f32::NAN),
+                atom_with_bfactor(50.0),
+            ],
+            title: String::new(),
+            surface_points: Vec::new(),
+            hbonds: Vec::new(),
+        };
+
+        let (b_min, b_max) = calculate_bfactor_range(&protein);
+        assert!(b_min.is_finite() && b_max.is_finite());
+    }
 }

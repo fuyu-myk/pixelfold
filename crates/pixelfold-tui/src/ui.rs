@@ -93,7 +93,7 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App) {
                         .collect();
 
                 // Sort by depth (painter's algorithm)
-                projected_with_idx.sort_by(|a, b| a.1.depth.partial_cmp(&b.1.depth).unwrap());
+                projected_with_idx.sort_by(|a, b| a.1.depth.total_cmp(&b.1.depth));
 
                 let selected_atom_idx = app.selected_atom_idx;
                 let residue_highlight_active =
@@ -211,7 +211,7 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App) {
                     // Sort by depth
                     let mut surface_with_depth: Vec<&renderer::ProjectedSurfacePoint> =
                         projected_surface.iter().collect();
-                    surface_with_depth.sort_by(|a, b| a.depth.partial_cmp(&b.depth).unwrap());
+                    surface_with_depth.sort_by(|a, b| a.depth.total_cmp(&b.depth));
 
                     for proj_surface in surface_with_depth {
                         if proj_surface.x >= 0.0

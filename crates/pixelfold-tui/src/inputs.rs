@@ -1,22 +1,19 @@
 use anyhow::Result;
 use crossterm::event::{self, KeyCode, KeyModifiers};
-use ratatui::layout::Rect;
 
 use pixelfold_core::{DisplayMode, rin, sasa};
 use pixelfold_render::renderer;
 
 use crate::App;
 
-pub(crate) fn handle_input(
-    app: &mut App,
-    key: KeyCode,
-    _modifiers: KeyModifiers,
-    width: f32,
-    height: f32,
-) -> Result<()> {
+pub(crate) fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers) -> Result<()> {
     let rotation_speed = 0.1;
     let zoom_speed = 0.1;
     let pan_speed = 5.0;
+
+    // Input, rendering, and mouse picking share one coordinate system.
+    let width = app.last_canvas_width;
+    let height = app.last_canvas_height;
 
     match key {
         KeyCode::Char('q') => {}
@@ -256,11 +253,7 @@ pub(crate) fn handle_input(
     Ok(())
 }
 
-pub(crate) fn handle_mouse(
-    app: &mut App,
-    mouse: event::MouseEvent,
-    _terminal_size: Rect,
-) -> Result<()> {
+pub(crate) fn handle_mouse(app: &mut App, mouse: event::MouseEvent) -> Result<()> {
     use event::MouseEventKind;
 
     if !app.inspect_mode {

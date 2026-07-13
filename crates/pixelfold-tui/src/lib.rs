@@ -244,11 +244,7 @@ pub fn pick_atoms_along_ray(
     }
 
     // Sort by screen distance first, then by depth (closer to camera wins ties)
-    candidates.sort_by(|a, b| {
-        a.1.partial_cmp(&b.1)
-            .unwrap()
-            .then(a.2.partial_cmp(&b.2).unwrap())
-    });
+    candidates.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.2.total_cmp(&b.2)));
 
     // Return (atom_idx, screen_distance) pairs
     candidates

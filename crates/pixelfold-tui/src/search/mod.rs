@@ -154,6 +154,9 @@ pub fn fetch_structures(
                     handle_mouse(&mut state, mouse)?;
                     redraw_needed = true;
                 }
+                event::Event::Resize(_, _) => {
+                    redraw_needed = true;
+                }
                 _ => {}
             }
         }
