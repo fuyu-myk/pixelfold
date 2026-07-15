@@ -41,27 +41,7 @@ impl SurfaceCalculator {
             return Vec::new();
         }
 
-        // Convert to rust-sasa format
-        let sasa_atoms: Vec<SasaAtom> = atoms
-            .iter()
-            .enumerate()
-            .map(|(idx, atom)| {
-                let vdw_radius = get_vdw_radius(atom.element.as_str());
-                SasaAtom {
-                    position: Point3::new(atom.position.x, atom.position.y, atom.position.z),
-                    radius: vdw_radius,
-                    id: idx,
-                    parent_id: Some(atom.residue_seq as isize),
-                }
-            })
-            .collect();
-
-        let sasa_values = rust_sasa::calculate_sasa_internal(
-            &sasa_atoms,
-            self.probe_radius,
-            self.points_per_atom,
-            true, // Parallel computation for better performance
-        );
+        let sasa_values = self.calculate_atom_sasa(atoms);
 
         // Generate surface points based on SASA values
         let mut surface_points = Vec::new();
@@ -98,6 +78,23 @@ impl SurfaceCalculator {
         surface_points
     }
 
+    /// Per-atom solvent-accessible surface area (square Angstroms), aligned to
+    /// `atoms`. This is the raw Shrake-Rupley output used for validation against
+    /// reference tools, before it is turned into surface points.
+    pub fn calculate_atom_sasa(&self, atoms: &[Atom]) -> Vec<f32> {
+        if atoms.is_empty() {
+            return Vec::new();
+        }
+
+        let sasa_atoms = to_sasa_atoms(atoms);
+        rust_sasa::calculate_sasa_internal(
+            &sasa_atoms,
+            self.probe_radius,
+            self.points_per_atom,
+            true, // parallel
+        )
+    }
+
     /// Generate uniformly distributed points on a unit sphere using Fibonacci spiral
     fn generate_fibonacci_sphere(&self, num_points: usize) -> Vec<Vec3> {
         let mut points = Vec::with_capacity(num_points);
@@ -118,6 +115,20 @@ impl SurfaceCalculator {
 
         points
     }
+}
+
+/// Convert atoms to the rust-sasa input representation.
+fn to_sasa_atoms(atoms: &[Atom]) -> Vec<SasaAtom> {
+    atoms
+        .iter()
+        .enumerate()
+        .map(|(idx, atom)| SasaAtom {
+            position: Point3::new(atom.position.x, atom.position.y, atom.position.z),
+            radius: get_vdw_radius(atom.element.as_str()),
+            id: idx,
+            parent_id: Some(atom.residue_seq as isize),
+        })
+        .collect()
 }
 
 /// Van der Waals radius (Angstroms) for an element symbol.

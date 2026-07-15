@@ -59,8 +59,8 @@ Crates:
 - `[~]` `crates/pixelfold-fetch/` : RCSB search + structure download (addition beyond roadmap layout; used by both the CLI `fetch` subcommand and the TUI search mode). (today: `client.rs` async reqwest wrapper, `download.rs` concurrent gzip download for the search TUI, `types.rs` API response types, and `fetch_cif` a blocking single-structure download for the CLI resolver)
 - `[~]` `crates/pixelfold-cli/` : headless subcommands (the product): view, rin, interactions, sasa, ss, render, fetch, validate. (today: `clap` arg parsing, a path/PDB-id resolver that auto-fetches uncached ids into the XDG cache, then dispatches to `pixelfold_tui::view`/`search`. Named subcommands still to come)
 - `[~]` `crates/pixelfold-tui/` : ratatui front-end (the demo), now a library. (today: `args`/`app`/`inputs`/`ui` split the entry + event loop + input + render; `lib.rs` `App` state; `search/` search mode)
-- `[~]` `crates/pixelfold-validate/` : validation harness, precision/recall vs DSSP, FreeSASA, PLIP, RING. (today: binary stub printing a placeholder; `cargo run -p pixelfold-validate`)
-- `[~]` `benchmarks/` : pinned PDB manifest + golden reference files. (today: `manifest.toml` with empty strata + `golden/` scaffold)
+- `[~]` `crates/pixelfold-validate/` : validation harness, precision/recall vs DSSP, FreeSASA, PLIP, RING. (today: compares pixelfold's DSSP (Q3, H-bond edge F1) and SASA (MAE/median/Pearson) against committed golden files and prints a markdown report; PLIP/RING interaction validation waits on the interaction engine; golden files themselves come from the dockerised reference tools)
+- `[~]` `benchmarks/` : pinned PDB manifest + golden reference files. (today: `manifest.toml` with a confident starter set per stratum (expand toward the target counts) + `golden/` for `<ID>.dssp.json` / `<ID>.freesasa.json`; structures cache under `benchmarks/cache/`, gitignored)
 
 Two binaries now exist (`pixelfold` from cli, `pixelfold-validate`); `default-members = ["crates/pixelfold-cli"]` keeps bare `cargo run` pointed at `pixelfold`.
 
@@ -74,7 +74,7 @@ Two binaries now exist (`pixelfold` from cli, `pixelfold-validate`); `default-me
 - `parser.rs` : pdbtbx PDB/mmCIF loading (`build_atom`) + altloc policy (`filter_altlocs`) + fixed-capacity truncation warning; calls `dssp::assign` after loading.
 - `dssp.rs` : DSSP secondary-structure assignment: chain-aware residue model, amide-hydrogen inference, Kabsch-Sander H-bond energies, and the `HBond` type consumed by the renderer and RIN.
 - `assembly.rs` : pure `detect_partial_assembly` reading `_pdbx_struct_assembly` / `REMARK 350` from the raw file (pdbtbx does not parse them), flagging when the biological unit needs symmetry expansion beyond the deposited coordinates. Detection only; generation is later work.
-- `sasa.rs` : Shrake-Rupley SASA (wraps `rust-sasa`) + vdW radius / hydrophobicity tables.
+- `sasa.rs` : Shrake-Rupley SASA (wraps `rust-sasa`): surface points for rendering + `calculate_atom_sasa` (per-atom area, for validation) + vdW radius / hydrophobicity tables.
 - `rin.rs` : petgraph H-bond residue interaction network + centrality/components/motifs.
 
 `pixelfold-render/src/`:
@@ -105,12 +105,18 @@ Two binaries now exist (`pixelfold` from cli, `pixelfold-validate`); `default-me
 
 `pixelfold-validate/src/`:
 
-- `main.rs` : binary stub (placeholder message; real harness pending)
+- `main.rs` : CLI (`--manifest`/`--golden-dir`/`--cache-dir`/`--offline`); loads the manifest, resolves + loads each structure, runs the analyses, compares against golden, prints the report
+- `metrics.rs` : pure metrics (Q3 agreement, edge precision/recall/F1, SASA MAE/median/Pearson)
+- `golden.rs` : serde schema + loader for the golden JSON files (per-residue SS + H-bonds; per-residue SASA)
+- `analysis.rs` : extract pixelfold's per-residue prediction (SS, H-bond edges, per-residue SASA) from a loaded `Protein`
+- `compare.rs` : align a prediction to golden by residue and score it
+- `report.rs` : aggregate per-entry metrics into a markdown table (per-entry breakdown + summary)
 
 `benchmarks/`:
 
-- `manifest.toml` : stratified PDB entry list (empty strata scaffold)
-- `golden/` : reference outputs from DSSP/FreeSASA/PLIP/RING (empty scaffold)
+- `manifest.toml` : stratified PDB entry list (confident starter set)
+- `golden/` : reference outputs, `<ID>.dssp.json` (mkdssp) and `<ID>.freesasa.json` (FreeSASA); PLIP/RING added in the interaction work
+- `cache/` : downloaded structures (gitignored)
 
 Structure resolution now goes through the CLI: an existing path is used as given, a 4-character PDB id is looked up in (and downloads land in) the XDG cache dir (`dirs::cache_dir()/pixelfold`, override with `--cache-dir`). The old `env!("CARGO_MANIFEST_DIR")` lookup is gone. `crates/pixelfold-tui/data/` remains only as optional local sample structures (gitignored), reachable by explicit path.
 

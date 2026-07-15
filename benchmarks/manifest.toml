@@ -1,16 +1,34 @@
 # PixelFold validation benchmark set.
 #
 # Stratified PDB entries that pixelfold-validate compares against reference
-# implementations (DSSP, FreeSASA, PLIP, RING). Add PDB IDs to each stratum;
-# golden reference outputs (one file per entry per tool) live under golden/.
+# implementations. DSSP and FreeSASA are compared now; PLIP and RING planned
+# once the interaction engine exists. Golden outputs (one file per entry per
+# tool) live under golden/ as <ID>.dssp.json and <ID>.freesasa.json.
 #
-# Scaffold only: strata are defined but empty until the harness is built.
+# This is a confident starter set, not the full target. Target counts per the
+# roadmap are noted per stratum.
 
 [strata]
-high_res_monomers = []      # < 2.0 A, clean baseline
-multi_chain_complexes = []  # inter-chain interactions, protein-protein interfaces
-protein_ligand = []         # protein-ligand complexes
-nucleic_acid = []           # nucleic-acid-containing, parser robustness
-metalloproteins = []        # metal coordination
-nmr_ensembles = []          # multi-model path
-pathological = []           # altlocs, insertion codes, missing atoms, no HELIX/SHEET records
+
+# Target 40: high-resolution single-chain proteins, the clean baseline.
+high_res_monomers = ["1CRN", "1UBQ", "5PTI", "3LZT", "2IGD", "1REI"]
+
+# Target 40: inter-chain interfaces and protein-protein contacts.
+multi_chain_complexes = ["4HHB", "1HHO", "2HHB", "1IGT", "3HFM"]
+
+# Target 60: protein-ligand complexes (draw from PDBbind / PoseBusters).
+protein_ligand = ["3PTB", "1STP", "4DFR", "1HVR", "2CGR"]
+
+# Target 20: nucleic-acid-containing, for parser robustness.
+nucleic_acid = ["1BNA", "1EHZ", "6TNA", "1ZBI"]
+
+# Target 20: metal coordination.
+metalloproteins = ["1MBN", "1CA2", "1AZU", "2SOD", "1RCX"]
+
+# Target 10: NMR ensembles exercising the multi-model path.
+nmr_ensembles = ["1D3Z", "2K39"]
+
+# Target 10: the row where bugs hide. Altlocs, insertion codes, missing atoms.
+# TODO: a ribosome, a five-residue peptide, and an AlphaFold model with no
+# HELIX/SHEET records.
+pathological = ["1IGY", "3NIR"]
