@@ -7,6 +7,7 @@ pub mod fixed_str;
 pub mod parser;
 pub mod rin;
 pub mod sasa;
+pub mod spatial;
 pub mod structure;
 
 pub use dssp::HBond;

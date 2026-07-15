@@ -15,6 +15,7 @@ use std::collections::{HashMap, HashSet};
 use glam::Vec3;
 
 use crate::fixed_str::FixedStr;
+use crate::spatial::Grid;
 use crate::structure::{Atom, SecondaryStructure};
 
 /// Below this energy (kcal/mol) a backbone N-H...O=C pair counts as bonded.
@@ -25,6 +26,9 @@ const MIN_ENERGY: f32 = -9.9;
 const MIN_DISTANCE: f32 = 0.1;
 /// A C(prev)-N separation beyond this (A) is a chain break, not a peptide bond.
 const MAX_PEPTIDE_BOND: f32 = 2.5;
+/// Donor N atoms beyond this (A) from an acceptor O cannot reach the -0.5
+/// kcal/mol threshold, so the neighbour search need not look further.
+const HBOND_SEARCH_RADIUS: f32 = 6.0;
 
 /// Backbone hydrogen bond: the C=O of `acceptor_residue` to the N-H of
 /// `donor_residue`. Residue fields are indices into the ordered residue list.
@@ -163,23 +167,37 @@ fn hbond_energy(c: Vec3, o: Vec3, n: Vec3, h: Vec3) -> f32 {
 /// Every backbone hydrogen bond below the energy threshold. The acceptor
 /// contributes C=O, the donor contributes N-H; sequential same-chain neighbours
 /// are peptide-bonded rather than hydrogen-bonded and are skipped.
+///
+/// A uniform grid over the donor nitrogens turns the acceptor-donor search from
+/// O(N^2) into O(N): each acceptor only tests donors within the search radius.
 fn compute_hbonds(residues: &[Residue]) -> Vec<HBond> {
-    let mut hbonds = Vec::new();
+    let mut donor_positions: Vec<Vec3> = Vec::new();
+    let mut donor_residue: Vec<usize> = Vec::new();
+    for (j, res) in residues.iter().enumerate() {
+        if let (Some(n), Some(_)) = (res.n, res.h) {
+            donor_positions.push(n);
+            donor_residue.push(j);
+        }
+    }
+    let grid = Grid::build(&donor_positions, HBOND_SEARCH_RADIUS);
 
+    let mut hbonds = Vec::new();
     for (i, acc) in residues.iter().enumerate() {
         let (Some(c), Some(o), Some(o_idx)) = (acc.c, acc.o, acc.o_atom_idx) else {
             continue;
         };
+        let acc_chain = acc.chain_id;
 
-        for (j, don) in residues.iter().enumerate() {
-            if i == j {
-                continue;
+        grid.for_each_within(o, HBOND_SEARCH_RADIUS, |d| {
+            let j = donor_residue[d];
+            if i == j || (acc_chain == residues[j].chain_id && i.abs_diff(j) == 1) {
+                return;
             }
-            if acc.chain_id == don.chain_id && i.abs_diff(j) == 1 {
-                continue;
-            }
-            let (Some(n), Some(h), Some(n_idx)) = (don.n, don.h, don.n_atom_idx) else {
-                continue;
+
+            let (Some(n), Some(h), Some(n_idx)) =
+                (residues[j].n, residues[j].h, residues[j].n_atom_idx)
+            else {
+                return;
             };
 
             let energy = hbond_energy(c, o, n, h);
@@ -192,7 +210,7 @@ fn compute_hbonds(residues: &[Residue]) -> Vec<HBond> {
                     energy,
                 });
             }
-        }
+        });
     }
 
     hbonds
@@ -432,6 +450,34 @@ mod tests {
         let far_n = Vec3::new(100.0, 0.0, 0.0);
         let far_h = Vec3::new(99.0, 0.0, 0.0);
         assert!(hbond_energy(c, o, far_n, far_h) > HBOND_ENERGY_THRESHOLD);
+    }
+
+    #[test]
+    fn compute_hbonds_finds_the_favourable_pair_via_the_grid() {
+        // Acceptor at residue 0, donor at residue 3 (non-adjacent), positioned
+        // for a favourable bond; residues 1 and 2 carry no backbone atoms.
+        let mut acceptor = residue("A", 1, false);
+        acceptor.c = Some(Vec3::new(-1.23, 0.0, 0.0));
+        acceptor.o = Some(Vec3::new(0.0, 0.0, 0.0));
+        acceptor.o_atom_idx = Some(10);
+        let mut donor = residue("A", 4, false);
+        donor.n = Some(Vec3::new(2.8, 0.0, 0.0));
+        donor.h = Some(Vec3::new(1.8, 0.0, 0.0));
+        donor.n_atom_idx = Some(20);
+
+        let residues = vec![
+            acceptor,
+            residue("A", 2, false),
+            residue("A", 3, false),
+            donor,
+        ];
+        let hbonds = compute_hbonds(&residues);
+
+        assert_eq!(hbonds.len(), 1);
+        assert_eq!(hbonds[0].acceptor_residue, 0);
+        assert_eq!(hbonds[0].donor_residue, 3);
+        assert_eq!(hbonds[0].acceptor_atom_idx, 10);
+        assert_eq!(hbonds[0].donor_atom_idx, 20);
     }
 
     #[test]
