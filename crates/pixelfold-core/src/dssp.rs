@@ -10,7 +10,7 @@
 //! chain (or one after a chain break) has no preceding carbonyl, so neither can
 //! donate.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use glam::Vec3;
 
@@ -198,77 +198,97 @@ fn compute_hbonds(residues: &[Residue]) -> Vec<HBond> {
     hbonds
 }
 
-/// Interim secondary-structure assignment from the hydrogen bond set. This is a
-/// chain-aware version of the original offset heuristic.
+/// Assign secondary structure from the hydrogen bond set using the DSSP pattern
+/// rules, reduced to helix / sheet / turn / coil.
+///
+/// `bonded(a, b)` reads "the C=O of residue a hydrogen-bonds the N-H of residue
+/// b". An n-turn is `bonded(i, i + n)`; a helix needs two consecutive n-turns; a
+/// bridge is the parallel or antiparallel pairing of two strands. Priority
+/// follows DSSP: alpha helix, then sheet, then 3-10 / pi helix, then turn.
 fn assign_from_hbonds(hbonds: &[HBond], residues: &[Residue]) -> Vec<SecondaryStructure> {
     let n = residues.len();
     let mut ss = vec![SecondaryStructure::Coil; n];
-
-    let mut acceptor_to_donors: Vec<Vec<usize>> = vec![Vec::new(); n];
-    let mut donor_to_acceptors: Vec<Vec<usize>> = vec![Vec::new(); n];
-    for hb in hbonds {
-        acceptor_to_donors[hb.acceptor_residue].push(hb.donor_residue);
-        donor_to_acceptors[hb.donor_residue].push(hb.acceptor_residue);
+    if n == 0 {
+        return ss;
     }
 
+    let bonds: HashSet<(usize, usize)> = hbonds
+        .iter()
+        .map(|hb| (hb.acceptor_residue, hb.donor_residue))
+        .collect();
+    let bonded = |a: usize, b: usize| bonds.contains(&(a, b));
     let same_chain = |a: usize, b: usize| residues[a].chain_id == residues[b].chain_id;
 
-    // Helices: a residue donates to i+3/i+4/i+5 within the same chain.
-    for i in 0..n {
-        for &acc in &donor_to_acceptors[i] {
-            if !same_chain(i, acc) {
-                continue;
-            }
+    // n-turn: C=O(i) ... N-H(i + step), within one chain.
+    let turn = |i: usize, step: usize| {
+        let j = i + step;
+        j < n && same_chain(i, j) && bonded(i, j)
+    };
 
-            let offset = i.abs_diff(acc);
-            if offset == 4 {
-                let (lo, hi) = (i.min(acc), i.max(acc));
-                ss[lo..=hi].fill(SecondaryStructure::Helix);
-            } else if (offset == 3 || offset == 5) && ss[i] == SecondaryStructure::Coil {
-                ss[i] = SecondaryStructure::Helix;
-                ss[acc] = SecondaryStructure::Helix;
-            }
+    // Alpha helix (highest priority): two consecutive 4-turns cover i..=i+3.
+    for i in 1..n {
+        if turn(i - 1, 4) && turn(i, 4) {
+            let end = (i + 3).min(n - 1);
+            ss[i..=end].fill(SecondaryStructure::Helix);
         }
     }
 
-    // Sheets: non-local hydrogen bonds (different chain, or far in sequence).
-    for i in 0..n {
-        if ss[i] == SecondaryStructure::Helix {
-            continue;
-        }
+    // Beta bridges -> sheet, over coil only (alpha wins ties).
+    let bridge = |i: usize, j: usize| -> bool {
+        let prev = |x: usize| (x > 0 && same_chain(x - 1, x)).then(|| x - 1);
+        let next = |x: usize| (x + 1 < n && same_chain(x, x + 1)).then_some(x + 1);
+        let (pi, ni, pj, nj) = (prev(i), next(i), prev(j), next(j));
 
-        for &partner in acceptor_to_donors[i]
-            .iter()
-            .chain(donor_to_acceptors[i].iter())
-        {
-            let nonlocal = !same_chain(i, partner) || i.abs_diff(partner) > 4;
-            if nonlocal {
-                ss[i] = SecondaryStructure::Sheet;
-                if ss[partner] != SecondaryStructure::Helix {
-                    ss[partner] = SecondaryStructure::Sheet;
+        let parallel = matches!((pi, ni), (Some(p), Some(q)) if bonded(p, j) && bonded(j, q))
+            || matches!((pj, nj), (Some(p), Some(q)) if bonded(p, i) && bonded(i, q));
+        let antiparallel = (bonded(i, j) && bonded(j, i))
+            || matches!((pi, nj, pj, ni), (Some(a), Some(b), Some(c), Some(d))
+                if bonded(a, b) && bonded(c, d));
+
+        parallel || antiparallel
+    };
+    for i in 0..n {
+        for j in (i + 1)..n {
+            if same_chain(i, j) && j - i < 3 {
+                continue; // too close in one chain to be a genuine bridge
+            }
+
+            if bridge(i, j) {
+                if ss[i] == SecondaryStructure::Coil {
+                    ss[i] = SecondaryStructure::Sheet;
+                }
+                if ss[j] == SecondaryStructure::Coil {
+                    ss[j] = SecondaryStructure::Sheet;
                 }
             }
         }
     }
 
-    // Turns: coil residues flanked by structured residues in the same chain.
-    for i in 1..n.saturating_sub(1) {
-        if ss[i] != SecondaryStructure::Coil {
-            continue;
+    // 3-10 and pi helices, over coil only (sheet wins ties).
+    for (step, span) in [(3usize, 2usize), (5, 4)] {
+        for i in 1..n {
+            if turn(i - 1, step) && turn(i, step) {
+                let end = (i + span).min(n - 1);
+                for s in ss[i..=end].iter_mut() {
+                    if *s == SecondaryStructure::Coil {
+                        *s = SecondaryStructure::Helix;
+                    }
+                }
+            }
         }
+    }
 
-        let prev = if same_chain(i, i - 1) {
-            ss[i - 1]
-        } else {
-            SecondaryStructure::Coil
-        };
-        let next = if same_chain(i, i + 1) {
-            ss[i + 1]
-        } else {
-            SecondaryStructure::Coil
-        };
-        if prev != SecondaryStructure::Coil || next != SecondaryStructure::Coil {
-            ss[i] = SecondaryStructure::Turn;
+    // Turns: residues inside an n-turn that are still coil.
+    for i in 0..n {
+        for step in [3usize, 4, 5] {
+            if turn(i, step) {
+                let end = (i + step - 1).min(n - 1);
+                for s in ss[(i + 1)..=end].iter_mut() {
+                    if *s == SecondaryStructure::Coil {
+                        *s = SecondaryStructure::Turn;
+                    }
+                }
+            }
         }
     }
 
@@ -292,6 +312,62 @@ mod tests {
             n_atom_idx: None,
             o_atom_idx: None,
         }
+    }
+
+    /// `n` residues, all in chain A, for pattern tests driven by synthetic bonds.
+    fn chain_a(n: usize) -> Vec<Residue> {
+        (0..n).map(|i| residue("A", i as u32 + 1, false)).collect()
+    }
+
+    /// A hydrogen bond whose C=O side is `acceptor` and N-H side is `donor`.
+    fn hbond(acceptor: usize, donor: usize) -> HBond {
+        HBond {
+            donor_residue: donor,
+            acceptor_residue: acceptor,
+            donor_atom_idx: 0,
+            acceptor_atom_idx: 0,
+            energy: -1.0,
+        }
+    }
+
+    #[test]
+    fn consecutive_four_turns_form_an_alpha_helix() {
+        let residues = chain_a(8);
+        let hbonds = [hbond(0, 4), hbond(1, 5), hbond(2, 6), hbond(3, 7)];
+        let ss = assign_from_hbonds(&hbonds, &residues);
+        // The overlap of the 4-turns covers residues 1..=6.
+        for (offset, s) in ss[1..=6].iter().enumerate() {
+            assert_eq!(*s, SecondaryStructure::Helix, "residue {}", offset + 1);
+        }
+        assert_ne!(ss[0], SecondaryStructure::Helix);
+    }
+
+    #[test]
+    fn a_single_four_turn_is_a_turn_not_a_helix() {
+        let residues = chain_a(6);
+        let ss = assign_from_hbonds(&[hbond(0, 4)], &residues);
+        assert!(ss.iter().all(|&s| s != SecondaryStructure::Helix));
+        assert_eq!(ss[2], SecondaryStructure::Turn); // inside the lone turn
+    }
+
+    #[test]
+    fn antiparallel_bridge_forms_a_sheet() {
+        let residues = chain_a(9);
+        // Two strands with mutual C=O/N-H pairs at (0,8) and (2,6).
+        let hbonds = [hbond(2, 6), hbond(6, 2), hbond(0, 8), hbond(8, 0)];
+        let ss = assign_from_hbonds(&hbonds, &residues);
+        for i in [0usize, 2, 6, 8] {
+            assert_eq!(ss[i], SecondaryStructure::Sheet, "residue {i}");
+        }
+    }
+
+    #[test]
+    fn parallel_bridge_forms_a_sheet() {
+        let residues = chain_a(9);
+        // Parallel: C=O(i-1)->N-H(j) and C=O(j)->N-H(i+1) for i=3, j=7.
+        let ss = assign_from_hbonds(&[hbond(2, 7), hbond(7, 4)], &residues);
+        assert_eq!(ss[3], SecondaryStructure::Sheet);
+        assert_eq!(ss[7], SecondaryStructure::Sheet);
     }
 
     #[test]
