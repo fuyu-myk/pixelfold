@@ -1,0 +1,81 @@
+//! Geometric parameters for interaction detection.
+//!
+//! Every value is taken from PLIP's `plip/basic/config.py`, with the exact PLIP
+//! variable name in each doc comment. Where RING 4.0 uses a different value,
+//! the difference is recorded: it is the expected reason pixelfold and RING
+//! disagree on an edge, not a bug. Distances are Angstroms, angles are degrees.
+//!
+//! Sources:
+//! - PLIP config.py: `https://raw.githubusercontent.com/pharmai/plip/master/plip/basic/config.py`
+//! - RING 4.0: Clementel et al., Nucleic Acids Research 2024 (gkae337)
+
+/// Shared lower distance bound applied to every distance gate (PLIP `MIN_DIST`).
+pub const MIN_DIST: f32 = 0.5;
+
+/// Max donor-acceptor heavy-atom distance D...A (PLIP `HBOND_DIST_MAX`). RING
+/// uses a stricter 3.5 A plus a linearity constraint, so RING reports fewer.
+pub const HBOND_DIST_MAX: f32 = 4.1;
+/// Min D-H...A angle measured at the hydrogen (PLIP `HBOND_DON_ANGLE_MIN`).
+pub const HBOND_DONOR_ANGLE_MIN: f32 = 100.0;
+
+/// Max charge-centre to charge-centre distance for a salt bridge (PLIP
+/// `SALTBRIDGE_DIST_MAX`). RING uses a stricter ~4.0 A, atom-to-atom.
+pub const SALTBRIDGE_DIST_MAX: f32 = 5.5;
+
+/// Max apolar carbon-carbon distance for a hydrophobic contact (PLIP
+/// `HYDROPH_DIST_MAX`). RING folds this into van der Waals contacts and also
+/// admits sulfur.
+pub const HYDROPHOBIC_DIST_MAX: f32 = 4.0;
+
+/// Max aromatic ring centroid distance for pi-stacking (PLIP `PISTACK_DIST_MAX`).
+/// RING is more permissive at ~6.5 A.
+pub const PISTACK_DIST_MAX: f32 = 5.5;
+/// Max deviation from parallel or perpendicular ring orientation (PLIP
+/// `PISTACK_ANG_DEV`).
+pub const PISTACK_ANGLE_DEV: f32 = 30.0;
+/// Max lateral centroid offset (PLIP `PISTACK_OFFSET_MAX`, benzene radius + 0.5).
+pub const PISTACK_OFFSET_MAX: f32 = 2.0;
+
+/// Max cation to aromatic-ring-centroid distance (PLIP `PICATION_DIST_MAX`). RING
+/// is stricter at ~5.0 A.
+pub const PICATION_DIST_MAX: f32 = 6.0;
+
+/// Max halogen X...A distance (PLIP `HALOGEN_DIST_MAX`).
+pub const HALOGEN_DIST_MAX: f32 = 4.0;
+/// Optimal C-X...A donor angle (PLIP `HALOGEN_DON_ANGLE`).
+pub const HALOGEN_DONOR_ANGLE: f32 = 165.0;
+/// Optimal Y-A...X acceptor angle (PLIP `HALOGEN_ACC_ANGLE`).
+pub const HALOGEN_ACCEPTOR_ANGLE: f32 = 120.0;
+/// Tolerance applied to both halogen angles (PLIP `HALOGEN_ANGLE_DEV`).
+pub const HALOGEN_ANGLE_DEV: f32 = 30.0;
+
+/// Min leg distance through the bridging water (PLIP `WATER_BRIDGE_MINDIST`).
+pub const WATER_BRIDGE_MIN_DIST: f32 = 2.5;
+/// Max leg distance through the bridging water (PLIP `WATER_BRIDGE_MAXDIST`).
+pub const WATER_BRIDGE_MAX_DIST: f32 = 4.1;
+/// Water-bridge angle bounds (PLIP `WATER_BRIDGE_OMEGA_MIN`).
+pub const WATER_BRIDGE_OMEGA_MIN: f32 = 71.0;
+/// Water-bridge angle bounds (PLIP `WATER_BRIDGE_OMEGA_MAX`).
+pub const WATER_BRIDGE_OMEGA_MAX: f32 = 140.0;
+/// Water-bridge angle bounds (PLIP `WATER_BRIDGE_THETA_MIN`).
+pub const WATER_BRIDGE_THETA_MIN: f32 = 100.0;
+
+/// Max metal-ion to coordinating O/N/S atom distance (PLIP `METAL_DIST_MAX`,
+/// Harding 2001).
+pub const METAL_DIST_MAX: f32 = 3.0;
+
+/// Max S(gamma)-S(gamma) distance for a disulfide. PLIP does not detect
+/// disulfides; this is RING's SSBOND cutoff (nominal S-S bond length ~2.05 A).
+pub const DISULFIDE_DIST_MAX: f32 = 2.5;
+
+/// The cell size for the interaction spatial grid; the largest interaction cutoff.
+pub const GRID_CELL_SIZE: f32 = PICATION_DIST_MAX;
+
+/// Element symbols treated as coordinating metal ions, from PLIP `METAL_IONS`
+/// (reduced to element symbols; matched case-insensitively against the element
+/// column, which is why a calcium ion "CA" is distinct from a C-alpha "C").
+pub const METAL_ELEMENTS: &[&str] = &[
+    "CA", "CO", "MG", "MN", "FE", "CU", "ZN", "LI", "NA", "K", "RB", "SR", "CS", "BA", "CR", "NI",
+    "RU", "RH", "PD", "AG", "CD", "LA", "W", "OS", "IR", "PT", "AU", "HG", "CE", "PR", "SM", "EU",
+    "GD", "TB", "YB", "LU", "AL", "GA", "IN", "SB", "TL", "PB",
+];

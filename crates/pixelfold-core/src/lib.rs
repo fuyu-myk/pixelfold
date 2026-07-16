@@ -4,6 +4,7 @@
 pub mod assembly;
 pub mod dssp;
 pub mod fixed_str;
+pub mod interactions;
 pub mod parser;
 pub mod rin;
 pub mod sasa;
@@ -12,6 +13,7 @@ pub mod structure;
 
 pub use dssp::HBond;
 pub use fixed_str::FixedStr;
+pub use interactions::{Interaction, InteractionKind};
 pub use sasa::SurfacePoint;
 pub use structure::{
     AltlocPolicy, Atom, BiologicalAssembly, DisplayMode, Protein, SecondaryStructure,
