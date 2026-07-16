@@ -60,7 +60,7 @@ Crates:
 - `[~]` `crates/pixelfold-cli/` : headless subcommands (the product): view, rin, interactions, sasa, ss, render, fetch, validate. (today: `clap` arg parsing, a path/PDB-id resolver that auto-fetches uncached ids into the XDG cache, then dispatches to `pixelfold_tui::view`/`search`. Named subcommands still to come)
 - `[~]` `crates/pixelfold-tui/` : ratatui front-end (the demo), now a library. (today: `args`/`app`/`inputs`/`ui` split the entry + event loop + input + render; `lib.rs` `App` state; `search/` search mode)
 - `[~]` `crates/pixelfold-validate/` : validation harness, precision/recall vs DSSP, FreeSASA, PLIP, RING. (today: compares pixelfold's DSSP (Q3, H-bond edge F1) and SASA (MAE/median/Pearson) against committed golden files and prints a markdown report; PLIP/RING interaction validation waits on the interaction engine; golden files themselves come from the dockerised reference tools)
-- `[~]` `benchmarks/` : pinned PDB manifest + golden reference files. (today: `manifest.toml` with a confident starter set per stratum (expand toward the target counts) + `golden/` for `<ID>.dssp.json` / `<ID>.freesasa.json`; structures cache under `benchmarks/cache/`, gitignored)
+- `[~]` `benchmarks/` : pinned PDB manifest + golden reference files. (today: `manifest.toml` with a confident starter set per stratum (expand toward the target counts); `golden/` for `<ID>.dssp.json` / `<ID>.freesasa.json`; `tools/` a pinned DSSP 4 + FreeSASA Docker image + `generate_golden.py` that produces the golden set; `thresholds.toml` the `--check` regression gates (all off until baselines exist); structures cache under `benchmarks/cache/`, gitignored. A CI job runs the harness once golden files land)
 
 Two binaries now exist (`pixelfold` from cli, `pixelfold-validate`); `default-members = ["crates/pixelfold-cli"]` keeps bare `cargo run` pointed at `pixelfold`.
 
@@ -111,6 +111,7 @@ Two binaries now exist (`pixelfold` from cli, `pixelfold-validate`); `default-me
 - `analysis.rs` : extract pixelfold's per-residue prediction (SS, H-bond edges, per-residue SASA) from a loaded `Protein`
 - `compare.rs` : align a prediction to golden by residue and score it
 - `report.rs` : aggregate per-entry metrics into a markdown table (per-entry breakdown + summary)
+- `check.rs` : `--check` regression gate comparing aggregate metrics to `benchmarks/thresholds.toml`
 
 `benchmarks/`:
 

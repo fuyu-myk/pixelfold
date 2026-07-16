@@ -19,6 +19,24 @@ A terminal-based 3D protein structure viewer using Braille Unicode characters fo
 - **H-Bond Network Analysis**: Graph-based analysis using `petgraph` to identify structural motifs, hubs, and connected components
 - **Protein structure searching**: Ability to search for and download `.cif` files through the RCSB API
 
+## Validation
+
+Pixelfold's analyses are checked against reference implementations across a
+stratified PDB benchmark: secondary structure against **DSSP 4** and
+solvent-accessible surface area against **FreeSASA** (interaction validation
+against PLIP and RING follows the interaction engine).
+
+<!-- VALIDATION:START -->
+_Validation numbers are pending the first golden run. Generate the golden
+reference files with [`benchmarks/tools`](benchmarks/tools/README.md) (a pinned
+DSSP 4 + FreeSASA Docker image), run `cargo run -p pixelfold-validate -- --report`,
+and replace this block with the printed table._
+<!-- VALIDATION:END -->
+
+The harness (`pixelfold-validate`) compares against committed golden files under
+`benchmarks/golden/` and runs on every PR, failing on regression past the gates
+in `benchmarks/thresholds.toml`.
+
 ## Installation
 
 Clone this repository, then install the `pixelfold` binary onto your `PATH`:

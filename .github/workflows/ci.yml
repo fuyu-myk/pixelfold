@@ -44,3 +44,31 @@ jobs:
           components: rustfmt
       - name: Format check
         run: cargo fmt --all --check
+
+  validate:
+    name: Validate (DSSP + SASA)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # Downloaded structures persist across runs, keyed on the manifest.
+      - name: Cache benchmark structures
+        uses: actions/cache@v4
+        with:
+          path: benchmarks/cache
+          key: benchmark-structures-${{ hashFiles('benchmarks/manifest.toml') }}
+      - name: Detect golden references
+        id: golden
+        run: |
+          if ls benchmarks/golden/*.dssp.json >/dev/null 2>&1; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Run validation harness
+        if: steps.golden.outputs.present == 'true'
+        run: cargo run -p pixelfold-validate -- --report --check
+      - name: No golden references yet
+        if: steps.golden.outputs.present != 'true'
+        run: echo "No golden files committed yet; generate them with benchmarks/tools, then this job validates on every PR."

@@ -5,30 +5,85 @@
 # once the interaction engine exists. Golden outputs (one file per entry per
 # tool) live under golden/ as <ID>.dssp.json and <ID>.freesasa.json.
 #
-# This is a confident starter set, not the full target. Target counts per the
-# roadmap are noted per stratum.
+# Entries are drawn from the RCSB PDB via its search API and chosen to be
+# diverse within each stratum (deduplicated by sequence / protein identity),
+# plus a small set of AlphaFold DB predicted models (the "AF-" ids in the
+# alphafold_models stratum, fetched from the AlphaFold DB).
 
 [strata]
 
-# Target 40: high-resolution single-chain proteins, the clean baseline.
-high_res_monomers = ["1CRN", "1UBQ", "5PTI", "3LZT", "2IGD", "1REI"]
+# 40 high-resolution single-chain proteins, the clean baseline.
+# Protein-only, one chain, X-ray res <= 1.4 A; deduplicated by sequence.
+high_res_monomers = [
+    "1CRN", "1UBQ", "5PTI", "3LZT", "2IGD", "1REI", "2WFI", "1GCI",
+    "3W5H", "6ZM8", "1W0N", "3UI4", "4M7G", "5HB7", "1N55", "2O9S",
+    "3X32", "2O7A", "1M40", "1MC2", "1PJX", "2DDX", "6ZPA", "4HS1",
+    "8ERE", "3KLR", "5LP9", "4UYR", "6KFN", "7TVL", "2XU3", "3G21",
+    "3VOR", "3ZR8", "6FMC", "9TEU", "2Y78", "3X0I", "7P1Q", "4HNO",
+]
 
-# Target 40: inter-chain interfaces and protein-protein contacts.
-multi_chain_complexes = ["4HHB", "1HHO", "2HHB", "1IGT", "3HFM"]
+# 40 inter-chain interfaces and protein-protein contacts.
+# >=2 distinct protein entities, X-ray res <= 2.2 A; deduplicated by protein.
+multi_chain_complexes = [
+    "4HHB", "1HHO", "2HHB", "1IGT", "3HFM", "6Q01", "3WGX", "2Z6W",
+    "7P5R", "4TXR", "5R43", "7R5I", "4J9F", "2V89", "5N8E", "9IA3",
+    "3DS4", "5AFY", "8E2Z", "3DNJ", "1QTN", "3BOG", "3UF7", "6DUB",
+    "6Q0M", "7AEW", "8OW6", "9I24", "4QYO", "8FXQ", "6WFY", "4PJ2",
+    "9N9N", "9IBU", "3O2R", "5NI3", "6TS3", "1NLU", "2PV2", "5D7F",
+]
 
-# Target 60: protein-ligand complexes (draw from PDBbind / PoseBusters).
-protein_ligand = ["3PTB", "1STP", "4DFR", "1HVR", "2CGR"]
+# 60 protein-ligand complexes (PDBbind-style). Every added entry carries a
+# measured binding affinity, so the ligand is a genuine bound small molecule
+# rather than a crystallization additive.
+protein_ligand = [
+    "3PTB", "1STP", "4DFR", "1HVR", "2CGR", "1B0Y", "6RK0", "2QXI",
+    "3H31", "6RYN", "7T89", "4WX4", "4EIF", "5FBF", "3G5S", "7CKA",
+    "9QQ4", "6THO", "2HXS", "4K7T", "9GG8", "8XF7", "1H2J", "4U98",
+    "4ZVF", "5MNN", "6TD0", "6HMB", "4J1P", "5K1L", "3I06", "4UE7",
+    "1N8K", "8GD2", "4UDW", "4JHT", "5AF9", "4ZX2", "4WK7", "5LX6",
+    "5JZY", "1TBF", "4B2I", "5K0I", "6F8B", "6T4A", "8V4J", "5EEI",
+    "6T3Q", "1RMZ", "5NR8", "3PE6", "3VHV", "6RCJ", "4C68", "5LCE",
+    "6GIU", "6VYJ", "1T7R", "4YLK",
+]
 
-# Target 20: nucleic-acid-containing, for parser robustness.
-nucleic_acid = ["1BNA", "1EHZ", "6TNA", "1ZBI"]
+# 20 nucleic-acid-containing, for parser robustness: pure DNA/RNA plus
+# protein/NA complexes.
+nucleic_acid = [
+    "1BNA", "1EHZ", "6TNA", "1ZBI", "3P4J", "1I0T", "7ATG", "1J8G",
+    "8A71", "1D8G", "4HIG", "4OCB", "7YZ7", "4GZN", "6M7K", "6D2Z",
+    "6E0O", "2VLA", "3BBB", "3NDH",
+]
 
-# Target 20: metal coordination.
-metalloproteins = ["1MBN", "1CA2", "1AZU", "2SOD", "1RCX"]
+# 20 metal coordination: transition metals, heme, and Fe-S clusters, each
+# verified bound to the protein.
+metalloproteins = [
+    "1MBN", "1CA2", "1AZU", "2SOD", "1RCX", "6UFA", "5TDA", "9EH3",
+    "9MNV", "9MDB", "9MEO", "1V6P", "9MFJ", "9EG2", "9MFI", "4NPD",
+    "9EFY", "1IQZ", "2XJH", "9EG0",
+]
 
-# Target 10: NMR ensembles exercising the multi-model path.
-nmr_ensembles = ["1D3Z", "2K39"]
+# 10 NMR ensembles exercising the multi-model path (>= 10 models each).
+nmr_ensembles = [
+    "1D3Z", "2K39", "9VSE", "9SGJ", "9SGV", "9SGW", "9T3O", "9X91",
+    "9SGX", "21WB",
+]
 
-# Target 10: the row where bugs hide. Altlocs, insertion codes, missing atoms.
-# TODO: a ribosome, a five-residue peptide, and an AlphaFold model with no
-# HELIX/SHEET records.
-pathological = ["1IGY", "3NIR"]
+# 10 entries where bugs hide: altlocs, insertion codes, non-standard residues,
+# missing atoms. 1EJG/2VB1/1US0 altlocs at ultra-high resolution; 1IGY/2FB4
+# insertion codes (antibodies), 1PPB insertion codes (thrombin); 4K3F
+# selenomethionine; 7TLS a tiny peptide; 1AON a 21-chain assembly; 3NIR
+# sub-angstrom crambin.
+pathological = [
+    "1IGY", "3NIR", "1EJG", "2VB1", "1US0", "7TLS", "1AON", "2FB4",
+    "1PPB", "4K3F",
+]
+
+# 5 AlphaFold DB predicted models:
+# ModelCIF dialect, pLDDT in the B-factor column, DSSP-namespaced secondary
+# structure, single chain, no ligands/waters. Ids are "AF-<UniProt accession>"
+# and are fetched from the AlphaFold DB. Diverse folds: crambin (small a/b),
+# calmodulin (two-domain), alpha-synuclein (disordered, low pLDDT), myoglobin
+# (all-alpha), GFP (beta-barrel).
+alphafold_models = [
+    "AF-P01542", "AF-P0DP23", "AF-P37840", "AF-P02185", "AF-P42212",
+]

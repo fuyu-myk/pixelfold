@@ -3,3 +3,4 @@
 .DS_Store
 .vscode
 benchmarks/cache/
+__pycache__

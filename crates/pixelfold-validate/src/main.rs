@@ -6,6 +6,7 @@
 //! files are reported as pending.
 
 mod analysis;
+mod check;
 mod compare;
 mod golden;
 mod metrics;
@@ -23,7 +24,7 @@ use pixelfold_core::parser::load_protein_with_options;
 
 use crate::compare::{EntryMetrics, compare};
 use crate::golden::{DsspGolden, SasaGolden};
-use crate::report::render_markdown;
+use crate::report::{render_markdown, summarize};
 
 /// Validate pixelfold against reference implementations (DSSP, FreeSASA).
 #[derive(Parser)]
@@ -41,6 +42,12 @@ struct Cli {
     /// Only evaluate structures already cached; never reach the network.
     #[arg(long)]
     offline: bool,
+    /// Fail (exit 1) if an aggregate metric violates the thresholds file.
+    #[arg(long)]
+    check: bool,
+    /// Regression thresholds for `--check`.
+    #[arg(long, default_value = "benchmarks/thresholds.toml")]
+    thresholds: PathBuf,
 }
 
 #[derive(Deserialize)]
@@ -75,6 +82,20 @@ fn main() -> Result<()> {
     }
 
     print!("{}", render_markdown(&metrics));
+
+    if cli.check {
+        let thresholds = check::load_thresholds(&cli.thresholds)?;
+        let failures = check::evaluate(&summarize(&metrics), &thresholds);
+        if !failures.is_empty() {
+            eprintln!("\nRegression gate failed:");
+            for failure in &failures {
+                eprintln!("  - {failure}");
+            }
+
+            std::process::exit(1);
+        }
+    }
+
     Ok(())
 }
 
