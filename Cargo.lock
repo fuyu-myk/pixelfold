@@ -1501,6 +1501,7 @@ version = "0.5.4"
 dependencies = [
  "anyhow",
  "clap",
+ "glam",
  "pixelfold-core",
  "pixelfold-fetch",
  "serde",
