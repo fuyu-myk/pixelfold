@@ -1,7 +1,11 @@
 use anyhow::Result;
 use glam::Vec3;
 use pdbtbx::*;
-use std::{collections::BTreeSet, path::Path};
+use std::{
+    collections::BTreeSet,
+    io::{BufReader, Cursor},
+    path::Path,
+};
 
 use crate::{
     dssp,
@@ -72,6 +76,86 @@ fn truncation_warning(truncated: &BTreeSet<(&'static str, String)>) -> Option<St
     ))
 }
 
+/// Read a structure with pdbtbx (Loose strictness, first model only), retrying
+/// past one specific spurious failure.
+///
+/// pdbtbx raises an `InvalidatingError` when a file names one crystal space
+/// group two non-identical ways. Crystal symmetry is never used, so retry with
+/// the symmetry records stripped.
+fn read_structure(path_str: &str) -> Result<(PDB, Vec<PDBError>)> {
+    let first = ReadOptions::default()
+        .set_level(StrictnessLevel::Loose)
+        .set_only_first_model(true)
+        .read(path_str);
+
+    match first {
+        Ok(loaded) => Ok(loaded),
+        Err(errors) if errors.iter().any(is_space_group_mismatch) => {
+            let text = std::fs::read_to_string(path_str)
+                .map_err(|e| anyhow::anyhow!("Failed to open file: {:?}", e))?;
+            ReadOptions::default()
+                .set_level(StrictnessLevel::Loose)
+                .set_only_first_model(true)
+                .set_format(Format::Mmcif)
+                .read_raw(BufReader::new(Cursor::new(strip_symmetry_records(&text))))
+                .map_err(|e| anyhow::anyhow!("Failed to open file: {:?}", e))
+        }
+        Err(errors) => Err(anyhow::anyhow!("Failed to open file: {:?}", errors)),
+    }
+}
+
+fn is_space_group_mismatch(error: &PDBError) -> bool {
+    error.short_description() == "Space group does not match"
+}
+
+/// Drop the single-value crystal space-group records that pdbtbx cross-checks
+/// against one another. Leaves the `_space_group_symop` loop and the unit cell
+/// intact; pixelfold reads none of them.
+fn strip_symmetry_records(cif: &str) -> String {
+    const DROP: [&str; 6] = [
+        "_symmetry.Int_Tables_number",
+        "_symmetry.space_group_name_H-M",
+        "_symmetry.space_group_name_Hall",
+        "_space_group.name_H-M_alt",
+        "_space_group.name_Hall",
+        "_space_group.IT_number",
+    ];
+    let mut out = String::with_capacity(cif.len());
+    let mut lines = cif.lines().peekable();
+    while let Some(line) = lines.next() {
+        let trimmed = line.trim_start();
+        if !DROP.iter().any(|tag| trimmed.starts_with(tag)) {
+            out.push_str(line);
+            out.push('\n');
+            continue;
+        }
+
+        // Drop the key line.
+        let inline_value = trimmed
+            .split_once(char::is_whitespace)
+            .is_some_and(|(_, rest)| !rest.trim().is_empty());
+        if inline_value {
+            continue;
+        }
+
+        match lines.peek() {
+            Some(next) if next.trim_start().starts_with(';') => {
+                lines.next(); // opening ';' line
+                for block in lines.by_ref() {
+                    if block.trim_start().starts_with(';') {
+                        break; // closing ';' line
+                    }
+                }
+            }
+            Some(_) => {
+                lines.next(); // value on its own line
+            }
+            None => {}
+        }
+    }
+    out
+}
+
 /// Load a protein structure from a PDB or mmCIF file
 pub fn load_protein<P: AsRef<Path>>(path: P) -> Result<Protein> {
     load_protein_with_options(path, false, AltlocPolicy::default())
@@ -88,11 +172,7 @@ pub fn load_protein_with_options<P: AsRef<Path>>(
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("Invalid path: {}", path.display()))?;
 
-    let (pdb, errors) = ReadOptions::default()
-        .set_level(StrictnessLevel::Loose)
-        .set_only_first_model(true)
-        .read(path_str)
-        .map_err(|e| anyhow::anyhow!("Failed to open file: {:?}", e))?;
+    let (pdb, errors) = read_structure(path_str)?;
 
     if !errors.is_empty() {
         eprintln!("Warning: {} errors while parsing file", errors.len());
@@ -168,11 +248,7 @@ pub fn load_protein_backbone_with_options<P: AsRef<Path>>(
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("Invalid path: {}", path.display()))?;
 
-    let (pdb, errors) = ReadOptions::default()
-        .set_level(StrictnessLevel::Loose)
-        .set_only_first_model(true)
-        .read(path_str)
-        .map_err(|e| anyhow::anyhow!("Failed to open file: {:?}", e))?;
+    let (pdb, errors) = read_structure(path_str)?;
 
     if !errors.is_empty() {
         eprintln!("Warning: {} errors while parsing file", errors.len());
@@ -223,11 +299,7 @@ pub fn load_protein_ca_only_with_options<P: AsRef<Path>>(
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("Invalid path: {}", path.display()))?;
 
-    let (pdb, errors) = ReadOptions::default()
-        .set_level(StrictnessLevel::Loose)
-        .set_only_first_model(true)
-        .read(path_str)
-        .map_err(|e| anyhow::anyhow!("Failed to open file: {:?}", e))?;
+    let (pdb, errors) = read_structure(path_str)?;
 
     if !errors.is_empty() {
         eprintln!("Warning: {} errors while parsing file", errors.len());
@@ -351,6 +423,85 @@ ATOM 2 C CA ALA AAAAA AAAAA 2 3.8 0.0 0.0 1.0 0.0
 
         assert_eq!(protein.atoms.len(), 2);
         assert_eq!(protein.atoms[0].chain_id.as_str(), "AAAA"); // truncated from "AAAAA"
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn strip_symmetry_records_drops_names_keeps_symop_and_cell() {
+        // The Hall symbol is a multi-line `;`-delimited value, exactly as in 6ZPA.
+        let cif = "\
+_symmetry.Int_Tables_number 155
+_symmetry.space_group_name_Hall
+;R 3 2\"
+;
+_symmetry.space_group_name_H-M 'H 3 2'
+_space_group.name_H-M_alt 'R 3 2 :H'
+_space_group.IT_number 155
+_cell.length_a 141.489
+loop_
+_space_group_symop.id
+_space_group_symop.operation_xyz
+1 x,y,z
+";
+        let cleaned = strip_symmetry_records(cif);
+        assert!(!cleaned.contains("space_group_name_H-M"));
+        assert!(!cleaned.contains("name_H-M_alt"));
+        assert!(!cleaned.contains("Int_Tables_number"));
+        assert!(!cleaned.contains("_space_group.IT_number"));
+        // The multi-line Hall value is removed with its key, not orphaned.
+        assert!(!cleaned.contains("space_group_name_Hall"));
+        assert!(!cleaned.contains(";R 3 2"));
+        // The symop loop and unit cell are untouched.
+        assert!(cleaned.contains("_space_group_symop.operation_xyz"));
+        assert!(cleaned.contains("1 x,y,z"));
+        assert!(cleaned.contains("_cell.length_a 141.489"));
+    }
+
+    // A file that names one space group two inconsistent ways (as 6ZPA does with
+    // 'H 3 2' vs 'R 3 2 :H') makes pdbtbx fail even at Loose strictness; the
+    // loader must recover by stripping the symmetry records.
+    #[test]
+    fn loader_recovers_from_conflicting_space_group() {
+        let cif = "\
+data_test
+_symmetry.Int_Tables_number 155
+_symmetry.space_group_name_Hall
+;R 3 2\"
+;
+_symmetry.space_group_name_H-M 'H 3 2'
+_space_group.name_H-M_alt 'R 3 2 :H'
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.auth_asym_id
+_atom_site.label_seq_id
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+_atom_site.occupancy
+_atom_site.B_iso_or_equiv
+ATOM 1 C CA ALA A A 1 0.0 0.0 0.0 1.0 0.0
+";
+        // pdbtbx rejects the conflicting records outright...
+        let raw = ReadOptions::default()
+            .set_level(StrictnessLevel::Loose)
+            .set_format(Format::Mmcif)
+            .read_raw(BufReader::new(Cursor::new(cif.to_string())));
+        assert!(
+            raw.is_err(),
+            "expected pdbtbx to reject the conflicting space group"
+        );
+
+        // ...but the loader strips symmetry and still returns the atom.
+        let path = std::env::temp_dir().join("pf_conflicting_spacegroup_test.cif");
+        std::fs::write(&path, cif).unwrap();
+        let protein = load_protein_with_options(&path, true, AltlocPolicy::All).unwrap();
+        assert_eq!(protein.atoms.len(), 1);
+        assert_eq!(protein.atoms[0].chain_id.as_str(), "A");
         let _ = std::fs::remove_file(&path);
     }
 }
