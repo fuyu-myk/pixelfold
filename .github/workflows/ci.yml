@@ -68,7 +68,7 @@ jobs:
           fi
       - name: Run validation harness
         if: steps.golden.outputs.present == 'true'
-        run: cargo run -p pixelfold-validate -- --report --check
+        run: cargo run -p pixelfold-validate -- --check
       - name: No golden references yet
         if: steps.golden.outputs.present != 'true'
         run: echo "No golden files committed yet; generate them with benchmarks/tools, then this job validates on every PR."
