@@ -1,0 +1,76 @@
+{
+ "residues": [
+  {
+   "chain": "A",
+   "seq": 1,
+   "icode": null,
+   "sasa": 161.54844107418364
+  },
+  {
+   "chain": "A",
+   "seq": 2,
+   "icode": null,
+   "sasa": 228.94043087049846
+  },
+  {
+   "chain": "A",
+   "seq": 3,
+   "icode": null,
+   "sasa": 105.26891298309783
+  },
+  {
+   "chain": "A",
+   "seq": 4,
+   "icode": null,
+   "sasa": 219.22448702390287
+  },
+  {
+   "chain": "A",
+   "seq": 5,
+   "icode": null,
+   "sasa": 110.72892114410547
+  },
+  {
+   "chain": "A",
+   "seq": 6,
+   "icode": null,
+   "sasa": 337.32221570895683
+  },
+  {
+   "chain": "B",
+   "seq": 7,
+   "icode": null,
+   "sasa": 164.26097597347865
+  },
+  {
+   "chain": "B",
+   "seq": 8,
+   "icode": null,
+   "sasa": 226.07641602855034
+  },
+  {
+   "chain": "B",
+   "seq": 9,
+   "icode": null,
+   "sasa": 108.43456145745793
+  },
+  {
+   "chain": "B",
+   "seq": 10,
+   "icode": null,
+   "sasa": 226.24594759907498
+  },
+  {
+   "chain": "B",
+   "seq": 11,
+   "icode": null,
+   "sasa": 100.95976978305745
+  },
+  {
+   "chain": "B",
+   "seq": 12,
+   "icode": null,
+   "sasa": 342.1511863644147
+  }
+ ]
+}

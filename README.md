@@ -27,13 +27,23 @@ solvent-accessible surface area against **FreeSASA** (interaction validation
 against PLIP and RING follows the interaction engine).
 
 <!-- VALIDATION:START -->
-_Validation numbers are pending the first golden run. Generate the golden
-reference files with [`benchmarks/tools`](benchmarks/tools/README.md) (a pinned
-DSSP 4 + FreeSASA Docker image), run `cargo run -p pixelfold-validate -- --report`,
-and replace this block with the printed table._
+Validated 205 benchmark entries against DSSP 4 and FreeSASA.
+
+| Metric | Reference | Entries | Result |
+| --- | --- | --- | --- |
+| Secondary structure (Q3) | DSSP 4 | 194 | 97.1% |
+| Backbone H-bond edges (F1) | DSSP 4 | 205 | 0.97 |
+| SASA mean abs error | FreeSASA | 202 | 4.91 A^2 |
+| SASA median abs error | FreeSASA | 202 | 3.76 A^2 |
+| SASA correlation (Pearson r) | FreeSASA | 202 | 0.99 |
 <!-- VALIDATION:END -->
 
-The harness (`pixelfold-validate`) compares against committed golden files under
+Agreement is high across all three. The residual SASA error reflects the
+modelling-choice difference between pixelfold (Bondi element radii,
+Shrake-Rupley) and FreeSASA (ProtOr radii, Lee-Richards); per-residue correlation is 0.99.
+
+Regenerate this table with `cargo run -p pixelfold-validate` (it prints the
+markdown above). The harness compares against committed golden files under
 `benchmarks/golden/` and runs on every PR, failing on regression past the gates
 in `benchmarks/thresholds.toml`.
 

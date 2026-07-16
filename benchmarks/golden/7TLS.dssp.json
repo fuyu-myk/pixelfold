@@ -1,0 +1,120 @@
+{
+ "residues": [
+  {
+   "chain": "A",
+   "seq": 2,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 3,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 4,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 5,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 6,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 7,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 8,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "A",
+   "seq": 9,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "A",
+   "seq": 10,
+   "icode": null,
+   "ss": "C"
+  }
+ ],
+ "hbonds": [
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 6,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 2,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 7,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 3,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 8,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 4,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 9,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 6,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 10,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 7,
+    "icode": null
+   }
+  }
+ ]
+}

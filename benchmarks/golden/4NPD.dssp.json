@@ -1,0 +1,810 @@
+{
+ "residues": [
+  {
+   "chain": "A",
+   "seq": 1,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 2,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 3,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 4,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 5,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 6,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 7,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 8,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 9,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 10,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 11,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 12,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 13,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 14,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 15,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 16,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 17,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 18,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 19,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 20,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "A",
+   "seq": 21,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "A",
+   "seq": 22,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 23,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 24,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 25,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 26,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 27,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 28,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 29,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 30,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 31,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 32,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 33,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 34,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 35,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 36,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 37,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 38,
+   "icode": null,
+   "ss": "G"
+  },
+  {
+   "chain": "A",
+   "seq": 39,
+   "icode": null,
+   "ss": "G"
+  },
+  {
+   "chain": "A",
+   "seq": 40,
+   "icode": null,
+   "ss": "G"
+  },
+  {
+   "chain": "A",
+   "seq": 41,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 42,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 43,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 44,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 45,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 46,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 47,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 48,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 49,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 50,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 51,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 52,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 53,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 54,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "A",
+   "seq": 55,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "A",
+   "seq": 56,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 57,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 58,
+   "icode": null,
+   "ss": "C"
+  }
+ ],
+ "hbonds": [
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 10,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 6,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 11,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 7,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 12,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 8,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 13,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 9,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 14,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 10,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 15,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 11,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 16,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 12,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 17,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 13,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 18,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 14,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 19,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 16,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 19,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 15,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 22,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 19,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 27,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 23,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 28,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 24,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 29,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 25,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 30,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 26,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 31,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 27,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 32,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 28,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 33,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 29,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 34,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 30,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 35,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 31,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 36,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 32,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 37,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 33,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 40,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 37,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 41,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 38,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 44,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 40,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 45,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 41,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 46,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 42,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 47,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 43,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 48,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 44,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 49,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 45,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 50,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 46,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 51,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 47,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 52,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 48,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 53,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 49,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 54,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 50,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 55,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 51,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 56,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 53,
+    "icode": null
+   }
+  }
+ ]
+}

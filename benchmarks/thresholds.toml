@@ -1,0 +1,10 @@
+# Regression gates for `pixelfold-validate --check` (run in CI).
+#
+# A metric is enforced only when its threshold is set here and its golden data
+# exists. The baselines below come from the first full golden run (205 scored
+# entries; see the README validation table). Each gate is set a little looser
+# than the observed aggregate so a genuine regression fails CI but noise does not.
+
+min_q3 = 0.95          # observed 0.971 (secondary-structure Q3 vs DSSP 4)
+min_hbond_f1 = 0.95    # observed 0.970 (backbone H-bond edge F1 vs DSSP 4)
+max_sasa_mae = 6.0     # observed 4.91  (per-residue SASA MAE (A^2) vs FreeSASA)

@@ -1,0 +1,2284 @@
+{
+ "residues": [
+  {
+   "chain": "A",
+   "seq": 817,
+   "icode": null,
+   "sasa": 139.31243177767178
+  },
+  {
+   "chain": "A",
+   "seq": 818,
+   "icode": null,
+   "sasa": 80.89421517653332
+  },
+  {
+   "chain": "A",
+   "seq": 819,
+   "icode": null,
+   "sasa": 67.36253035160769
+  },
+  {
+   "chain": "A",
+   "seq": 820,
+   "icode": null,
+   "sasa": 49.4493328348954
+  },
+  {
+   "chain": "A",
+   "seq": 821,
+   "icode": null,
+   "sasa": 87.80318571748805
+  },
+  {
+   "chain": "A",
+   "seq": 822,
+   "icode": null,
+   "sasa": 145.0193260345982
+  },
+  {
+   "chain": "A",
+   "seq": 823,
+   "icode": null,
+   "sasa": 11.275330463736548
+  },
+  {
+   "chain": "A",
+   "seq": 824,
+   "icode": null,
+   "sasa": 52.62068062075842
+  },
+  {
+   "chain": "A",
+   "seq": 825,
+   "icode": null,
+   "sasa": 104.53561701829247
+  },
+  {
+   "chain": "A",
+   "seq": 826,
+   "icode": null,
+   "sasa": 139.9410335507331
+  },
+  {
+   "chain": "A",
+   "seq": 827,
+   "icode": null,
+   "sasa": 45.57582407739029
+  },
+  {
+   "chain": "A",
+   "seq": 828,
+   "icode": null,
+   "sasa": 43.825705752654194
+  },
+  {
+   "chain": "A",
+   "seq": 829,
+   "icode": null,
+   "sasa": 55.247598063749635
+  },
+  {
+   "chain": "A",
+   "seq": 830,
+   "icode": null,
+   "sasa": 26.94304009508437
+  },
+  {
+   "chain": "A",
+   "seq": 831,
+   "icode": null,
+   "sasa": 127.0106420241643
+  },
+  {
+   "chain": "A",
+   "seq": 832,
+   "icode": null,
+   "sasa": 124.77863340189235
+  },
+  {
+   "chain": "A",
+   "seq": 833,
+   "icode": null,
+   "sasa": 21.551760890308245
+  },
+  {
+   "chain": "A",
+   "seq": 834,
+   "icode": null,
+   "sasa": 26.34815433160515
+  },
+  {
+   "chain": "A",
+   "seq": 835,
+   "icode": null,
+   "sasa": 161.0983565463127
+  },
+  {
+   "chain": "A",
+   "seq": 836,
+   "icode": null,
+   "sasa": 47.98520290787532
+  },
+  {
+   "chain": "A",
+   "seq": 837,
+   "icode": null,
+   "sasa": 0.0059493858362697875
+  },
+  {
+   "chain": "A",
+   "seq": 838,
+   "icode": null,
+   "sasa": 52.86135845857277
+  },
+  {
+   "chain": "A",
+   "seq": 839,
+   "icode": null,
+   "sasa": 81.62804609191409
+  },
+  {
+   "chain": "A",
+   "seq": 840,
+   "icode": null,
+   "sasa": 27.044435418589998
+  },
+  {
+   "chain": "A",
+   "seq": 841,
+   "icode": null,
+   "sasa": 0.14150046290039914
+  },
+  {
+   "chain": "A",
+   "seq": 842,
+   "icode": null,
+   "sasa": 52.64496610419269
+  },
+  {
+   "chain": "A",
+   "seq": 843,
+   "icode": null,
+   "sasa": 106.37006131364211
+  },
+  {
+   "chain": "A",
+   "seq": 844,
+   "icode": null,
+   "sasa": 25.343934986551705
+  },
+  {
+   "chain": "A",
+   "seq": 845,
+   "icode": null,
+   "sasa": 110.8498984362656
+  },
+  {
+   "chain": "A",
+   "seq": 846,
+   "icode": null,
+   "sasa": 102.91065259417627
+  },
+  {
+   "chain": "A",
+   "seq": 847,
+   "icode": null,
+   "sasa": 50.81545609391684
+  },
+  {
+   "chain": "A",
+   "seq": 848,
+   "icode": null,
+   "sasa": 7.414023237761649
+  },
+  {
+   "chain": "A",
+   "seq": 849,
+   "icode": null,
+   "sasa": 108.93598163562667
+  },
+  {
+   "chain": "A",
+   "seq": 850,
+   "icode": null,
+   "sasa": 27.98130536165304
+  },
+  {
+   "chain": "A",
+   "seq": 851,
+   "icode": null,
+   "sasa": 48.21610441763085
+  },
+  {
+   "chain": "A",
+   "seq": 852,
+   "icode": null,
+   "sasa": 77.11379934135019
+  },
+  {
+   "chain": "A",
+   "seq": 853,
+   "icode": null,
+   "sasa": 0.22312758741835603
+  },
+  {
+   "chain": "A",
+   "seq": 854,
+   "icode": null,
+   "sasa": 24.542068771892794
+  },
+  {
+   "chain": "A",
+   "seq": 855,
+   "icode": null,
+   "sasa": 109.81973305934656
+  },
+  {
+   "chain": "A",
+   "seq": 856,
+   "icode": null,
+   "sasa": 13.248587982250989
+  },
+  {
+   "chain": "A",
+   "seq": 857,
+   "icode": null,
+   "sasa": 32.71562701786234
+  },
+  {
+   "chain": "A",
+   "seq": 858,
+   "icode": null,
+   "sasa": 37.07598102942405
+  },
+  {
+   "chain": "A",
+   "seq": 859,
+   "icode": null,
+   "sasa": 93.72157648061602
+  },
+  {
+   "chain": "A",
+   "seq": 860,
+   "icode": null,
+   "sasa": 27.943327485080452
+  },
+  {
+   "chain": "A",
+   "seq": 861,
+   "icode": null,
+   "sasa": 5.947871336989377
+  },
+  {
+   "chain": "A",
+   "seq": 862,
+   "icode": null,
+   "sasa": 82.391737007128
+  },
+  {
+   "chain": "A",
+   "seq": 863,
+   "icode": null,
+   "sasa": 96.78733249971202
+  },
+  {
+   "chain": "A",
+   "seq": 864,
+   "icode": null,
+   "sasa": 3.1998757675488427
+  },
+  {
+   "chain": "A",
+   "seq": 865,
+   "icode": null,
+   "sasa": 0.0
+  },
+  {
+   "chain": "A",
+   "seq": 866,
+   "icode": null,
+   "sasa": 50.74534992787137
+  },
+  {
+   "chain": "A",
+   "seq": 867,
+   "icode": null,
+   "sasa": 38.13533677439545
+  },
+  {
+   "chain": "A",
+   "seq": 868,
+   "icode": null,
+   "sasa": 35.84971183719145
+  },
+  {
+   "chain": "A",
+   "seq": 869,
+   "icode": null,
+   "sasa": 77.96011255185712
+  },
+  {
+   "chain": "A",
+   "seq": 870,
+   "icode": null,
+   "sasa": 95.06074972400552
+  },
+  {
+   "chain": "A",
+   "seq": 871,
+   "icode": null,
+   "sasa": 126.23507444690375
+  },
+  {
+   "chain": "A",
+   "seq": 872,
+   "icode": null,
+   "sasa": 2.8957413194763983
+  },
+  {
+   "chain": "A",
+   "seq": 873,
+   "icode": null,
+   "sasa": 57.03392811865623
+  },
+  {
+   "chain": "A",
+   "seq": 874,
+   "icode": null,
+   "sasa": 154.15478379458347
+  },
+  {
+   "chain": "A",
+   "seq": 875,
+   "icode": null,
+   "sasa": 78.3966058616721
+  },
+  {
+   "chain": "A",
+   "seq": 876,
+   "icode": null,
+   "sasa": 10.752328324274046
+  },
+  {
+   "chain": "A",
+   "seq": 877,
+   "icode": null,
+   "sasa": 162.27621813312356
+  },
+  {
+   "chain": "A",
+   "seq": 878,
+   "icode": null,
+   "sasa": 120.79115756723269
+  },
+  {
+   "chain": "A",
+   "seq": 879,
+   "icode": null,
+   "sasa": 144.40062014638602
+  },
+  {
+   "chain": "A",
+   "seq": 880,
+   "icode": null,
+   "sasa": 90.15839808551955
+  },
+  {
+   "chain": "A",
+   "seq": 881,
+   "icode": null,
+   "sasa": 3.3584976162931426
+  },
+  {
+   "chain": "A",
+   "seq": 882,
+   "icode": null,
+   "sasa": 41.08838843474946
+  },
+  {
+   "chain": "A",
+   "seq": 883,
+   "icode": null,
+   "sasa": 29.822373928233734
+  },
+  {
+   "chain": "A",
+   "seq": 884,
+   "icode": null,
+   "sasa": 88.90898965225821
+  },
+  {
+   "chain": "A",
+   "seq": 885,
+   "icode": null,
+   "sasa": 0.46943617918597175
+  },
+  {
+   "chain": "A",
+   "seq": 886,
+   "icode": null,
+   "sasa": 10.736903454841316
+  },
+  {
+   "chain": "A",
+   "seq": 887,
+   "icode": null,
+   "sasa": 31.434518325333812
+  },
+  {
+   "chain": "A",
+   "seq": 888,
+   "icode": null,
+   "sasa": 11.769127138033335
+  },
+  {
+   "chain": "A",
+   "seq": 889,
+   "icode": null,
+   "sasa": 15.699913645826452
+  },
+  {
+   "chain": "A",
+   "seq": 890,
+   "icode": null,
+   "sasa": 60.859855703745964
+  },
+  {
+   "chain": "A",
+   "seq": 891,
+   "icode": null,
+   "sasa": 45.87111077463909
+  },
+  {
+   "chain": "A",
+   "seq": 892,
+   "icode": null,
+   "sasa": 115.93556057125679
+  },
+  {
+   "chain": "A",
+   "seq": 893,
+   "icode": null,
+   "sasa": 33.79329934043545
+  },
+  {
+   "chain": "A",
+   "seq": 894,
+   "icode": null,
+   "sasa": 19.138995712748887
+  },
+  {
+   "chain": "A",
+   "seq": 895,
+   "icode": null,
+   "sasa": 87.57169721906475
+  },
+  {
+   "chain": "A",
+   "seq": 896,
+   "icode": null,
+   "sasa": 47.806476075660036
+  },
+  {
+   "chain": "A",
+   "seq": 897,
+   "icode": null,
+   "sasa": 18.249375515872586
+  },
+  {
+   "chain": "A",
+   "seq": 898,
+   "icode": null,
+   "sasa": 1.2419624701951157
+  },
+  {
+   "chain": "A",
+   "seq": 899,
+   "icode": null,
+   "sasa": 52.494396225055766
+  },
+  {
+   "chain": "A",
+   "seq": 900,
+   "icode": null,
+   "sasa": 106.12193272389277
+  },
+  {
+   "chain": "A",
+   "seq": 901,
+   "icode": null,
+   "sasa": 2.6161444313978173
+  },
+  {
+   "chain": "A",
+   "seq": 902,
+   "icode": null,
+   "sasa": 15.18366588064629
+  },
+  {
+   "chain": "A",
+   "seq": 903,
+   "icode": null,
+   "sasa": 39.37124211571311
+  },
+  {
+   "chain": "A",
+   "seq": 904,
+   "icode": null,
+   "sasa": 8.92654628447305
+  },
+  {
+   "chain": "A",
+   "seq": 905,
+   "icode": null,
+   "sasa": 12.645631336858997
+  },
+  {
+   "chain": "A",
+   "seq": 906,
+   "icode": null,
+   "sasa": 101.64988296225755
+  },
+  {
+   "chain": "A",
+   "seq": 907,
+   "icode": null,
+   "sasa": 39.1311421216875
+  },
+  {
+   "chain": "A",
+   "seq": 908,
+   "icode": null,
+   "sasa": 47.72065494352391
+  },
+  {
+   "chain": "A",
+   "seq": 909,
+   "icode": null,
+   "sasa": 247.4894816626847
+  },
+  {
+   "chain": "A",
+   "seq": 910,
+   "icode": null,
+   "sasa": 128.30749310626493
+  },
+  {
+   "chain": "A",
+   "seq": 911,
+   "icode": null,
+   "sasa": 71.75350950216429
+  },
+  {
+   "chain": "A",
+   "seq": 912,
+   "icode": null,
+   "sasa": 21.389603806498812
+  },
+  {
+   "chain": "A",
+   "seq": 913,
+   "icode": null,
+   "sasa": 65.39692224428296
+  },
+  {
+   "chain": "A",
+   "seq": 914,
+   "icode": null,
+   "sasa": 56.36536061414338
+  },
+  {
+   "chain": "A",
+   "seq": 915,
+   "icode": null,
+   "sasa": 0.15801045193691132
+  },
+  {
+   "chain": "A",
+   "seq": 916,
+   "icode": null,
+   "sasa": 81.36054995280712
+  },
+  {
+   "chain": "A",
+   "seq": 917,
+   "icode": null,
+   "sasa": 2.2839460274891406
+  },
+  {
+   "chain": "A",
+   "seq": 918,
+   "icode": null,
+   "sasa": 18.249286312400123
+  },
+  {
+   "chain": "A",
+   "seq": 919,
+   "icode": null,
+   "sasa": 56.353181443186664
+  },
+  {
+   "chain": "A",
+   "seq": 920,
+   "icode": null,
+   "sasa": 3.419948185724575
+  },
+  {
+   "chain": "A",
+   "seq": 921,
+   "icode": null,
+   "sasa": 5.197870046377135
+  },
+  {
+   "chain": "A",
+   "seq": 922,
+   "icode": null,
+   "sasa": 124.81805240518966
+  },
+  {
+   "chain": "A",
+   "seq": 923,
+   "icode": null,
+   "sasa": 106.86566565802462
+  },
+  {
+   "chain": "A",
+   "seq": 924,
+   "icode": null,
+   "sasa": 0.026489159452578064
+  },
+  {
+   "chain": "A",
+   "seq": 925,
+   "icode": null,
+   "sasa": 26.879818443459705
+  },
+  {
+   "chain": "A",
+   "seq": 926,
+   "icode": null,
+   "sasa": 42.689252380462406
+  },
+  {
+   "chain": "A",
+   "seq": 927,
+   "icode": null,
+   "sasa": 6.020122198043747
+  },
+  {
+   "chain": "A",
+   "seq": 928,
+   "icode": null,
+   "sasa": 6.606485887779307
+  },
+  {
+   "chain": "A",
+   "seq": 929,
+   "icode": null,
+   "sasa": 65.80125712205265
+  },
+  {
+   "chain": "A",
+   "seq": 930,
+   "icode": null,
+   "sasa": 69.40590886577698
+  },
+  {
+   "chain": "A",
+   "seq": 931,
+   "icode": null,
+   "sasa": 175.86005030330145
+  },
+  {
+   "chain": "A",
+   "seq": 932,
+   "icode": null,
+   "sasa": 98.96418278529373
+  },
+  {
+   "chain": "A",
+   "seq": 933,
+   "icode": null,
+   "sasa": 0.0
+  },
+  {
+   "chain": "A",
+   "seq": 934,
+   "icode": null,
+   "sasa": 50.62764608497581
+  },
+  {
+   "chain": "A",
+   "seq": 935,
+   "icode": null,
+   "sasa": 57.80357535759292
+  },
+  {
+   "chain": "A",
+   "seq": 936,
+   "icode": null,
+   "sasa": 65.15089506998974
+  },
+  {
+   "chain": "A",
+   "seq": 937,
+   "icode": null,
+   "sasa": 116.47514836129746
+  },
+  {
+   "chain": "A",
+   "seq": 938,
+   "icode": null,
+   "sasa": 117.06713049369323
+  },
+  {
+   "chain": "A",
+   "seq": 939,
+   "icode": null,
+   "sasa": 29.77632778964213
+  },
+  {
+   "chain": "A",
+   "seq": 940,
+   "icode": null,
+   "sasa": 52.12422770992498
+  },
+  {
+   "chain": "A",
+   "seq": 941,
+   "icode": null,
+   "sasa": 1.1666836314473095
+  },
+  {
+   "chain": "A",
+   "seq": 942,
+   "icode": null,
+   "sasa": 11.99468239560966
+  },
+  {
+   "chain": "A",
+   "seq": 943,
+   "icode": null,
+   "sasa": 0.02522380270180849
+  },
+  {
+   "chain": "A",
+   "seq": 944,
+   "icode": null,
+   "sasa": 0.008485850430026948
+  },
+  {
+   "chain": "A",
+   "seq": 945,
+   "icode": null,
+   "sasa": 9.027804492541328
+  },
+  {
+   "chain": "A",
+   "seq": 946,
+   "icode": null,
+   "sasa": 0.18224420266457297
+  },
+  {
+   "chain": "A",
+   "seq": 947,
+   "icode": null,
+   "sasa": 50.791800728824846
+  },
+  {
+   "chain": "A",
+   "seq": 948,
+   "icode": null,
+   "sasa": 0.0
+  },
+  {
+   "chain": "A",
+   "seq": 949,
+   "icode": null,
+   "sasa": 0.0
+  },
+  {
+   "chain": "A",
+   "seq": 950,
+   "icode": null,
+   "sasa": 1.6529850753062827
+  },
+  {
+   "chain": "A",
+   "seq": 951,
+   "icode": null,
+   "sasa": 1.3375295551739657
+  },
+  {
+   "chain": "A",
+   "seq": 952,
+   "icode": null,
+   "sasa": 17.409660329436143
+  },
+  {
+   "chain": "A",
+   "seq": 953,
+   "icode": null,
+   "sasa": 32.76116730172626
+  },
+  {
+   "chain": "A",
+   "seq": 954,
+   "icode": null,
+   "sasa": 4.610451990162322
+  },
+  {
+   "chain": "A",
+   "seq": 955,
+   "icode": null,
+   "sasa": 87.8069633249323
+  },
+  {
+   "chain": "A",
+   "seq": 956,
+   "icode": null,
+   "sasa": 4.134006869855083
+  },
+  {
+   "chain": "A",
+   "seq": 957,
+   "icode": null,
+   "sasa": 137.65422279372623
+  },
+  {
+   "chain": "A",
+   "seq": 958,
+   "icode": null,
+   "sasa": 164.14174205024568
+  },
+  {
+   "chain": "A",
+   "seq": 959,
+   "icode": null,
+   "sasa": 42.10410694290985
+  },
+  {
+   "chain": "A",
+   "seq": 960,
+   "icode": null,
+   "sasa": 10.018477163239496
+  },
+  {
+   "chain": "A",
+   "seq": 961,
+   "icode": null,
+   "sasa": 69.94920632102236
+  },
+  {
+   "chain": "A",
+   "seq": 962,
+   "icode": null,
+   "sasa": 8.420320591366908
+  },
+  {
+   "chain": "A",
+   "seq": 963,
+   "icode": null,
+   "sasa": 16.906927793553375
+  },
+  {
+   "chain": "A",
+   "seq": 964,
+   "icode": null,
+   "sasa": 17.09521926044374
+  },
+  {
+   "chain": "A",
+   "seq": 965,
+   "icode": null,
+   "sasa": 122.18421567346137
+  },
+  {
+   "chain": "A",
+   "seq": 966,
+   "icode": null,
+   "sasa": 30.651545273048807
+  },
+  {
+   "chain": "A",
+   "seq": 967,
+   "icode": null,
+   "sasa": 39.60027628550079
+  },
+  {
+   "chain": "A",
+   "seq": 968,
+   "icode": null,
+   "sasa": 138.84115894937082
+  },
+  {
+   "chain": "A",
+   "seq": 969,
+   "icode": null,
+   "sasa": 81.95407905943809
+  },
+  {
+   "chain": "A",
+   "seq": 970,
+   "icode": null,
+   "sasa": 91.81793168432945
+  },
+  {
+   "chain": "A",
+   "seq": 971,
+   "icode": null,
+   "sasa": 150.36276486670502
+  },
+  {
+   "chain": "A",
+   "seq": 972,
+   "icode": null,
+   "sasa": 80.66365983549883
+  },
+  {
+   "chain": "A",
+   "seq": 973,
+   "icode": null,
+   "sasa": 138.82443237574284
+  },
+  {
+   "chain": "A",
+   "seq": 974,
+   "icode": null,
+   "sasa": 85.998056316444
+  },
+  {
+   "chain": "A",
+   "seq": 975,
+   "icode": null,
+   "sasa": 49.58925844931266
+  },
+  {
+   "chain": "A",
+   "seq": 976,
+   "icode": null,
+   "sasa": 13.807308996097063
+  },
+  {
+   "chain": "A",
+   "seq": 977,
+   "icode": null,
+   "sasa": 0.0
+  },
+  {
+   "chain": "A",
+   "seq": 978,
+   "icode": null,
+   "sasa": 0.0
+  },
+  {
+   "chain": "A",
+   "seq": 979,
+   "icode": null,
+   "sasa": 0.0
+  },
+  {
+   "chain": "A",
+   "seq": 980,
+   "icode": null,
+   "sasa": 22.294531971667325
+  },
+  {
+   "chain": "A",
+   "seq": 981,
+   "icode": null,
+   "sasa": 64.75470300071561
+  },
+  {
+   "chain": "A",
+   "seq": 982,
+   "icode": null,
+   "sasa": 103.61395844577142
+  },
+  {
+   "chain": "A",
+   "seq": 983,
+   "icode": null,
+   "sasa": 122.92574137602341
+  },
+  {
+   "chain": "A",
+   "seq": 984,
+   "icode": null,
+   "sasa": 159.1944840199119
+  },
+  {
+   "chain": "A",
+   "seq": 985,
+   "icode": null,
+   "sasa": 21.132375379360067
+  },
+  {
+   "chain": "A",
+   "seq": 986,
+   "icode": null,
+   "sasa": 44.661378724939695
+  },
+  {
+   "chain": "A",
+   "seq": 987,
+   "icode": null,
+   "sasa": 37.71047407132884
+  },
+  {
+   "chain": "A",
+   "seq": 988,
+   "icode": null,
+   "sasa": 2.001799014672806
+  },
+  {
+   "chain": "A",
+   "seq": 989,
+   "icode": null,
+   "sasa": 0.004282037771676439
+  },
+  {
+   "chain": "A",
+   "seq": 990,
+   "icode": null,
+   "sasa": 4.021764712019246
+  },
+  {
+   "chain": "A",
+   "seq": 991,
+   "icode": null,
+   "sasa": 7.629109718038458
+  },
+  {
+   "chain": "A",
+   "seq": 992,
+   "icode": null,
+   "sasa": 54.50330341160297
+  },
+  {
+   "chain": "A",
+   "seq": 993,
+   "icode": null,
+   "sasa": 12.61915874940708
+  },
+  {
+   "chain": "A",
+   "seq": 994,
+   "icode": null,
+   "sasa": 0.0
+  },
+  {
+   "chain": "A",
+   "seq": 995,
+   "icode": null,
+   "sasa": 3.6264896923715355
+  },
+  {
+   "chain": "A",
+   "seq": 996,
+   "icode": null,
+   "sasa": 4.148419878281448
+  },
+  {
+   "chain": "A",
+   "seq": 997,
+   "icode": null,
+   "sasa": 8.105690778868837
+  },
+  {
+   "chain": "A",
+   "seq": 998,
+   "icode": null,
+   "sasa": 2.563610095467164
+  },
+  {
+   "chain": "A",
+   "seq": 999,
+   "icode": null,
+   "sasa": 25.17140838501914
+  },
+  {
+   "chain": "A",
+   "seq": 1000,
+   "icode": null,
+   "sasa": 20.041117810026446
+  },
+  {
+   "chain": "A",
+   "seq": 1001,
+   "icode": null,
+   "sasa": 6.346085244298868
+  },
+  {
+   "chain": "A",
+   "seq": 1002,
+   "icode": null,
+   "sasa": 0.09401267908936788
+  },
+  {
+   "chain": "A",
+   "seq": 1003,
+   "icode": null,
+   "sasa": 7.5474833885964765
+  },
+  {
+   "chain": "A",
+   "seq": 1004,
+   "icode": null,
+   "sasa": 0.0
+  },
+  {
+   "chain": "A",
+   "seq": 1005,
+   "icode": null,
+   "sasa": 35.616600319664265
+  },
+  {
+   "chain": "A",
+   "seq": 1006,
+   "icode": null,
+   "sasa": 92.5463176247456
+  },
+  {
+   "chain": "A",
+   "seq": 1007,
+   "icode": null,
+   "sasa": 122.11952218660471
+  },
+  {
+   "chain": "B",
+   "seq": 819,
+   "icode": null,
+   "sasa": 101.56470812263674
+  },
+  {
+   "chain": "B",
+   "seq": 820,
+   "icode": null,
+   "sasa": 66.8326409076846
+  },
+  {
+   "chain": "B",
+   "seq": 821,
+   "icode": null,
+   "sasa": 104.8232259756721
+  },
+  {
+   "chain": "B",
+   "seq": 822,
+   "icode": null,
+   "sasa": 161.13865924958193
+  },
+  {
+   "chain": "B",
+   "seq": 823,
+   "icode": null,
+   "sasa": 13.391805796922469
+  },
+  {
+   "chain": "B",
+   "seq": 824,
+   "icode": null,
+   "sasa": 55.93136118110317
+  },
+  {
+   "chain": "B",
+   "seq": 825,
+   "icode": null,
+   "sasa": 113.66811113986067
+  },
+  {
+   "chain": "B",
+   "seq": 826,
+   "icode": null,
+   "sasa": 127.92173409663928
+  },
+  {
+   "chain": "B",
+   "seq": 827,
+   "icode": null,
+   "sasa": 51.94389497361486
+  },
+  {
+   "chain": "B",
+   "seq": 828,
+   "icode": null,
+   "sasa": 53.525139779549114
+  },
+  {
+   "chain": "B",
+   "seq": 829,
+   "icode": null,
+   "sasa": 65.10251371119092
+  },
+  {
+   "chain": "B",
+   "seq": 830,
+   "icode": null,
+   "sasa": 20.221709563289533
+  },
+  {
+   "chain": "B",
+   "seq": 831,
+   "icode": null,
+   "sasa": 86.62674973399601
+  },
+  {
+   "chain": "B",
+   "seq": 832,
+   "icode": null,
+   "sasa": 90.02311086874937
+  },
+  {
+   "chain": "B",
+   "seq": 833,
+   "icode": null,
+   "sasa": 19.08467818741105
+  },
+  {
+   "chain": "B",
+   "seq": 834,
+   "icode": null,
+   "sasa": 17.169576642361623
+  },
+  {
+   "chain": "B",
+   "seq": 835,
+   "icode": null,
+   "sasa": 145.25488439262932
+  },
+  {
+   "chain": "B",
+   "seq": 836,
+   "icode": null,
+   "sasa": 37.34209283362418
+  },
+  {
+   "chain": "B",
+   "seq": 837,
+   "icode": null,
+   "sasa": 0.04006631589100941
+  },
+  {
+   "chain": "B",
+   "seq": 838,
+   "icode": null,
+   "sasa": 66.50304443720574
+  },
+  {
+   "chain": "B",
+   "seq": 839,
+   "icode": null,
+   "sasa": 92.15586562773932
+  },
+  {
+   "chain": "B",
+   "seq": 840,
+   "icode": null,
+   "sasa": 19.541841819277614
+  },
+  {
+   "chain": "B",
+   "seq": 841,
+   "icode": null,
+   "sasa": 0.0
+  },
+  {
+   "chain": "B",
+   "seq": 842,
+   "icode": null,
+   "sasa": 52.3006238065836
+  },
+  {
+   "chain": "B",
+   "seq": 843,
+   "icode": null,
+   "sasa": 105.94970506470524
+  },
+  {
+   "chain": "B",
+   "seq": 844,
+   "icode": null,
+   "sasa": 23.867843074126732
+  },
+  {
+   "chain": "B",
+   "seq": 845,
+   "icode": null,
+   "sasa": 114.78972867657131
+  },
+  {
+   "chain": "B",
+   "seq": 846,
+   "icode": null,
+   "sasa": 103.328803445863
+  },
+  {
+   "chain": "B",
+   "seq": 847,
+   "icode": null,
+   "sasa": 44.50899270680952
+  },
+  {
+   "chain": "B",
+   "seq": 848,
+   "icode": null,
+   "sasa": 10.14244678584838
+  },
+  {
+   "chain": "B",
+   "seq": 849,
+   "icode": null,
+   "sasa": 104.17618991303473
+  },
+  {
+   "chain": "B",
+   "seq": 850,
+   "icode": null,
+   "sasa": 7.586794314553171
+  },
+  {
+   "chain": "B",
+   "seq": 851,
+   "icode": null,
+   "sasa": 31.797267129682183
+  },
+  {
+   "chain": "B",
+   "seq": 852,
+   "icode": null,
+   "sasa": 74.46939292049802
+  },
+  {
+   "chain": "B",
+   "seq": 853,
+   "icode": null,
+   "sasa": 0.296286972434246
+  },
+  {
+   "chain": "B",
+   "seq": 854,
+   "icode": null,
+   "sasa": 24.533442894344347
+  },
+  {
+   "chain": "B",
+   "seq": 855,
+   "icode": null,
+   "sasa": 91.9090043592903
+  },
+  {
+   "chain": "B",
+   "seq": 856,
+   "icode": null,
+   "sasa": 13.376156680526147
+  },
+  {
+   "chain": "B",
+   "seq": 857,
+   "icode": null,
+   "sasa": 68.34999660342066
+  },
+  {
+   "chain": "B",
+   "seq": 858,
+   "icode": null,
+   "sasa": 32.60695389624211
+  },
+  {
+   "chain": "B",
+   "seq": 859,
+   "icode": null,
+   "sasa": 93.2168890485079
+  },
+  {
+   "chain": "B",
+   "seq": 860,
+   "icode": null,
+   "sasa": 26.70980603392018
+  },
+  {
+   "chain": "B",
+   "seq": 861,
+   "icode": null,
+   "sasa": 7.514588186062142
+  },
+  {
+   "chain": "B",
+   "seq": 862,
+   "icode": null,
+   "sasa": 79.16789728020196
+  },
+  {
+   "chain": "B",
+   "seq": 863,
+   "icode": null,
+   "sasa": 87.20600953753839
+  },
+  {
+   "chain": "B",
+   "seq": 864,
+   "icode": null,
+   "sasa": 4.751403827061171
+  },
+  {
+   "chain": "B",
+   "seq": 865,
+   "icode": null,
+   "sasa": 0.0
+  },
+  {
+   "chain": "B",
+   "seq": 866,
+   "icode": null,
+   "sasa": 70.2143737161417
+  },
+  {
+   "chain": "B",
+   "seq": 867,
+   "icode": null,
+   "sasa": 42.233368062020695
+  },
+  {
+   "chain": "B",
+   "seq": 868,
+   "icode": null,
+   "sasa": 31.333570991519274
+  },
+  {
+   "chain": "B",
+   "seq": 869,
+   "icode": null,
+   "sasa": 67.80817761307462
+  },
+  {
+   "chain": "B",
+   "seq": 870,
+   "icode": null,
+   "sasa": 90.2288212513692
+  },
+  {
+   "chain": "B",
+   "seq": 871,
+   "icode": null,
+   "sasa": 123.94129006254389
+  },
+  {
+   "chain": "B",
+   "seq": 872,
+   "icode": null,
+   "sasa": 0.026445195215152335
+  },
+  {
+   "chain": "B",
+   "seq": 873,
+   "icode": null,
+   "sasa": 67.39181722652016
+  },
+  {
+   "chain": "B",
+   "seq": 874,
+   "icode": null,
+   "sasa": 145.58390335000078
+  },
+  {
+   "chain": "B",
+   "seq": 875,
+   "icode": null,
+   "sasa": 90.82128594404685
+  },
+  {
+   "chain": "B",
+   "seq": 876,
+   "icode": null,
+   "sasa": 9.42063885726579
+  },
+  {
+   "chain": "B",
+   "seq": 877,
+   "icode": null,
+   "sasa": 149.5704957689773
+  },
+  {
+   "chain": "B",
+   "seq": 878,
+   "icode": null,
+   "sasa": 110.05122233394283
+  },
+  {
+   "chain": "B",
+   "seq": 879,
+   "icode": null,
+   "sasa": 132.8290724317466
+  },
+  {
+   "chain": "B",
+   "seq": 880,
+   "icode": null,
+   "sasa": 90.61386167297613
+  },
+  {
+   "chain": "B",
+   "seq": 881,
+   "icode": null,
+   "sasa": 5.793645555833768
+  },
+  {
+   "chain": "B",
+   "seq": 882,
+   "icode": null,
+   "sasa": 36.25872362062661
+  },
+  {
+   "chain": "B",
+   "seq": 883,
+   "icode": null,
+   "sasa": 31.71501312875741
+  },
+  {
+   "chain": "B",
+   "seq": 884,
+   "icode": null,
+   "sasa": 95.69071357730178
+  },
+  {
+   "chain": "B",
+   "seq": 885,
+   "icode": null,
+   "sasa": 0.07960765703210682
+  },
+  {
+   "chain": "B",
+   "seq": 886,
+   "icode": null,
+   "sasa": 10.03256724753258
+  },
+  {
+   "chain": "B",
+   "seq": 887,
+   "icode": null,
+   "sasa": 34.254072068994034
+  },
+  {
+   "chain": "B",
+   "seq": 888,
+   "icode": null,
+   "sasa": 10.22912063479567
+  },
+  {
+   "chain": "B",
+   "seq": 889,
+   "icode": null,
+   "sasa": 11.724654001239795
+  },
+  {
+   "chain": "B",
+   "seq": 890,
+   "icode": null,
+   "sasa": 58.735275652263404
+  },
+  {
+   "chain": "B",
+   "seq": 891,
+   "icode": null,
+   "sasa": 42.63914016842031
+  },
+  {
+   "chain": "B",
+   "seq": 892,
+   "icode": null,
+   "sasa": 116.16333129313477
+  },
+  {
+   "chain": "B",
+   "seq": 893,
+   "icode": null,
+   "sasa": 35.07044081728764
+  },
+  {
+   "chain": "B",
+   "seq": 894,
+   "icode": null,
+   "sasa": 20.791522064176995
+  },
+  {
+   "chain": "B",
+   "seq": 895,
+   "icode": null,
+   "sasa": 84.66911018383915
+  },
+  {
+   "chain": "B",
+   "seq": 896,
+   "icode": null,
+   "sasa": 50.04867296052932
+  },
+  {
+   "chain": "B",
+   "seq": 897,
+   "icode": null,
+   "sasa": 17.00837858754338
+  },
+  {
+   "chain": "B",
+   "seq": 898,
+   "icode": null,
+   "sasa": 1.4206608455571184
+  },
+  {
+   "chain": "B",
+   "seq": 899,
+   "icode": null,
+   "sasa": 46.588015283033116
+  },
+  {
+   "chain": "B",
+   "seq": 900,
+   "icode": null,
+   "sasa": 116.5253901222656
+  },
+  {
+   "chain": "B",
+   "seq": 901,
+   "icode": null,
+   "sasa": 2.656286304259192
+  },
+  {
+   "chain": "B",
+   "seq": 902,
+   "icode": null,
+   "sasa": 10.441204667908952
+  },
+  {
+   "chain": "B",
+   "seq": 903,
+   "icode": null,
+   "sasa": 43.38451262025774
+  },
+  {
+   "chain": "B",
+   "seq": 904,
+   "icode": null,
+   "sasa": 12.266705800808849
+  },
+  {
+   "chain": "B",
+   "seq": 905,
+   "icode": null,
+   "sasa": 9.345618884536155
+  },
+  {
+   "chain": "B",
+   "seq": 906,
+   "icode": null,
+   "sasa": 96.90986224209973
+  },
+  {
+   "chain": "B",
+   "seq": 907,
+   "icode": null,
+   "sasa": 28.237309869659434
+  },
+  {
+   "chain": "B",
+   "seq": 908,
+   "icode": null,
+   "sasa": 50.9337351948048
+  },
+  {
+   "chain": "B",
+   "seq": 909,
+   "icode": null,
+   "sasa": 145.93130297562112
+  },
+  {
+   "chain": "B",
+   "seq": 910,
+   "icode": null,
+   "sasa": 111.42115844192855
+  },
+  {
+   "chain": "B",
+   "seq": 911,
+   "icode": null,
+   "sasa": 89.78939336469769
+  },
+  {
+   "chain": "B",
+   "seq": 912,
+   "icode": null,
+   "sasa": 21.355751236058254
+  },
+  {
+   "chain": "B",
+   "seq": 913,
+   "icode": null,
+   "sasa": 63.04974815724664
+  },
+  {
+   "chain": "B",
+   "seq": 914,
+   "icode": null,
+   "sasa": 60.65347294151464
+  },
+  {
+   "chain": "B",
+   "seq": 915,
+   "icode": null,
+   "sasa": 0.0
+  },
+  {
+   "chain": "B",
+   "seq": 916,
+   "icode": null,
+   "sasa": 79.27566212698747
+  },
+  {
+   "chain": "B",
+   "seq": 917,
+   "icode": null,
+   "sasa": 7.577872359086735
+  },
+  {
+   "chain": "B",
+   "seq": 918,
+   "icode": null,
+   "sasa": 14.327908717641687
+  },
+  {
+   "chain": "B",
+   "seq": 919,
+   "icode": null,
+   "sasa": 59.03194495188261
+  },
+  {
+   "chain": "B",
+   "seq": 920,
+   "icode": null,
+   "sasa": 3.1638066284586253
+  },
+  {
+   "chain": "B",
+   "seq": 921,
+   "icode": null,
+   "sasa": 5.4704385946464695
+  },
+  {
+   "chain": "B",
+   "seq": 922,
+   "icode": null,
+   "sasa": 116.1057400220372
+  },
+  {
+   "chain": "B",
+   "seq": 923,
+   "icode": null,
+   "sasa": 105.92925148321595
+  },
+  {
+   "chain": "B",
+   "seq": 924,
+   "icode": null,
+   "sasa": 0.1022653727529959
+  },
+  {
+   "chain": "B",
+   "seq": 925,
+   "icode": null,
+   "sasa": 26.171420931603258
+  },
+  {
+   "chain": "B",
+   "seq": 926,
+   "icode": null,
+   "sasa": 39.68439442455447
+  },
+  {
+   "chain": "B",
+   "seq": 927,
+   "icode": null,
+   "sasa": 4.95282216440617
+  },
+  {
+   "chain": "B",
+   "seq": 928,
+   "icode": null,
+   "sasa": 10.231992158176102
+  },
+  {
+   "chain": "B",
+   "seq": 929,
+   "icode": null,
+   "sasa": 67.85553587625165
+  },
+  {
+   "chain": "B",
+   "seq": 930,
+   "icode": null,
+   "sasa": 82.72107420153911
+  },
+  {
+   "chain": "B",
+   "seq": 931,
+   "icode": null,
+   "sasa": 171.4506170929251
+  },
+  {
+   "chain": "B",
+   "seq": 932,
+   "icode": null,
+   "sasa": 86.39539129875132
+  },
+  {
+   "chain": "B",
+   "seq": 933,
+   "icode": null,
+   "sasa": 0.0
+  },
+  {
+   "chain": "B",
+   "seq": 934,
+   "icode": null,
+   "sasa": 49.30658717565479
+  },
+  {
+   "chain": "B",
+   "seq": 935,
+   "icode": null,
+   "sasa": 69.06781168087404
+  },
+  {
+   "chain": "B",
+   "seq": 936,
+   "icode": null,
+   "sasa": 59.49681329337258
+  },
+  {
+   "chain": "B",
+   "seq": 937,
+   "icode": null,
+   "sasa": 115.79281301892976
+  },
+  {
+   "chain": "B",
+   "seq": 938,
+   "icode": null,
+   "sasa": 108.68185273605516
+  },
+  {
+   "chain": "B",
+   "seq": 939,
+   "icode": null,
+   "sasa": 31.418550951990596
+  },
+  {
+   "chain": "B",
+   "seq": 940,
+   "icode": null,
+   "sasa": 38.371734620464245
+  },
+  {
+   "chain": "B",
+   "seq": 941,
+   "icode": null,
+   "sasa": 1.7701843855855126
+  },
+  {
+   "chain": "B",
+   "seq": 942,
+   "icode": null,
+   "sasa": 13.82741371432744
+  },
+  {
+   "chain": "B",
+   "seq": 943,
+   "icode": null,
+   "sasa": 0.11014659671657459
+  },
+  {
+   "chain": "B",
+   "seq": 944,
+   "icode": null,
+   "sasa": 0.0
+  },
+  {
+   "chain": "B",
+   "seq": 945,
+   "icode": null,
+   "sasa": 7.646339976263782
+  },
+  {
+   "chain": "B",
+   "seq": 946,
+   "icode": null,
+   "sasa": 0.31538336126005634
+  },
+  {
+   "chain": "B",
+   "seq": 947,
+   "icode": null,
+   "sasa": 68.53399342562204
+  },
+  {
+   "chain": "B",
+   "seq": 948,
+   "icode": null,
+   "sasa": 0.0
+  },
+  {
+   "chain": "B",
+   "seq": 949,
+   "icode": null,
+   "sasa": 0.0
+  },
+  {
+   "chain": "B",
+   "seq": 950,
+   "icode": null,
+   "sasa": 0.7700586053793551
+  },
+  {
+   "chain": "B",
+   "seq": 951,
+   "icode": null,
+   "sasa": 0.5907526946239747
+  },
+  {
+   "chain": "B",
+   "seq": 952,
+   "icode": null,
+   "sasa": 12.573762944025043
+  },
+  {
+   "chain": "B",
+   "seq": 953,
+   "icode": null,
+   "sasa": 26.478700265300038
+  },
+  {
+   "chain": "B",
+   "seq": 954,
+   "icode": null,
+   "sasa": 2.8406802616805757
+  },
+  {
+   "chain": "B",
+   "seq": 955,
+   "icode": null,
+   "sasa": 98.39580273306481
+  },
+  {
+   "chain": "B",
+   "seq": 956,
+   "icode": null,
+   "sasa": 4.800761573784819
+  },
+  {
+   "chain": "B",
+   "seq": 957,
+   "icode": null,
+   "sasa": 157.7929584068124
+  },
+  {
+   "chain": "B",
+   "seq": 958,
+   "icode": null,
+   "sasa": 167.24782814508953
+  },
+  {
+   "chain": "B",
+   "seq": 959,
+   "icode": null,
+   "sasa": 65.60849728478496
+  },
+  {
+   "chain": "B",
+   "seq": 960,
+   "icode": null,
+   "sasa": 38.305987641243064
+  },
+  {
+   "chain": "B",
+   "seq": 961,
+   "icode": null,
+   "sasa": 84.314929088414
+  },
+  {
+   "chain": "B",
+   "seq": 962,
+   "icode": null,
+   "sasa": 12.767957063941433
+  },
+  {
+   "chain": "B",
+   "seq": 963,
+   "icode": null,
+   "sasa": 22.432165963702523
+  },
+  {
+   "chain": "B",
+   "seq": 964,
+   "icode": null,
+   "sasa": 13.000774306526074
+  },
+  {
+   "chain": "B",
+   "seq": 965,
+   "icode": null,
+   "sasa": 118.36562139825034
+  },
+  {
+   "chain": "B",
+   "seq": 966,
+   "icode": null,
+   "sasa": 26.369501945413443
+  },
+  {
+   "chain": "B",
+   "seq": 967,
+   "icode": null,
+   "sasa": 39.116461471158466
+  },
+  {
+   "chain": "B",
+   "seq": 968,
+   "icode": null,
+   "sasa": 136.7552879090904
+  },
+  {
+   "chain": "B",
+   "seq": 969,
+   "icode": null,
+   "sasa": 82.95452382535089
+  },
+  {
+   "chain": "B",
+   "seq": 970,
+   "icode": null,
+   "sasa": 86.50084808881762
+  },
+  {
+   "chain": "B",
+   "seq": 971,
+   "icode": null,
+   "sasa": 154.6909542815521
+  },
+  {
+   "chain": "B",
+   "seq": 972,
+   "icode": null,
+   "sasa": 75.94455193322852
+  },
+  {
+   "chain": "B",
+   "seq": 973,
+   "icode": null,
+   "sasa": 137.72572254559833
+  },
+  {
+   "chain": "B",
+   "seq": 974,
+   "icode": null,
+   "sasa": 84.45362367453086
+  },
+  {
+   "chain": "B",
+   "seq": 975,
+   "icode": null,
+   "sasa": 48.71396490026931
+  },
+  {
+   "chain": "B",
+   "seq": 976,
+   "icode": null,
+   "sasa": 6.13657922773431
+  },
+  {
+   "chain": "B",
+   "seq": 977,
+   "icode": null,
+   "sasa": 0.0
+  },
+  {
+   "chain": "B",
+   "seq": 978,
+   "icode": null,
+   "sasa": 0.0
+  },
+  {
+   "chain": "B",
+   "seq": 979,
+   "icode": null,
+   "sasa": 0.0
+  },
+  {
+   "chain": "B",
+   "seq": 980,
+   "icode": null,
+   "sasa": 35.43452438747388
+  },
+  {
+   "chain": "B",
+   "seq": 981,
+   "icode": null,
+   "sasa": 49.11562654214697
+  },
+  {
+   "chain": "B",
+   "seq": 982,
+   "icode": null,
+   "sasa": 90.11452504095105
+  },
+  {
+   "chain": "B",
+   "seq": 983,
+   "icode": null,
+   "sasa": 121.69790201287093
+  },
+  {
+   "chain": "B",
+   "seq": 984,
+   "icode": null,
+   "sasa": 148.31726940216197
+  },
+  {
+   "chain": "B",
+   "seq": 985,
+   "icode": null,
+   "sasa": 27.536685049971506
+  },
+  {
+   "chain": "B",
+   "seq": 986,
+   "icode": null,
+   "sasa": 44.67298650484935
+  },
+  {
+   "chain": "B",
+   "seq": 987,
+   "icode": null,
+   "sasa": 33.043509642475684
+  },
+  {
+   "chain": "B",
+   "seq": 988,
+   "icode": null,
+   "sasa": 1.0242250533491553
+  },
+  {
+   "chain": "B",
+   "seq": 989,
+   "icode": null,
+   "sasa": 0.08195981443779798
+  },
+  {
+   "chain": "B",
+   "seq": 990,
+   "icode": null,
+   "sasa": 3.231157351349385
+  },
+  {
+   "chain": "B",
+   "seq": 991,
+   "icode": null,
+   "sasa": 9.409335045247648
+  },
+  {
+   "chain": "B",
+   "seq": 992,
+   "icode": null,
+   "sasa": 48.80035503542099
+  },
+  {
+   "chain": "B",
+   "seq": 993,
+   "icode": null,
+   "sasa": 11.405800222032605
+  },
+  {
+   "chain": "B",
+   "seq": 994,
+   "icode": null,
+   "sasa": 0.11694041049439768
+  },
+  {
+   "chain": "B",
+   "seq": 995,
+   "icode": null,
+   "sasa": 2.5500089811594293
+  },
+  {
+   "chain": "B",
+   "seq": 996,
+   "icode": null,
+   "sasa": 1.7993889341475948
+  },
+  {
+   "chain": "B",
+   "seq": 997,
+   "icode": null,
+   "sasa": 11.387246154003696
+  },
+  {
+   "chain": "B",
+   "seq": 998,
+   "icode": null,
+   "sasa": 1.700195615261935
+  },
+  {
+   "chain": "B",
+   "seq": 999,
+   "icode": null,
+   "sasa": 27.826154045915317
+  },
+  {
+   "chain": "B",
+   "seq": 1000,
+   "icode": null,
+   "sasa": 21.779395597224664
+  },
+  {
+   "chain": "B",
+   "seq": 1001,
+   "icode": null,
+   "sasa": 8.80492475340601
+  },
+  {
+   "chain": "B",
+   "seq": 1002,
+   "icode": null,
+   "sasa": 0.013262714202611589
+  },
+  {
+   "chain": "B",
+   "seq": 1003,
+   "icode": null,
+   "sasa": 8.720634201176367
+  },
+  {
+   "chain": "B",
+   "seq": 1004,
+   "icode": null,
+   "sasa": 0.0
+  },
+  {
+   "chain": "B",
+   "seq": 1005,
+   "icode": null,
+   "sasa": 46.04230627636445
+  },
+  {
+   "chain": "B",
+   "seq": 1006,
+   "icode": null,
+   "sasa": 114.21782355291624
+  },
+  {
+   "chain": "B",
+   "seq": 1007,
+   "icode": null,
+   "sasa": 113.53074254782904
+  }
+ ]
+}

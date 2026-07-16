@@ -1,0 +1,3810 @@
+{
+ "residues": [
+  {
+   "chain": "H",
+   "seq": 16,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 17,
+   "icode": null,
+   "ss": "B"
+  },
+  {
+   "chain": "H",
+   "seq": 18,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "H",
+   "seq": 19,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 20,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 21,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 22,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "H",
+   "seq": 23,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "H",
+   "seq": 24,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 25,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 26,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "H",
+   "seq": 27,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 28,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 29,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 30,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 31,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 32,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 33,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 34,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 35,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 36,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 36,
+   "icode": "A",
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 37,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 38,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 39,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 40,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 41,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 42,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 43,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 44,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 45,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 46,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 47,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 48,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "H",
+   "seq": 49,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "H",
+   "seq": 50,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "H",
+   "seq": 51,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 52,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 53,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 54,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 55,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 56,
+   "icode": null,
+   "ss": "G"
+  },
+  {
+   "chain": "H",
+   "seq": 57,
+   "icode": null,
+   "ss": "G"
+  },
+  {
+   "chain": "H",
+   "seq": 58,
+   "icode": null,
+   "ss": "G"
+  },
+  {
+   "chain": "H",
+   "seq": 59,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 60,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 60,
+   "icode": "A",
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 60,
+   "icode": "B",
+   "ss": "G"
+  },
+  {
+   "chain": "H",
+   "seq": 60,
+   "icode": "C",
+   "ss": "G"
+  },
+  {
+   "chain": "H",
+   "seq": 60,
+   "icode": "D",
+   "ss": "G"
+  },
+  {
+   "chain": "H",
+   "seq": 60,
+   "icode": "E",
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 60,
+   "icode": "F",
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 60,
+   "icode": "G",
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 60,
+   "icode": "H",
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 60,
+   "icode": "I",
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 61,
+   "icode": null,
+   "ss": "G"
+  },
+  {
+   "chain": "H",
+   "seq": 62,
+   "icode": null,
+   "ss": "G"
+  },
+  {
+   "chain": "H",
+   "seq": 63,
+   "icode": null,
+   "ss": "G"
+  },
+  {
+   "chain": "H",
+   "seq": 64,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 65,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 66,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 67,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 68,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 69,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "H",
+   "seq": 70,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 71,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 72,
+   "icode": null,
+   "ss": "B"
+  },
+  {
+   "chain": "H",
+   "seq": 73,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "H",
+   "seq": 74,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "H",
+   "seq": 75,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "H",
+   "seq": 76,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 77,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 77,
+   "icode": "A",
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 78,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 79,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 80,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 81,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 82,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 83,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 84,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 85,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 86,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 87,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 88,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 89,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 90,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 91,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 92,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 93,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 94,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 95,
+   "icode": null,
+   "ss": "B"
+  },
+  {
+   "chain": "H",
+   "seq": 96,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 97,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 97,
+   "icode": "A",
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 98,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 99,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 100,
+   "icode": null,
+   "ss": "B"
+  },
+  {
+   "chain": "H",
+   "seq": 101,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 102,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 103,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 104,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 105,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 106,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 107,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 108,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 109,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "H",
+   "seq": 110,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "H",
+   "seq": 111,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "H",
+   "seq": 112,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "H",
+   "seq": 113,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "H",
+   "seq": 114,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "H",
+   "seq": 115,
+   "icode": null,
+   "ss": "B"
+  },
+  {
+   "chain": "H",
+   "seq": 116,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 117,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 118,
+   "icode": null,
+   "ss": "B"
+  },
+  {
+   "chain": "H",
+   "seq": 119,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 120,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "H",
+   "seq": 121,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "H",
+   "seq": 122,
+   "icode": null,
+   "ss": "B"
+  },
+  {
+   "chain": "H",
+   "seq": 123,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "H",
+   "seq": 124,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "H",
+   "seq": 125,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "H",
+   "seq": 126,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 127,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 128,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 129,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 129,
+   "icode": "A",
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 129,
+   "icode": "B",
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 129,
+   "icode": "C",
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 130,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 131,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 132,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 133,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 134,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 135,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 136,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 137,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 138,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 139,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 140,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 141,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "H",
+   "seq": 142,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "H",
+   "seq": 143,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 144,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "H",
+   "seq": 145,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "H",
+   "seq": 146,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 147,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 150,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 151,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 152,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 153,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "H",
+   "seq": 154,
+   "icode": null,
+   "ss": "B"
+  },
+  {
+   "chain": "H",
+   "seq": 155,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 156,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 157,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 158,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 159,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 160,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 161,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 162,
+   "icode": null,
+   "ss": "B"
+  },
+  {
+   "chain": "H",
+   "seq": 163,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 164,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 165,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 166,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 167,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 168,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 169,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 170,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 171,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 172,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 173,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "H",
+   "seq": 174,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "H",
+   "seq": 175,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "H",
+   "seq": 176,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "H",
+   "seq": 177,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 178,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 179,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 180,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 181,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 182,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 183,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 184,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 184,
+   "icode": "A",
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 185,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 186,
+   "icode": null,
+   "ss": "G"
+  },
+  {
+   "chain": "H",
+   "seq": 186,
+   "icode": "A",
+   "ss": "G"
+  },
+  {
+   "chain": "H",
+   "seq": 186,
+   "icode": "B",
+   "ss": "G"
+  },
+  {
+   "chain": "H",
+   "seq": 186,
+   "icode": "C",
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 186,
+   "icode": "D",
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 187,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 188,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 189,
+   "icode": null,
+   "ss": "B"
+  },
+  {
+   "chain": "H",
+   "seq": 190,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 191,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 192,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 193,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 194,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 195,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 196,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 197,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 198,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 199,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 200,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 201,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 202,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 203,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 204,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 204,
+   "icode": "A",
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 204,
+   "icode": "B",
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 205,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 206,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 207,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 208,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 209,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 210,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 211,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 212,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 213,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 214,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 215,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 216,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 217,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "H",
+   "seq": 219,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "H",
+   "seq": 220,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "H",
+   "seq": 221,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "H",
+   "seq": 221,
+   "icode": "A",
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 222,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 223,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 224,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 225,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "H",
+   "seq": 226,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 227,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 228,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 229,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 230,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "H",
+   "seq": 231,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "H",
+   "seq": 232,
+   "icode": null,
+   "ss": "G"
+  },
+  {
+   "chain": "H",
+   "seq": 233,
+   "icode": null,
+   "ss": "G"
+  },
+  {
+   "chain": "H",
+   "seq": 234,
+   "icode": null,
+   "ss": "G"
+  },
+  {
+   "chain": "H",
+   "seq": 235,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 236,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 237,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 238,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 239,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 240,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 241,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 242,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 243,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 244,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 245,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "H",
+   "seq": 246,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "I",
+   "seq": 555,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "I",
+   "seq": 556,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "I",
+   "seq": 557,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "I",
+   "seq": 558,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "I",
+   "seq": 559,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "I",
+   "seq": 560,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "I",
+   "seq": 561,
+   "icode": null,
+   "ss": "G"
+  },
+  {
+   "chain": "I",
+   "seq": 562,
+   "icode": null,
+   "ss": "G"
+  },
+  {
+   "chain": "I",
+   "seq": 563,
+   "icode": null,
+   "ss": "G"
+  },
+  {
+   "chain": "I",
+   "seq": 564,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "I",
+   "seq": 565,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "L",
+   "seq": 1,
+   "icode": "C",
+   "ss": "C"
+  },
+  {
+   "chain": "L",
+   "seq": 1,
+   "icode": "B",
+   "ss": "T"
+  },
+  {
+   "chain": "L",
+   "seq": 1,
+   "icode": "A",
+   "ss": "T"
+  },
+  {
+   "chain": "L",
+   "seq": 1,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "L",
+   "seq": 2,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "L",
+   "seq": 3,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "L",
+   "seq": 4,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "L",
+   "seq": 5,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "L",
+   "seq": 6,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "L",
+   "seq": 7,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "L",
+   "seq": 8,
+   "icode": null,
+   "ss": "G"
+  },
+  {
+   "chain": "L",
+   "seq": 9,
+   "icode": null,
+   "ss": "G"
+  },
+  {
+   "chain": "L",
+   "seq": 10,
+   "icode": null,
+   "ss": "G"
+  },
+  {
+   "chain": "L",
+   "seq": 11,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "L",
+   "seq": 12,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "L",
+   "seq": 13,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "L",
+   "seq": 14,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "L",
+   "seq": 14,
+   "icode": "A",
+   "ss": "S"
+  },
+  {
+   "chain": "L",
+   "seq": 14,
+   "icode": "B",
+   "ss": "S"
+  },
+  {
+   "chain": "L",
+   "seq": 14,
+   "icode": "C",
+   "ss": "H"
+  },
+  {
+   "chain": "L",
+   "seq": 14,
+   "icode": "D",
+   "ss": "H"
+  },
+  {
+   "chain": "L",
+   "seq": 14,
+   "icode": "E",
+   "ss": "H"
+  },
+  {
+   "chain": "L",
+   "seq": 14,
+   "icode": "F",
+   "ss": "H"
+  },
+  {
+   "chain": "L",
+   "seq": 14,
+   "icode": "G",
+   "ss": "H"
+  },
+  {
+   "chain": "L",
+   "seq": 14,
+   "icode": "H",
+   "ss": "H"
+  },
+  {
+   "chain": "L",
+   "seq": 14,
+   "icode": "I",
+   "ss": "H"
+  },
+  {
+   "chain": "L",
+   "seq": 14,
+   "icode": "J",
+   "ss": "C"
+  },
+  {
+   "chain": "L",
+   "seq": 14,
+   "icode": "K",
+   "ss": "C"
+  }
+ ],
+ "hbonds": [
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 17,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 189,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 20,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 157,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 22,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 155,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 26,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 23,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 30,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 27,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 31,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 44,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 32,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 67,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 33,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 42,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 34,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 65,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 34,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 32,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 35,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 39,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 36,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 63,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 39,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 35,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 39,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 37,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 41,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 33,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 42,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 33,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 43,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 195,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 44,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 31,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 45,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 53,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 46,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 29,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 47,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 51,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 47,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 45,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 48,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 51,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 52,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 106,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 53,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 45,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 54,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 104,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 58,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 55,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 59,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 56,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 60,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 56,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 60,
+    "icode": "A"
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 60,
+    "icode": "F"
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 60,
+    "icode": "D"
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 60,
+    "icode": "A"
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 60,
+    "icode": "E"
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 60,
+    "icode": "B"
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 60,
+    "icode": "F"
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 60,
+    "icode": "A"
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 60,
+    "icode": "G"
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 60,
+    "icode": "E"
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 60,
+    "icode": "H"
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 59,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 63,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 60,
+    "icode": "I"
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 64,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 61,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 65,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 34,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 66,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 83,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 67,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 32,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 68,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 81,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 69,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 30,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 73,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 153,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 77,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 75,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 77,
+    "icode": "A"
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 76,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 79,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 77,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 80,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 77,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 81,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 68,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 83,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 66,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 86,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 107,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 87,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 107,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 89,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 105,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 91,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 103,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 94,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 91,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 95,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 100,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 96,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 94,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 99,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 95,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 102,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 99,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 103,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 101,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 104,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 54,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 105,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 89,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 106,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 52,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 107,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 87,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 108,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 50,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 109,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 84,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 112,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 49,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 115,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 118,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 118,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 115,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 119,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 28,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 121,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 46,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 122,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 207,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 129,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 125,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 129,
+    "icode": "A"
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 126,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 129,
+    "icode": "B"
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 127,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 129,
+    "icode": "C"
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 128,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 130,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 129,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 131,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 129,
+    "icode": "C"
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 133,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 162,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 134,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 131,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 136,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 160,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 137,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 200,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 138,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 158,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 139,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 198,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 140,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 156,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 143,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 192,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 144,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 150,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 155,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 71,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 156,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 140,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 157,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 20,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 158,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 138,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 160,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 136,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 162,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 134,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 163,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 182,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 167,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 164,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 168,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 164,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 169,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 165,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 170,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 166,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 171,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 168,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 171,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 167,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 172,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 169,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 180,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 177,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 181,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 228,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 183,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 226,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 184,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 161,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 186,
+    "icode": "B"
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 185,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 186,
+    "icode": "C"
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 186,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 186,
+    "icode": "D"
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 186,
+    "icode": "B"
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 189,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 17,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 194,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 191,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 196,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 213,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 197,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 194,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 199,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 211,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 200,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 137,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 201,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 208,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 203,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 206,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 203,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 201,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 205,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 203,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 207,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "L",
+    "seq": 2,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 208,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 201,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 209,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 122,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 210,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 199,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 210,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 208,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 211,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 199,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 212,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 229,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 213,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 197,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 214,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 227,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 215,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 227,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 219,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 216,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 224,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 221,
+    "icode": "A"
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 226,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 183,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 227,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 215,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 228,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 181,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 229,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 212,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 230,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 179,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 231,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 210,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 231,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 229,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 234,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 231,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 234,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 230,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 235,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 232,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 237,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 234,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 238,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 234,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 239,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 235,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 240,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 236,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 241,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 237,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 242,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 238,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 243,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 239,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 244,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 240,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 245,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 241,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "H",
+    "seq": 246,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 242,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "I",
+    "seq": 557,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 74,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "I",
+    "seq": 563,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "I",
+    "seq": 560,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "I",
+    "seq": 564,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "I",
+    "seq": 561,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "I",
+    "seq": 565,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "I",
+    "seq": 561,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "L",
+    "seq": 1,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "L",
+    "seq": 1,
+    "icode": "C"
+   }
+  },
+  {
+   "donor": {
+    "chain": "L",
+    "seq": 2,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "H",
+    "seq": 120,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "L",
+    "seq": 3,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "L",
+    "seq": 1,
+    "icode": "A"
+   }
+  },
+  {
+   "donor": {
+    "chain": "L",
+    "seq": 4,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "L",
+    "seq": 2,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "L",
+    "seq": 7,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "L",
+    "seq": 4,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "L",
+    "seq": 9,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "L",
+    "seq": 4,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "L",
+    "seq": 10,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "L",
+    "seq": 7,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "L",
+    "seq": 11,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "L",
+    "seq": 8,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "L",
+    "seq": 12,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "L",
+    "seq": 7,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "L",
+    "seq": 14,
+    "icode": "E"
+   },
+   "acceptor": {
+    "chain": "L",
+    "seq": 14,
+    "icode": "B"
+   }
+  },
+  {
+   "donor": {
+    "chain": "L",
+    "seq": 14,
+    "icode": "F"
+   },
+   "acceptor": {
+    "chain": "L",
+    "seq": 14,
+    "icode": "B"
+   }
+  },
+  {
+   "donor": {
+    "chain": "L",
+    "seq": 14,
+    "icode": "F"
+   },
+   "acceptor": {
+    "chain": "L",
+    "seq": 14,
+    "icode": "C"
+   }
+  },
+  {
+   "donor": {
+    "chain": "L",
+    "seq": 14,
+    "icode": "G"
+   },
+   "acceptor": {
+    "chain": "L",
+    "seq": 14,
+    "icode": "C"
+   }
+  },
+  {
+   "donor": {
+    "chain": "L",
+    "seq": 14,
+    "icode": "H"
+   },
+   "acceptor": {
+    "chain": "L",
+    "seq": 14,
+    "icode": "D"
+   }
+  },
+  {
+   "donor": {
+    "chain": "L",
+    "seq": 14,
+    "icode": "I"
+   },
+   "acceptor": {
+    "chain": "L",
+    "seq": 14,
+    "icode": "F"
+   }
+  },
+  {
+   "donor": {
+    "chain": "L",
+    "seq": 14,
+    "icode": "I"
+   },
+   "acceptor": {
+    "chain": "L",
+    "seq": 14,
+    "icode": "E"
+   }
+  },
+  {
+   "donor": {
+    "chain": "L",
+    "seq": 14,
+    "icode": "J"
+   },
+   "acceptor": {
+    "chain": "L",
+    "seq": 14,
+    "icode": "G"
+   }
+  },
+  {
+   "donor": {
+    "chain": "L",
+    "seq": 14,
+    "icode": "J"
+   },
+   "acceptor": {
+    "chain": "L",
+    "seq": 14,
+    "icode": "F"
+   }
+  },
+  {
+   "donor": {
+    "chain": "L",
+    "seq": 14,
+    "icode": "K"
+   },
+   "acceptor": {
+    "chain": "L",
+    "seq": 14,
+    "icode": "I"
+   }
+  }
+ ]
+}

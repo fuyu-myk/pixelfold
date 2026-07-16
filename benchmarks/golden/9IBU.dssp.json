@@ -1,0 +1,1884 @@
+{
+ "residues": [
+  {
+   "chain": "A",
+   "seq": 1,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 2,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 3,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 4,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 5,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 6,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 7,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 8,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 9,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 10,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 11,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 12,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 13,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "A",
+   "seq": 14,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "A",
+   "seq": 15,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "A",
+   "seq": 16,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "A",
+   "seq": 17,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "A",
+   "seq": 18,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 19,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "A",
+   "seq": 20,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "A",
+   "seq": 21,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "A",
+   "seq": 22,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "A",
+   "seq": 23,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "A",
+   "seq": 24,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "A",
+   "seq": 25,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "A",
+   "seq": 26,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "A",
+   "seq": 27,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "A",
+   "seq": 28,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "A",
+   "seq": 29,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "A",
+   "seq": 30,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "A",
+   "seq": 31,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "A",
+   "seq": 32,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "A",
+   "seq": 33,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "B",
+   "seq": 1,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "B",
+   "seq": 2,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "B",
+   "seq": 3,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "B",
+   "seq": 4,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "B",
+   "seq": 5,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "B",
+   "seq": 6,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "B",
+   "seq": 7,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "B",
+   "seq": 8,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "B",
+   "seq": 9,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "B",
+   "seq": 10,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "B",
+   "seq": 11,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "B",
+   "seq": 12,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "B",
+   "seq": 13,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "B",
+   "seq": 14,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "B",
+   "seq": 15,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "B",
+   "seq": 16,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "B",
+   "seq": 17,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "B",
+   "seq": 18,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "B",
+   "seq": 19,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "B",
+   "seq": 20,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "B",
+   "seq": 21,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "B",
+   "seq": 22,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "B",
+   "seq": 23,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "B",
+   "seq": 24,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "B",
+   "seq": 25,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "B",
+   "seq": 26,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "B",
+   "seq": 27,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "B",
+   "seq": 28,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "B",
+   "seq": 29,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "B",
+   "seq": 30,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "B",
+   "seq": 31,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "B",
+   "seq": 32,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "B",
+   "seq": 33,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "C",
+   "seq": 1,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "C",
+   "seq": 2,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "C",
+   "seq": 3,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "C",
+   "seq": 4,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "C",
+   "seq": 5,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "C",
+   "seq": 6,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "C",
+   "seq": 7,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "C",
+   "seq": 8,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "C",
+   "seq": 9,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "C",
+   "seq": 10,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "C",
+   "seq": 11,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "C",
+   "seq": 12,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "C",
+   "seq": 13,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "C",
+   "seq": 14,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "C",
+   "seq": 15,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "C",
+   "seq": 16,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "C",
+   "seq": 17,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "C",
+   "seq": 18,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "C",
+   "seq": 19,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "C",
+   "seq": 20,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "C",
+   "seq": 21,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "C",
+   "seq": 22,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "C",
+   "seq": 23,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "C",
+   "seq": 24,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "C",
+   "seq": 25,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "C",
+   "seq": 26,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "C",
+   "seq": 27,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "C",
+   "seq": 28,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "C",
+   "seq": 29,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "C",
+   "seq": 30,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "D",
+   "seq": 1,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "D",
+   "seq": 2,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "D",
+   "seq": 3,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "D",
+   "seq": 4,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "D",
+   "seq": 5,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "D",
+   "seq": 6,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "D",
+   "seq": 7,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "D",
+   "seq": 8,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "D",
+   "seq": 9,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "D",
+   "seq": 10,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "D",
+   "seq": 11,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "D",
+   "seq": 12,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "D",
+   "seq": 13,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "D",
+   "seq": 14,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "D",
+   "seq": 15,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "D",
+   "seq": 16,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "D",
+   "seq": 17,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "D",
+   "seq": 18,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "D",
+   "seq": 19,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "D",
+   "seq": 20,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "D",
+   "seq": 21,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "D",
+   "seq": 22,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "D",
+   "seq": 23,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "D",
+   "seq": 24,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "D",
+   "seq": 25,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "D",
+   "seq": 26,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "D",
+   "seq": 27,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "D",
+   "seq": 28,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "D",
+   "seq": 29,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "D",
+   "seq": 30,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "D",
+   "seq": 31,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "D",
+   "seq": 32,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "D",
+   "seq": 33,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "E",
+   "seq": 1,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "E",
+   "seq": 2,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "E",
+   "seq": 3,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "E",
+   "seq": 4,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "E",
+   "seq": 5,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "E",
+   "seq": 6,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "E",
+   "seq": 7,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "E",
+   "seq": 8,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "E",
+   "seq": 9,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "E",
+   "seq": 10,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "E",
+   "seq": 11,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "E",
+   "seq": 12,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "E",
+   "seq": 13,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "E",
+   "seq": 14,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "E",
+   "seq": 15,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "E",
+   "seq": 16,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "E",
+   "seq": 17,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "E",
+   "seq": 18,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "E",
+   "seq": 19,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "E",
+   "seq": 20,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "E",
+   "seq": 21,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "E",
+   "seq": 22,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "E",
+   "seq": 23,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "E",
+   "seq": 24,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "E",
+   "seq": 25,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "E",
+   "seq": 26,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "E",
+   "seq": 27,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "E",
+   "seq": 28,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "E",
+   "seq": 29,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "E",
+   "seq": 30,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "F",
+   "seq": 1,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "F",
+   "seq": 2,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "F",
+   "seq": 3,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "F",
+   "seq": 4,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "F",
+   "seq": 5,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "F",
+   "seq": 6,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "F",
+   "seq": 7,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "F",
+   "seq": 8,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "F",
+   "seq": 9,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "F",
+   "seq": 10,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "F",
+   "seq": 11,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "F",
+   "seq": 12,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "F",
+   "seq": 13,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "F",
+   "seq": 14,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "F",
+   "seq": 15,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "F",
+   "seq": 16,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "F",
+   "seq": 17,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "F",
+   "seq": 18,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "F",
+   "seq": 19,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "F",
+   "seq": 20,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "F",
+   "seq": 21,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "F",
+   "seq": 22,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "F",
+   "seq": 23,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "F",
+   "seq": 24,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "F",
+   "seq": 25,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "F",
+   "seq": 26,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "F",
+   "seq": 27,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "F",
+   "seq": 28,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "F",
+   "seq": 29,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "F",
+   "seq": 30,
+   "icode": null,
+   "ss": "C"
+  }
+ ],
+ "hbonds": [
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 3,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "C",
+    "seq": 1,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 6,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "C",
+    "seq": 4,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 9,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "C",
+    "seq": 7,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 12,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "C",
+    "seq": 10,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 15,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "C",
+    "seq": 13,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 18,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "C",
+    "seq": 16,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 21,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "C",
+    "seq": 19,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 24,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "C",
+    "seq": 22,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 27,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "C",
+    "seq": 25,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 30,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "C",
+    "seq": 28,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "A",
+    "seq": 33,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "D",
+    "seq": 1,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "B",
+    "seq": 3,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 1,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "B",
+    "seq": 6,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 4,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "B",
+    "seq": 9,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 7,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "B",
+    "seq": 12,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 10,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "B",
+    "seq": 15,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 13,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "B",
+    "seq": 18,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 16,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "B",
+    "seq": 21,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 19,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "B",
+    "seq": 24,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 22,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "B",
+    "seq": 27,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 25,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "B",
+    "seq": 30,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 28,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "B",
+    "seq": 33,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "A",
+    "seq": 31,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "C",
+    "seq": 3,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "B",
+    "seq": 4,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "C",
+    "seq": 6,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "B",
+    "seq": 7,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "C",
+    "seq": 9,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "B",
+    "seq": 10,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "C",
+    "seq": 12,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "B",
+    "seq": 13,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "C",
+    "seq": 15,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "B",
+    "seq": 16,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "C",
+    "seq": 18,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "B",
+    "seq": 19,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "C",
+    "seq": 21,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "B",
+    "seq": 22,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "C",
+    "seq": 24,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "B",
+    "seq": 25,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "C",
+    "seq": 27,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "B",
+    "seq": 28,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "C",
+    "seq": 30,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "B",
+    "seq": 31,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "D",
+    "seq": 3,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "F",
+    "seq": 1,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "D",
+    "seq": 6,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "F",
+    "seq": 4,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "D",
+    "seq": 9,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "F",
+    "seq": 7,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "D",
+    "seq": 12,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "F",
+    "seq": 10,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "D",
+    "seq": 15,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "F",
+    "seq": 13,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "D",
+    "seq": 18,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "F",
+    "seq": 16,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "D",
+    "seq": 21,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "F",
+    "seq": 19,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "D",
+    "seq": 24,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "F",
+    "seq": 22,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "D",
+    "seq": 27,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "F",
+    "seq": 25,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "D",
+    "seq": 30,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "F",
+    "seq": 28,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "E",
+    "seq": 3,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "D",
+    "seq": 4,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "E",
+    "seq": 6,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "D",
+    "seq": 7,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "E",
+    "seq": 9,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "D",
+    "seq": 10,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "E",
+    "seq": 12,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "D",
+    "seq": 13,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "E",
+    "seq": 15,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "D",
+    "seq": 16,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "E",
+    "seq": 18,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "D",
+    "seq": 19,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "E",
+    "seq": 21,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "D",
+    "seq": 22,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "E",
+    "seq": 24,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "D",
+    "seq": 25,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "E",
+    "seq": 27,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "D",
+    "seq": 28,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "E",
+    "seq": 30,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "D",
+    "seq": 31,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "F",
+    "seq": 3,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "E",
+    "seq": 1,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "F",
+    "seq": 6,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "E",
+    "seq": 4,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "F",
+    "seq": 9,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "E",
+    "seq": 7,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "F",
+    "seq": 12,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "E",
+    "seq": 10,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "F",
+    "seq": 15,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "E",
+    "seq": 13,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "F",
+    "seq": 18,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "E",
+    "seq": 16,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "F",
+    "seq": 21,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "E",
+    "seq": 19,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "F",
+    "seq": 24,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "E",
+    "seq": 22,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "F",
+    "seq": 27,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "E",
+    "seq": 25,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "F",
+    "seq": 30,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "E",
+    "seq": 28,
+    "icode": null
+   }
+  }
+ ]
+}

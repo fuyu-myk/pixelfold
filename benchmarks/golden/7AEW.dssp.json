@@ -1,0 +1,3966 @@
+{
+ "residues": [
+  {
+   "chain": "AAA",
+   "seq": -4,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "AAA",
+   "seq": -3,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "AAA",
+   "seq": -2,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "AAA",
+   "seq": -1,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "AAA",
+   "seq": 0,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "AAA",
+   "seq": 1,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "AAA",
+   "seq": 2,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "AAA",
+   "seq": 3,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 4,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 5,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 6,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 7,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 8,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 9,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 10,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 11,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 12,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 13,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 14,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 15,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 16,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "AAA",
+   "seq": 17,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "AAA",
+   "seq": 18,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "AAA",
+   "seq": 19,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 20,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 21,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 22,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 23,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 24,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 25,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 26,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 27,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 28,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 29,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 30,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 31,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "AAA",
+   "seq": 32,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "AAA",
+   "seq": 33,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "AAA",
+   "seq": 34,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "AAA",
+   "seq": 35,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "AAA",
+   "seq": 36,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "AAA",
+   "seq": 37,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "AAA",
+   "seq": 38,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 39,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 40,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 41,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 42,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 43,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 44,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 45,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 46,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 47,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 48,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 49,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 50,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 51,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 52,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 53,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 54,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 55,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 56,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 57,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 58,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 59,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 60,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 61,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 62,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 63,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 64,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 65,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 66,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 67,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 68,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 69,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 70,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "AAA",
+   "seq": 71,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "AAA",
+   "seq": 72,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "AAA",
+   "seq": 73,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "AAA",
+   "seq": 74,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "AAA",
+   "seq": 75,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "AAA",
+   "seq": 76,
+   "icode": null,
+   "ss": "P"
+  },
+  {
+   "chain": "AAA",
+   "seq": 77,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "AAA",
+   "seq": 78,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "AAA",
+   "seq": 79,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "AAA",
+   "seq": 80,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 81,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 82,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 83,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 84,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 85,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 86,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 87,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 88,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 89,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 90,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 91,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 92,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 93,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 94,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 95,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 96,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 97,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 98,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 99,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 100,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 101,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 102,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 103,
+   "icode": null,
+   "ss": "I"
+  },
+  {
+   "chain": "AAA",
+   "seq": 104,
+   "icode": null,
+   "ss": "I"
+  },
+  {
+   "chain": "AAA",
+   "seq": 105,
+   "icode": null,
+   "ss": "I"
+  },
+  {
+   "chain": "AAA",
+   "seq": 106,
+   "icode": null,
+   "ss": "I"
+  },
+  {
+   "chain": "AAA",
+   "seq": 107,
+   "icode": null,
+   "ss": "I"
+  },
+  {
+   "chain": "AAA",
+   "seq": 108,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 109,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 110,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 111,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "AAA",
+   "seq": 112,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "AAA",
+   "seq": 113,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "AAA",
+   "seq": 114,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 115,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 116,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 117,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 118,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 119,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 120,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 121,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 122,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 123,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 124,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 125,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 126,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 127,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 128,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 129,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 130,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 131,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 132,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 133,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 134,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 135,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "AAA",
+   "seq": 136,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "AAA",
+   "seq": 137,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "AAA",
+   "seq": 138,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "AAA",
+   "seq": 139,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "AAA",
+   "seq": 140,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 141,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 142,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 143,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 144,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 145,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 146,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 147,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 148,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 149,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 150,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 151,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 152,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 153,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 154,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 155,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 156,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 157,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 158,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 159,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 160,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 161,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 162,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "AAA",
+   "seq": 163,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "AAA",
+   "seq": 164,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "AAA",
+   "seq": 165,
+   "icode": null,
+   "ss": "T"
+  },
+  {
+   "chain": "AAA",
+   "seq": 166,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "AAA",
+   "seq": 167,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 168,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 169,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 170,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 171,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 172,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 173,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 174,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 175,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 176,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 177,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 178,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 179,
+   "icode": null,
+   "ss": "I"
+  },
+  {
+   "chain": "AAA",
+   "seq": 180,
+   "icode": null,
+   "ss": "I"
+  },
+  {
+   "chain": "AAA",
+   "seq": 181,
+   "icode": null,
+   "ss": "I"
+  },
+  {
+   "chain": "AAA",
+   "seq": 182,
+   "icode": null,
+   "ss": "I"
+  },
+  {
+   "chain": "AAA",
+   "seq": 183,
+   "icode": null,
+   "ss": "I"
+  },
+  {
+   "chain": "AAA",
+   "seq": 184,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "AAA",
+   "seq": 185,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "AAA",
+   "seq": 186,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "AAA",
+   "seq": 187,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 188,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 189,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 190,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 191,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 192,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 193,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 194,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 195,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 196,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 197,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 198,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 199,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 200,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 201,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 202,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 203,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 204,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 205,
+   "icode": null,
+   "ss": "G"
+  },
+  {
+   "chain": "AAA",
+   "seq": 206,
+   "icode": null,
+   "ss": "G"
+  },
+  {
+   "chain": "AAA",
+   "seq": 207,
+   "icode": null,
+   "ss": "G"
+  },
+  {
+   "chain": "AAA",
+   "seq": 208,
+   "icode": null,
+   "ss": "S"
+  },
+  {
+   "chain": "AAA",
+   "seq": 209,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "AAA",
+   "seq": 210,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 211,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 212,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 213,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 214,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 215,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 216,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 217,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 218,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 219,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 220,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 221,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 222,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 223,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 224,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 225,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 226,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 227,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 228,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 229,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 230,
+   "icode": null,
+   "ss": "H"
+  },
+  {
+   "chain": "AAA",
+   "seq": 231,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "CCC",
+   "seq": 40,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "CCC",
+   "seq": 41,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "CCC",
+   "seq": 42,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "CCC",
+   "seq": 43,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "CCC",
+   "seq": 44,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "CCC",
+   "seq": 45,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "CCC",
+   "seq": 46,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "BBB",
+   "seq": 60,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "BBB",
+   "seq": 61,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "BBB",
+   "seq": 62,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "BBB",
+   "seq": 63,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "BBB",
+   "seq": 64,
+   "icode": null,
+   "ss": "E"
+  },
+  {
+   "chain": "BBB",
+   "seq": 65,
+   "icode": null,
+   "ss": "C"
+  },
+  {
+   "chain": "BBB",
+   "seq": 66,
+   "icode": null,
+   "ss": "C"
+  }
+ ],
+ "hbonds": [
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": -1,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": -4,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 1,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": -2,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 6,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 2,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 7,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 3,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 8,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 4,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 9,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 5,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 10,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 6,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 11,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 7,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 12,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 8,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 13,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 9,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 14,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 10,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 15,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 11,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 16,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 12,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 17,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 14,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 18,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 13,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 19,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 17,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 22,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 18,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 23,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 19,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 24,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 20,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 25,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 21,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 26,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 22,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 27,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 23,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 28,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 24,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 29,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 25,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 30,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 26,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 31,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 27,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 32,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 29,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 33,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 30,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 41,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 37,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 42,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 38,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 43,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 39,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 44,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 40,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 45,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 41,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 46,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 42,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 47,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 43,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 48,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 44,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 49,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 45,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 50,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 46,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 51,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 47,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 52,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 48,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 53,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 49,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 54,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 50,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 55,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 51,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 56,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 52,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 57,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 53,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 58,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 54,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 59,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 55,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 60,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 56,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 61,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 57,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 62,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 58,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 63,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 59,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 64,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 60,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 65,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 61,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 66,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 62,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 67,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 63,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 68,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 64,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 69,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 65,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 70,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 66,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 70,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 67,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 71,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 68,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 74,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 71,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 83,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 79,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 84,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 80,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 85,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 81,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 86,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 82,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 87,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 83,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 88,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 84,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 89,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 85,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 90,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 86,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 91,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 87,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 92,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 88,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 93,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 89,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 94,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 90,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 95,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 91,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 96,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 92,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 97,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 93,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 98,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 94,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 99,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 95,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 100,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 96,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 101,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 97,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 102,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 98,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 103,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 99,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 104,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 100,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 105,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 101,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 107,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 102,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 108,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 103,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 110,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 106,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 111,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 108,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 111,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 107,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 112,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 110,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 117,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 113,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 118,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 114,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 119,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 115,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 120,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 116,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 121,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 117,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 122,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 118,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 123,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 119,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 124,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 120,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 125,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 121,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 126,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 122,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 127,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 123,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 128,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 124,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 129,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 125,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 130,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 126,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 131,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 127,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 132,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 128,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 133,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 129,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 134,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 131,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 134,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 130,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 135,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 131,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 140,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 137,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 143,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 139,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 144,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 140,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 145,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 141,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 146,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 142,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 147,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 143,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 148,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 144,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 149,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 145,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 150,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 146,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 151,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 147,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 152,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 148,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 153,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 149,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 154,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 150,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 155,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 151,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 156,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 152,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 157,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 153,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 158,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 154,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 159,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 155,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 160,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 156,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 161,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 157,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 162,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 158,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 166,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 163,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 170,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 166,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 171,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 167,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 172,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 168,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 173,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 169,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 174,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 170,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 175,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 171,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 176,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 172,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 177,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 173,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 178,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 174,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 179,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 175,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 180,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 176,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 181,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 177,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 182,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 178,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 183,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 179,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 183,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 178,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 184,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 179,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 186,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 180,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 190,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 186,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 191,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 187,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 192,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 188,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 193,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 189,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 194,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 190,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 195,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 191,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 196,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 192,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 197,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 193,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 198,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 194,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 199,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 195,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 200,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 196,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 201,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 197,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 202,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 198,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 203,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 199,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 204,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 201,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 205,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 202,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 205,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 201,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 207,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 204,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 208,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 205,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 213,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 209,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 214,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 210,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 215,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 211,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 216,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 212,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 217,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 213,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 218,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 214,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 219,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 215,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 220,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 216,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 221,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 217,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 222,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 218,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 223,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 219,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 224,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 220,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 225,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 221,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 226,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 222,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 227,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 223,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 228,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 224,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 229,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 225,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 230,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 226,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "AAA",
+    "seq": 231,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "AAA",
+    "seq": 227,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "CCC",
+    "seq": 41,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "BBB",
+    "seq": 60,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "CCC",
+    "seq": 41,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "BBB",
+    "seq": 61,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "CCC",
+    "seq": 42,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "BBB",
+    "seq": 61,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "CCC",
+    "seq": 42,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "BBB",
+    "seq": 62,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "CCC",
+    "seq": 43,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "BBB",
+    "seq": 62,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "CCC",
+    "seq": 43,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "BBB",
+    "seq": 63,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "CCC",
+    "seq": 44,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "BBB",
+    "seq": 63,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "CCC",
+    "seq": 44,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "BBB",
+    "seq": 64,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "CCC",
+    "seq": 46,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "BBB",
+    "seq": 65,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "BBB",
+    "seq": 61,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "CCC",
+    "seq": 40,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "BBB",
+    "seq": 61,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "CCC",
+    "seq": 41,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "BBB",
+    "seq": 62,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "CCC",
+    "seq": 42,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "BBB",
+    "seq": 62,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "CCC",
+    "seq": 41,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "BBB",
+    "seq": 63,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "CCC",
+    "seq": 43,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "BBB",
+    "seq": 63,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "CCC",
+    "seq": 42,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "BBB",
+    "seq": 64,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "CCC",
+    "seq": 43,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "BBB",
+    "seq": 64,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "CCC",
+    "seq": 44,
+    "icode": null
+   }
+  },
+  {
+   "donor": {
+    "chain": "BBB",
+    "seq": 65,
+    "icode": null
+   },
+   "acceptor": {
+    "chain": "CCC",
+    "seq": 45,
+    "icode": null
+   }
+  }
+ ]
+}
