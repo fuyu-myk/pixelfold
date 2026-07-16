@@ -17,13 +17,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
+import tempfile
 import urllib.request
 from pathlib import Path
 
 import freesasa
 import tomllib
-from Bio.PDB import DSSP, MMCIFParser
+from Bio.PDB import MMCIFParser
+from Bio.PDB.MMCIF2Dict import MMCIF2Dict
+from Bio.PDB.PDBExceptions import PDBConstructionException
 
 RCSB_CIF = "https://files.rcsb.org/download/{id}.cif"
 ALPHAFOLD_API = "https://alphafold.ebi.ac.uk/api/prediction/{accession}"
@@ -61,41 +65,110 @@ def residue_key(chain: str, resnum: int, icode: str) -> dict:
     return {"chain": chain, "seq": resnum, "icode": icode or None}
 
 
+def _optional(value: str) -> str | None:
+    """Collapse mmCIF's absent markers (``.`` / ``?``) to ``None``."""
+    return None if value in (".", "?", "") else value
+
+
 def dssp_golden(pdb_id: str, cif: Path) -> dict:
-    """Per-residue SS and backbone H-bonds from DSSP 4, via Biopython."""
-    structure = MMCIFParser(QUIET=True).get_structure(pdb_id, str(cif))
-    model = next(structure.get_models())
-    dssp = DSSP(model, str(cif), dssp="mkdssp")
+    """Per-residue SS and backbone H-bonds from DSSP 4.
 
-    # DSSP indexes residues 1..N; map that index to a residue key so H-bond
-    # relative offsets can be resolved back to concrete residues.
-    keys = list(dssp.keys())
-    index_to_key: dict[int, dict] = {}
-    residues = []
-    for key in keys:
-        chain = key[0]
-        _hetflag, resnum, icode = key[1]
-        record = dssp[key]
-        dssp_index, _aa, ss = record[0], record[1], record[2]
-        rkey = residue_key(chain, resnum, icode)
-        index_to_key[dssp_index] = rkey
-        # DSSP uses '-' for coil.
-        residues.append({**rkey, "ss": ss if ss != "-" else "C"})
+    Parses mkdssp's mmCIF output rather than its legacy fixed-column format:
+    the legacy format cannot represent multi-character chain ids (e.g. 7P5R's
+    ``AAA``), and MMCIF2Dict is a tokenizer, so it also tolerates altloc-only
+    residues that trip Biopython's structure builder (e.g. 1EJG). This
+    reproduces the Biopython/legacy output exactly on structures both handle.
+    """
+    with tempfile.NamedTemporaryFile(suffix=".cif") as out:
+        subprocess.run(
+            ["mkdssp", "--output-format=mmcif", str(cif), out.name],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        dssp = MMCIF2Dict(out.name)
 
-    hbonds = []
-    for key in keys:
-        record = dssp[key]
-        donor_index = record[0]
-        # NH-->O(1) and NH-->O(2): this residue's N-H donates to a partner C=O.
-        for rel_idx_pos, energy_pos in ((6, 7), (10, 11)):
-            rel, energy = record[rel_idx_pos], record[energy_pos]
-            if rel == 0 or energy >= HBOND_ENERGY_CUTOFF:
+    bridge = "_dssp_struct_bridge_pairs."
+    if bridge + "auth_asym_id" not in dssp:
+        # No protein residues (e.g. a pure nucleic-acid entry): DSSP emits no
+        # struct categories at all.
+        return {"residues": [], "hbonds": []}
+
+    # Secondary structure is keyed by label ids ('.'/'-' is coil).
+    summary = "_dssp_struct_summary."
+    ss_by_label = {
+        (asym, seq): ("C" if ss in (".", "-") else ss)
+        for asym, seq, ss in zip(
+            dssp[summary + "label_asym_id"],
+            dssp[summary + "label_seq_id"],
+            dssp[summary + "secondary_structure"],
+        )
+    }
+
+    # One bridge-pairs row per residue carries its author id plus its H-bond
+    # partners; acceptor_1/2 are the C=O that this residue's N-H donates to.
+    residues, hbonds = [], []
+    rows = zip(
+        dssp[bridge + "auth_asym_id"],
+        dssp[bridge + "auth_seq_id"],
+        dssp[bridge + "pdbx_PDB_ins_code"],
+        dssp[bridge + "label_asym_id"],
+        dssp[bridge + "label_seq_id"],
+    )
+    for i, (asym, seq, icode, label_asym, label_seq) in enumerate(rows):
+        donor = residue_key(asym, int(seq), _optional(icode) or "")
+        residues.append({**donor, "ss": ss_by_label.get((label_asym, label_seq), "C")})
+        for slot in (bridge + "acceptor_1", bridge + "acceptor_2"):
+            partner = _optional(dssp[slot + "_auth_asym_id"][i])
+            energy = _optional(dssp[slot + "_energy"][i])
+            if partner is None or energy is None or float(energy) >= HBOND_ENERGY_CUTOFF:
                 continue
-            acceptor = index_to_key.get(donor_index + rel)
-            if acceptor is not None:
-                hbonds.append({"donor": index_to_key[donor_index], "acceptor": acceptor})
+            acceptor = residue_key(
+                partner,
+                int(dssp[slot + "_auth_seq_id"][i]),
+                _optional(dssp[slot + "_pdbx_PDB_ins_code"][i]) or "",
+            )
+            hbonds.append({"donor": donor, "acceptor": acceptor})
 
     return {"residues": residues, "hbonds": hbonds}
+
+
+def _freesasa_structure_from_dict(cif: Path) -> freesasa.Structure:
+    """Build a FreeSASA structure straight from the mmCIF via MMCIF2Dict.
+
+    Fallback for files Biopython's structure builder rejects (e.g. 1EJG, whose
+    Ser22 has only altloc B/C and no primary conformer). Mirrors
+    ``structureFromBioPDB``'s defaults, first model, skip HETATM/water and
+    hydrogens, keep one conformer per atom, and yields identical SASA on
+    inputs both paths accept.
+    """
+    atoms = MMCIF2Dict(str(cif))
+    site = "_atom_site."
+    structure = freesasa.Structure()
+    seen: set[tuple[str, str, str]] = set()
+    first_model = atoms[site + "pdbx_PDB_model_num"][0]
+    rows = zip(
+        atoms[site + "group_PDB"],
+        atoms[site + "label_atom_id"],
+        atoms[site + "type_symbol"],
+        atoms[site + "auth_comp_id"],
+        atoms[site + "auth_seq_id"],
+        atoms[site + "auth_asym_id"],
+        atoms[site + "pdbx_PDB_model_num"],
+        atoms[site + "Cartn_x"],
+        atoms[site + "Cartn_y"],
+        atoms[site + "Cartn_z"],
+    )
+    for group, name, element, comp, seq, asym, model, x, y, z in rows:
+        if group != "ATOM" or element == "H" or model != first_model:
+            continue
+        atom = name.strip('"')
+        conformer = (asym, seq, atom)
+        if conformer in seen:
+            continue
+        seen.add(conformer)
+        structure.addAtom(f"{atom:<4.4}", f"{comp:>3.3}", seq, asym, float(x), float(y), float(z))
+    return structure
 
 
 def freesasa_golden(pdb_id: str, cif: Path) -> dict:
@@ -106,8 +179,11 @@ def freesasa_golden(pdb_id: str, cif: Path) -> dict:
     use the first model, matching how the DSSP path reads the structure.
     """
     freesasa.setVerbosity(freesasa.nowarnings)
-    structure = MMCIFParser(QUIET=True).get_structure(pdb_id, str(cif))
-    fs_structure = freesasa.structureFromBioPDB(structure)
+    try:
+        structure = MMCIFParser(QUIET=True).get_structure(pdb_id, str(cif))
+        fs_structure = freesasa.structureFromBioPDB(structure)
+    except PDBConstructionException:
+        fs_structure = _freesasa_structure_from_dict(cif)
     # Guard against 0-atom structures.
     if fs_structure.nAtoms() == 0:
         print("  no SASA-eligible atoms; writing empty SASA", file=sys.stderr)
