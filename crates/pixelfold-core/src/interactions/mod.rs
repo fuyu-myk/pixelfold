@@ -10,6 +10,7 @@
 pub mod classify;
 mod detectors;
 pub mod params;
+mod topology;
 
 use crate::structure::Protein;
 
@@ -67,5 +68,6 @@ pub fn detect(protein: &Protein) -> Vec<Interaction> {
     interactions.extend(detectors::disulfides(protein));
     interactions.extend(detectors::metal_coordination(protein));
     interactions.extend(detectors::salt_bridges(protein));
+    interactions.extend(detectors::hydrophobic_contacts(protein));
     interactions
 }

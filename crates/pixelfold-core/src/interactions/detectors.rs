@@ -1,14 +1,21 @@
 //! Per-type detectors. Each one narrows the atom set to the roles it needs,
 //! grids those positions, and only tests candidates inside the cutoff.
 
+use std::collections::HashMap;
+use std::hash::Hash;
+
 use glam::Vec3;
 
 use crate::fixed_str::FixedStr;
 use crate::spatial::Grid;
 use crate::structure::{Atom, Protein};
 
-use super::classify::{Charge, charged_group, is_cysteine_sulfur, is_metal, is_metal_donor};
-use super::params::{DISULFIDE_DIST_MAX, METAL_DIST_MAX, MIN_DIST, SALTBRIDGE_DIST_MAX};
+use super::classify::{
+    Charge, charged_group, is_apolar_carbon, is_cysteine_sulfur, is_metal, is_metal_donor,
+};
+use super::params::{
+    DISULFIDE_DIST_MAX, HYDROPHOBIC_DIST_MAX, METAL_DIST_MAX, MIN_DIST, SALTBRIDGE_DIST_MAX,
+};
 use super::{Interaction, InteractionKind};
 
 type ResidueKey = (FixedStr<4>, u32, Option<char>);
@@ -101,6 +108,100 @@ pub fn metal_coordination(protein: &Protein) -> Vec<Interaction> {
     }
 
     out
+}
+
+/// One surviving apolar carbon pair.
+struct Contact {
+    a: usize,
+    b: usize,
+    distance: f32,
+}
+
+/// Hydrophobic contacts between apolar carbons.
+///
+/// Every apolar carbon of a residue is close to every apolar carbon of the
+/// residue packed against it, so the raw pairs overstate one touch many times
+/// over. PLIP reduces them (`PLInteraction.refine_hydrophobic`); the reduction
+/// used here is the one PLIP itself switches to when its partner is a peptide
+/// rather than a small molecule, which is the case that matches a protein.
+pub fn hydrophobic_contacts(protein: &Protein) -> Vec<Interaction> {
+    let (carbons, positions) = collect(protein, is_apolar_carbon);
+    if carbons.len() < 2 {
+        return Vec::new();
+    }
+
+    let grid = Grid::build(&positions, HYDROPHOBIC_DIST_MAX);
+
+    let mut contacts = Vec::new();
+    for (a, &atom_a) in carbons.iter().enumerate() {
+        let center = positions[a];
+        grid.for_each_within(center, HYDROPHOBIC_DIST_MAX, |b| {
+            if b <= a {
+                return; // report each pair once, never a carbon against itself
+            }
+
+            let atom_b = carbons[b];
+            if residue_key(&protein.atoms[atom_a]) == residue_key(&protein.atoms[atom_b]) {
+                return; // a residue does not contact itself
+            }
+
+            let distance = (center - positions[b]).length();
+            if !(MIN_DIST < distance && distance < HYDROPHOBIC_DIST_MAX) {
+                return;
+            }
+
+            contacts.push(Contact {
+                a: atom_a,
+                b: atom_b,
+                distance,
+            });
+        });
+    }
+
+    reduce_to_closest(protein, contacts)
+        .into_iter()
+        .map(|contact| Interaction {
+            kind: InteractionKind::Hydrophobic,
+            atoms_a: vec![contact.a],
+            atoms_b: vec![contact.b],
+            distance: contact.distance,
+            angle: None,
+        })
+        .collect()
+}
+
+/// Reduce each side in turn: first the closest carbon of each residue reaching a
+/// given atom, then the same with the sides swapped. One pass alone would only
+/// thin one direction, leaving the other side's carbons all reported.
+fn reduce_to_closest(protein: &Protein, contacts: Vec<Contact>) -> Vec<Contact> {
+    let once = keep_shortest(contacts, |c| (c.a, residue_key(&protein.atoms[c.b])));
+    let mut twice = keep_shortest(once, |c| (residue_key(&protein.atoms[c.a]), c.b));
+    twice.sort_unstable_by_key(|c| (c.a, c.b));
+
+    twice
+}
+
+/// Keep the shortest contact per key. Ties keep the contact seen first, as PLIP
+/// does by comparing strictly.
+fn keep_shortest<K: Eq + Hash>(
+    contacts: Vec<Contact>,
+    key: impl Fn(&Contact) -> K,
+) -> Vec<Contact> {
+    let mut best: HashMap<K, Contact> = HashMap::new();
+    for contact in contacts {
+        match best.entry(key(&contact)) {
+            std::collections::hash_map::Entry::Occupied(mut slot) => {
+                if slot.get().distance > contact.distance {
+                    slot.insert(contact);
+                }
+            }
+            std::collections::hash_map::Entry::Vacant(slot) => {
+                slot.insert(contact);
+            }
+        }
+    }
+
+    best.into_values().collect()
 }
 
 /// A residue's charged group: the centroid of its charged atoms.
@@ -299,6 +400,102 @@ mod tests {
         assert!((found[0].distance - 4.0).abs() < 1e-4); // centroid separation
         assert_eq!(found[0].atoms_a.len(), 3); // whole guanidinium
         assert_eq!(found[0].atoms_b.len(), 2); // whole carboxylate
+    }
+
+    /// Give an atom an explicit residue number so contacts can span residues.
+    fn at(residue: &str, seq: u32, name: &str, position: Vec3) -> Atom {
+        atom(residue, seq, name, "C", position)
+    }
+
+    #[test]
+    fn hydrophobic_contact_found_in_range_and_rejected_beyond_it() {
+        let close = protein(vec![
+            at("ALA", 1, "CB", Vec3::ZERO),
+            at("LEU", 2, "CD1", Vec3::new(3.5, 0.0, 0.0)),
+        ]);
+        let found = hydrophobic_contacts(&close);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].kind, InteractionKind::Hydrophobic);
+        assert!((found[0].distance - 3.5).abs() < 1e-4);
+
+        let apart = protein(vec![
+            at("ALA", 1, "CB", Vec3::ZERO),
+            at("LEU", 2, "CD1", Vec3::new(4.5, 0.0, 0.0)),
+        ]);
+        assert!(hydrophobic_contacts(&apart).is_empty());
+    }
+
+    #[test]
+    fn only_apolar_carbons_contact() {
+        // A serine CB reaches its hydroxyl oxygen, and a methionine CG its
+        // sulfur, so neither is apolar however close it sits.
+        let structure = protein(vec![
+            at("ALA", 1, "CB", Vec3::ZERO),
+            at("SER", 2, "CB", Vec3::new(3.0, 0.0, 0.0)),
+            at("MET", 3, "CG", Vec3::new(0.0, 3.0, 0.0)),
+            atom("MET", 4, "SD", "S", Vec3::new(0.0, 0.0, 3.0)),
+            at("ALA", 5, "CA", Vec3::new(0.0, 0.0, -3.0)),
+        ]);
+        assert!(hydrophobic_contacts(&structure).is_empty());
+    }
+
+    #[test]
+    fn atoms_of_one_residue_do_not_contact_each_other() {
+        // Leucine's own carbons are all within 4 A of one another.
+        let structure = protein(vec![
+            at("LEU", 1, "CB", Vec3::ZERO),
+            at("LEU", 1, "CG", Vec3::new(1.5, 0.0, 0.0)),
+            at("LEU", 1, "CD1", Vec3::new(2.5, 1.0, 0.0)),
+        ]);
+        assert!(hydrophobic_contacts(&structure).is_empty());
+    }
+
+    #[test]
+    fn one_residue_pair_reports_one_contact_not_every_carbon_pair() {
+        // A leucine packed against an alanine: four apolar carbons all inside
+        // the cutoff of the alanine's CB, which is one touch, not four.
+        let structure = protein(vec![
+            at("ALA", 1, "CB", Vec3::ZERO),
+            at("LEU", 2, "CB", Vec3::new(3.0, 0.0, 0.0)),
+            at("LEU", 2, "CG", Vec3::new(3.2, 1.0, 0.0)),
+            at("LEU", 2, "CD1", Vec3::new(3.4, 2.0, 0.0)),
+            at("LEU", 2, "CD2", Vec3::new(3.6, 0.0, 1.0)),
+        ]);
+
+        let found = hydrophobic_contacts(&structure);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].atoms_a, vec![0]); // the alanine CB
+        assert_eq!(found[0].atoms_b, vec![1]); // the closest leucine carbon
+        assert!((found[0].distance - 3.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn the_reduction_thins_both_sides() {
+        // The mirror of the case above: two carbons of one residue reaching a
+        // single carbon of another. Reducing only by the first atom of the pair
+        // would leave both, so this is what the second pass is for.
+        let structure = protein(vec![
+            at("LEU", 1, "CB", Vec3::ZERO),
+            at("LEU", 1, "CG", Vec3::new(0.0, 1.5, 0.0)),
+            at("ALA", 2, "CB", Vec3::new(3.0, 0.0, 0.0)),
+        ]);
+
+        let found = hydrophobic_contacts(&structure);
+        assert_eq!(found.len(), 1);
+        assert!((found[0].distance - 3.0).abs() < 1e-4); // the shorter leg
+    }
+
+    #[test]
+    fn distinct_residue_pairs_each_keep_a_contact() {
+        // Reduction must not collapse genuinely different partners: one leucine
+        // carbon touching three separate alanines is three contacts.
+        let structure = protein(vec![
+            at("LEU", 1, "CB", Vec3::ZERO),
+            at("ALA", 2, "CB", Vec3::new(3.0, 0.0, 0.0)),
+            at("ALA", 3, "CB", Vec3::new(0.0, 3.1, 0.0)),
+            at("ALA", 4, "CB", Vec3::new(0.0, 0.0, 3.2)),
+        ]);
+        assert_eq!(hydrophobic_contacts(&structure).len(), 3);
     }
 
     #[test]

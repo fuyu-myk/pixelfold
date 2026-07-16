@@ -13,6 +13,7 @@
 use crate::structure::Atom;
 
 use super::params::METAL_ELEMENTS;
+use super::topology;
 
 /// Formal charge sign of a residue's charged group.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -86,6 +87,24 @@ pub fn is_cysteine_sulfur(atom: &Atom) -> bool {
     atom.residue_name == "CYS" && atom.name == "SG"
 }
 
+/// True when the atom is an apolar carbon: a carbon bonded only to carbons and
+/// hydrogens.
+///
+/// This is PLIP's hydrophobic atom, verbatim (`Mol.hydrophobic_atoms`: carbons
+/// whose neighbours' atomic numbers are a subset of {1, 6}). PLIP reads the
+/// neighbours from OpenBabel's perceived bonds; pixelfold reads them from
+/// [`super::topology`], which gives the same answer for a standard residue and
+/// no answer at all for a ligand until the chemical component dictionary lands.
+///
+/// Sulfur is excluded on both counts, which surprises chemical intuition and is
+/// worth stating: methionine's SD is not an apolar atom, and its flanking CG and
+/// CE are disqualified for bonding to it, so methionine contributes only CB.
+/// RING instead admits sulfur to its van der Waals contacts.
+pub fn is_apolar_carbon(atom: &Atom) -> bool {
+    atom.element.as_str().eq_ignore_ascii_case("C")
+        && topology::bonded_only_to_carbon(atom.residue_name.as_str(), atom.name.as_str())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -157,5 +176,30 @@ mod tests {
         assert!(is_cysteine_sulfur(&atom("CYS", "SG", "S")));
         assert!(!is_cysteine_sulfur(&atom("MET", "SD", "S")));
         assert!(!is_cysteine_sulfur(&atom("CYS", "CB", "C")));
+    }
+
+    #[test]
+    fn apolar_carbons_are_side_chain_carbons_with_no_polar_neighbour() {
+        assert!(is_apolar_carbon(&atom("LEU", "CD1", "C")));
+        assert!(is_apolar_carbon(&atom("PHE", "CZ", "C")));
+        assert!(is_apolar_carbon(&atom("ALA", "CB", "C")));
+
+        // Backbone carbons always reach a nitrogen or an oxygen.
+        assert!(!is_apolar_carbon(&atom("LEU", "CA", "C")));
+        assert!(!is_apolar_carbon(&atom("LEU", "C", "C")));
+
+        // Carbons one bond from a heteroatom.
+        assert!(!is_apolar_carbon(&atom("SER", "CB", "C"))); // OG
+        assert!(!is_apolar_carbon(&atom("TYR", "CZ", "C"))); // OH
+        assert!(!is_apolar_carbon(&atom("MET", "CG", "C"))); // SD
+    }
+
+    #[test]
+    fn sulfur_is_never_apolar_and_nor_is_a_ligand_carbon() {
+        assert!(!is_apolar_carbon(&atom("MET", "SD", "S")));
+        assert!(!is_apolar_carbon(&atom("CYS", "SG", "S")));
+
+        // Ligand chemistry needs the chemical component dictionary.
+        assert!(!is_apolar_carbon(&atom("STI", "C1", "C")));
     }
 }

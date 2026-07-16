@@ -5,17 +5,33 @@
 //! the difference is recorded: it is the expected reason pixelfold and RING
 //! disagree on an edge, not a bug. Distances are Angstroms, angles are degrees.
 //!
+//! RING's values are quoted at its strict defaults. They are not in its paper:
+//! the paper describes the method and leaves every threshold to the web
+//! documentation, and RING's engine is closed source. Note also that RING 2.0
+//! and RING 4.0 differ on both distance and angle, so a criterion attributed to
+//! "RING" without a version is ambiguous; the version is named here each time.
+//!
 //! Sources:
 //! - PLIP config.py: `https://raw.githubusercontent.com/pharmai/plip/master/plip/basic/config.py`
+//! - RING 4.0 criteria and strict/relaxed defaults: `https://ring.biocomputingup.it/about`
 //! - RING 4.0: Clementel et al., Nucleic Acids Research 2024 (gkae337)
+//! - RING 2.0 (superseded, for the version differences): Piovesan et al., NAR 2016 (gkw315)
 
 /// Shared lower distance bound applied to every distance gate (PLIP `MIN_DIST`).
 pub const MIN_DIST: f32 = 0.5;
 
-/// Max donor-acceptor heavy-atom distance D...A (PLIP `HBOND_DIST_MAX`). RING
-/// uses a stricter 3.5 A plus a linearity constraint, so RING reports fewer.
+/// Max donor-acceptor heavy-atom distance D...A (PLIP `HBOND_DIST_MAX`, which is
+/// Hubbard and Haider's 3.5 A plus 0.6). RING 4.0 gates the same distance at
+/// 3.9 A and adds two constraints PLIP has no equivalent of: an H...A leg under
+/// 2.5 A and a D-H...A angle over 90 degrees, so RING reports fewer.
 pub const HBOND_DIST_MAX: f32 = 4.1;
-/// Min D-H...A angle measured at the hydrogen (PLIP `HBOND_DON_ANGLE_MIN`).
+/// Min D-H...A angle (PLIP `HBOND_DON_ANGLE_MIN`, Hubbard and Haider's 90
+/// degrees plus 10).
+///
+/// Despite the name, and despite PLIP's own comment calling it the angle "at the
+/// hydrogen bond donor", `detection.py` measures it at the **hydrogen**: it takes
+/// the angle between the vectors H->D and H->A. RING measures the same angle at
+/// the same vertex, at 90 degrees.
 pub const HBOND_DONOR_ANGLE_MIN: f32 = 100.0;
 
 /// Max charge-centre to charge-centre distance for a salt bridge (PLIP
@@ -23,8 +39,10 @@ pub const HBOND_DONOR_ANGLE_MIN: f32 = 100.0;
 pub const SALTBRIDGE_DIST_MAX: f32 = 5.5;
 
 /// Max apolar carbon-carbon distance for a hydrophobic contact (PLIP
-/// `HYDROPH_DIST_MAX`). RING folds this into van der Waals contacts and also
-/// admits sulfur.
+/// `HYDROPH_DIST_MAX`), applied between atom centres.
+///
+/// RING has no comparable centre-to-centre threshold: it folds these into van
+/// der Waals contacts measured surface to surface.
 pub const HYDROPHOBIC_DIST_MAX: f32 = 4.0;
 
 /// Max aromatic ring centroid distance for pi-stacking (PLIP `PISTACK_DIST_MAX`).
