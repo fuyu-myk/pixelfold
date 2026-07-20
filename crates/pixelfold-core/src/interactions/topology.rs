@@ -122,6 +122,12 @@ fn side_chain_bonds(residue_name: &str) -> Option<&'static [(&'static str, &'sta
     Some(bonds)
 }
 
+/// True when the residue is one of the 20 standard amino acids, the only
+/// residues whose connectivity is known without a chemical component dictionary.
+pub fn is_standard_residue(residue_name: &str) -> bool {
+    side_chain_bonds(residue_name).is_some()
+}
+
 /// The heavy atoms bonded to `atom_name` within its own residue.
 ///
 /// A residue outside the standard 20 has no known connectivity and so no

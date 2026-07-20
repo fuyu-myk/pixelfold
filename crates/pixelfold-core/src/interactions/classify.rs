@@ -87,6 +87,41 @@ pub fn is_cysteine_sulfur(atom: &Atom) -> bool {
     atom.residue_name == "CYS" && atom.name == "SG"
 }
 
+/// True when the atom can accept a hydrogen bond.
+///
+/// PLIP delegates this to OpenBabel's `IsHbondAcceptor`, whose rules reduce to
+/// something small once only the standard residues can reach them:
+///
+/// - **Every oxygen accepts.** OpenBabel rejects an oxygen only for being nitro,
+///   aromatic, a sulfone, a diaryl ether, or an sp3 ester bridge, and a protein
+///   residue has none of those. Backbone carbonyls survive the ester rule
+///   because that test needs a single bond, and carboxylates survive it by an
+///   explicit exception.
+/// - **Almost no nitrogen accepts.** OpenBabel rejects a nitrogen that is either
+///   four-coordinate sp3 (an ammonium) or three-coordinate sp2 (an amide or a
+///   pyrrole-type ring). Every nitrogen in a protein is one or the other, except
+///   an unprotonated histidine ring nitrogen, which is two-coordinate.
+/// - **No sulfur accepts**, since OpenBabel admits that sulfur is only at a formal
+///   charge of -1. Cysteine's SG and methionine's SD are therefore excluded.
+///   HBPLUS, CHARMM and ChimeraX disagree about those two atoms, and the
+///   spectroscopy says sulfur hydrogen bonds are rare rather than weak, so this
+///   is a real omission rather than a settled one.
+///
+/// Histidine's ND1 and NE2 both appear here and both also donate: only one
+/// carries a hydrogen in a given tautomer, and the coordinates do not say which.
+pub fn is_hbond_acceptor(atom: &Atom) -> bool {
+    let residue = atom.residue_name.as_str();
+    if !topology::is_standard_residue(residue) {
+        return false; // ligand chemistry needs the chemical component dictionary
+    }
+
+    if atom.element.as_str().eq_ignore_ascii_case("O") {
+        return true;
+    }
+
+    matches!((residue, atom.name.as_str()), ("HIS", "ND1" | "NE2"))
+}
+
 /// True when the atom is an apolar carbon: a carbon bonded only to carbons and
 /// hydrogens.
 ///

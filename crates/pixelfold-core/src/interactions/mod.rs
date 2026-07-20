@@ -9,6 +9,7 @@
 
 pub mod classify;
 mod detectors;
+pub mod hydrogens;
 pub mod params;
 mod topology;
 
@@ -65,6 +66,7 @@ pub struct Interaction {
 /// Detect every supported interaction in a structure.
 pub fn detect(protein: &Protein) -> Vec<Interaction> {
     let mut interactions = Vec::new();
+    interactions.extend(detectors::hydrogen_bonds(protein));
     interactions.extend(detectors::disulfides(protein));
     interactions.extend(detectors::metal_coordination(protein));
     interactions.extend(detectors::salt_bridges(protein));

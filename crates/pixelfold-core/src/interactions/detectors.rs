@@ -11,12 +11,14 @@ use crate::spatial::Grid;
 use crate::structure::{Atom, Protein};
 
 use super::classify::{
-    Charge, charged_group, is_apolar_carbon, is_cysteine_sulfur, is_metal, is_metal_donor,
+    Charge, charged_group, is_apolar_carbon, is_cysteine_sulfur, is_hbond_acceptor, is_metal,
+    is_metal_donor,
 };
 use super::params::{
-    DISULFIDE_DIST_MAX, HYDROPHOBIC_DIST_MAX, METAL_DIST_MAX, MIN_DIST, SALTBRIDGE_DIST_MAX,
+    DISULFIDE_DIST_MAX, HBOND_DIST_MAX, HBOND_DONOR_ANGLE_MIN, HYDROPHOBIC_DIST_MAX,
+    METAL_DIST_MAX, MIN_DIST, SALTBRIDGE_DIST_MAX,
 };
-use super::{Interaction, InteractionKind};
+use super::{Interaction, InteractionKind, hydrogens};
 
 type ResidueKey = (FixedStr<4>, u32, Option<char>);
 
@@ -108,6 +110,148 @@ pub fn metal_coordination(protein: &Protein) -> Vec<Interaction> {
     }
 
     out
+}
+
+/// One hydrogen bond that passed both gates.
+struct Bond {
+    donor: usize,
+    acceptor: usize,
+    distance: f32,
+    angle: f32,
+}
+
+/// An acceptor inside a donor's cutoff, with the angle each of the donor's
+/// hydrogens makes to it.
+struct Reachable {
+    acceptor: usize,
+    distance: f32,
+    angles: Vec<f32>,
+}
+
+/// Give each of a donor's hydrogens its straightest acceptor.
+///
+/// Taking the best bond, spending the hydrogen that makes it, and repeating is
+/// what stops one hydrogen from being counted twice. Capping the number of bonds
+/// at the number of hydrogens is not enough on its own: both hydrogens of an
+/// amide can be the best route to the same oxygen.
+fn assign(donor: &hydrogens::Donor, reachable: Vec<Reachable>) -> Vec<Bond> {
+    let mut spent = vec![false; donor.hydrogens.capacity()];
+    let mut taken = vec![false; reachable.len()];
+    let mut bonds = Vec::new();
+
+    loop {
+        let mut best: Option<(usize, usize, f32)> = None;
+        for (r, candidate) in reachable.iter().enumerate() {
+            if taken[r] {
+                continue;
+            }
+
+            for (h, &angle) in candidate.angles.iter().enumerate() {
+                if spent[h] || angle <= HBOND_DONOR_ANGLE_MIN {
+                    continue;
+                }
+
+                if best.is_none_or(|(_, _, straightest)| angle > straightest) {
+                    best = Some((r, h, angle));
+                }
+            }
+        }
+
+        let Some((r, h, angle)) = best else {
+            return bonds;
+        };
+
+        spent[h] = true;
+        taken[r] = true;
+        bonds.push(Bond {
+            donor: donor.atom,
+            acceptor: reachable[r].acceptor,
+            distance: reachable[r].distance,
+            angle,
+        });
+    }
+}
+
+/// Hydrogen bonds, on PLIP's geometry: a donor-acceptor heavy-atom distance
+/// inside the cutoff and a D-H...A angle at the hydrogen above the minimum.
+///
+/// The hydrogens come from [`super::hydrogens`], which places a rotatable
+/// donor's hydrogen against the acceptor under test rather than at an arbitrary
+/// torsion. Each hydrogen then makes at most one bond, straightest first: a
+/// donor's hydrogens are *assigned* to acceptors rather than merely counted,
+/// because an amide can easily point both of its hydrogens at the same
+/// carboxylate and reach one oxygen twice while the other hydrogen reaches
+/// nothing.
+///
+/// Three differences from PLIP are deliberate:
+///
+/// - PLIP caps a donor at **one** bond however many hydrogens it has, so a
+///   lysine ammonium or an arginine reports a single bond at an interface where
+///   it makes three. That cap is safe for a small ligand and wrong for a
+///   protein, which is what this engine is for. For every single-hydrogen donor,
+///   the majority, the two rules agree exactly.
+/// - PLIP drops a hydrogen bond whose two ends already form a salt bridge. RING
+///   does not, and lets a residue pair carry both edges at once, which says more
+///   in a network. Neither does this.
+/// - PLIP has a guard its comment calls a backbone-backbone filter. The property
+///   it reads is OpenBabel's `SIDECHAIN`, so it actually drops side-chain to
+///   side-chain bonds, and only in intra mode. It is not reproduced.
+///
+/// These are potential hydrogen bonds, in HBPLUS's sense: where a tautomer or a
+/// torsion is undetermined by the coordinates, what is reported is what the
+/// geometry allows, and some of what it allows is mutually exclusive.
+pub fn hydrogen_bonds(protein: &Protein) -> Vec<Interaction> {
+    let donors = hydrogens::donors(protein);
+    let (acceptors, acceptor_positions) = collect(protein, is_hbond_acceptor);
+    if donors.is_empty() || acceptors.is_empty() {
+        return Vec::new();
+    }
+
+    let grid = Grid::build(&acceptor_positions, HBOND_DIST_MAX);
+
+    let mut bonds = Vec::new();
+    for donor in &donors {
+        let origin = protein.atoms[donor.atom].position;
+        let mut reachable = Vec::new();
+
+        grid.for_each_within(origin, HBOND_DIST_MAX, |i| {
+            let acceptor = acceptors[i];
+            if residue_key(&protein.atoms[donor.atom]) == residue_key(&protein.atoms[acceptor]) {
+                return; // a residue does not bond to itself, nor an atom to itself
+            }
+
+            let target = acceptor_positions[i];
+            let distance = (target - origin).length();
+            if !(MIN_DIST < distance && distance < HBOND_DIST_MAX) {
+                return;
+            }
+
+            let angles = donor.hydrogens.angles_toward(origin, target);
+            if angles.iter().all(|&angle| angle <= HBOND_DONOR_ANGLE_MIN) {
+                return; // no hydrogen of this donor can reach it
+            }
+
+            reachable.push(Reachable {
+                acceptor,
+                distance,
+                angles,
+            });
+        });
+
+        bonds.extend(assign(donor, reachable));
+    }
+
+    bonds.sort_unstable_by_key(|bond| (bond.donor, bond.acceptor));
+    bonds
+        .into_iter()
+        .map(|bond| Interaction {
+            kind: InteractionKind::HydrogenBond,
+            atoms_a: vec![bond.donor],
+            atoms_b: vec![bond.acceptor],
+            distance: bond.distance,
+            angle: Some(bond.angle),
+        })
+        .collect()
 }
 
 /// One surviving apolar carbon pair.
@@ -405,6 +549,138 @@ mod tests {
     /// Give an atom an explicit residue number so contacts can span residues.
     fn at(residue: &str, seq: u32, name: &str, position: Vec3) -> Atom {
         atom(residue, seq, name, "C", position)
+    }
+
+    /// Two residues, the first donating its amide hydrogen towards a carbonyl
+    /// oxygen placed by the caller. Residue 1's C=O fixes residue 2's amide H.
+    fn amide_donor_to(acceptor: Vec3) -> Protein {
+        // Residue 1 is a proline: it supplies the carbonyl that fixes residue
+        // 2's amide hydrogen without donating a terminal ammonium of its own.
+        protein(vec![
+            atom("PRO", 1, "N", "N", Vec3::new(0.0, 0.0, 0.0)),
+            atom("PRO", 1, "CA", "C", Vec3::new(1.5, 0.0, 0.0)),
+            atom("PRO", 1, "C", "C", Vec3::new(2.0, 1.4, 0.0)),
+            atom("PRO", 1, "O", "O", Vec3::new(1.2, 2.3, 0.0)),
+            atom("ALA", 2, "N", "N", Vec3::new(3.3, 1.5, 0.0)),
+            atom("ALA", 2, "CA", "C", Vec3::new(4.0, 2.8, 0.0)),
+            atom("GLY", 9, "O", "O", acceptor),
+        ])
+    }
+
+    #[test]
+    fn hydrogen_bond_found_when_the_amide_points_at_the_acceptor() {
+        // Residue 2's amide H sits at N + unit(C_prev - O_prev); put an acceptor
+        // out along that direction, at a credible donor-acceptor distance.
+        let n = Vec3::new(3.3, 1.5, 0.0);
+        let along = (Vec3::new(2.0, 1.4, 0.0) - Vec3::new(1.2, 2.3, 0.0)).normalize();
+        let structure = amide_donor_to(n + along * 3.0);
+
+        let found: Vec<_> = hydrogen_bonds(&structure);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].kind, InteractionKind::HydrogenBond);
+        assert_eq!(found[0].atoms_a, vec![4]); // the amide nitrogen
+        assert_eq!(found[0].atoms_b, vec![6]); // the carbonyl oxygen
+        assert!((found[0].distance - 3.0).abs() < 1e-4);
+        assert!(found[0].angle.unwrap() > 179.0, "expected a straight bond");
+    }
+
+    #[test]
+    fn hydrogen_bond_rejected_beyond_the_cutoff_and_at_a_bad_angle() {
+        let n = Vec3::new(3.3, 1.5, 0.0);
+        let along = (Vec3::new(2.0, 1.4, 0.0) - Vec3::new(1.2, 2.3, 0.0)).normalize();
+
+        // Straight on, but too far away.
+        assert!(hydrogen_bonds(&amide_donor_to(n + along * 5.0)).is_empty());
+
+        // Close enough, but sitting behind the donor where the hydrogen is not.
+        assert!(hydrogen_bonds(&amide_donor_to(n - along * 3.0)).is_empty());
+    }
+
+    #[test]
+    fn a_donor_makes_no_more_bonds_than_it_has_hydrogens() {
+        // One amide hydrogen, three acceptors all within reach: the straightest
+        // bond wins and the other two are dropped.
+        let n = Vec3::new(3.3, 1.5, 0.0);
+        let along = (Vec3::new(2.0, 1.4, 0.0) - Vec3::new(1.2, 2.3, 0.0)).normalize();
+
+        let mut atoms = amide_donor_to(n + along * 3.0).atoms;
+        atoms.push(atom(
+            "GLY",
+            10,
+            "O",
+            "O",
+            n + along * 3.0 + Vec3::new(0.9, 0.0, 0.0),
+        ));
+        atoms.push(atom(
+            "GLY",
+            11,
+            "O",
+            "O",
+            n + along * 3.0 + Vec3::new(0.0, 0.9, 0.0),
+        ));
+        let structure = protein(atoms);
+
+        let found = hydrogen_bonds(&structure);
+        assert_eq!(found.len(), 1, "one hydrogen cannot make three bonds");
+        assert_eq!(found[0].atoms_b, vec![6], "the straightest acceptor wins");
+    }
+
+    /// An amide's two hydrogens are fixed and often point much the same way, so
+    /// a carboxylate offering two oxygens can be reachable twice over by one of
+    /// them and not at all by the other.
+    #[test]
+    fn two_hydrogens_cannot_both_be_the_same_hydrogen() {
+        // An asparagine amide, with both oxygens of a carboxylate placed out
+        // along the direction of a single one of its hydrogens.
+        let nd2 = Vec3::new(0.0, 0.0, 0.0);
+        let structure = protein(vec![
+            atom("ASN", 1, "CB", "C", Vec3::new(-2.5, -1.2, 0.0)),
+            atom("ASN", 1, "CG", "C", Vec3::new(-1.5, 0.0, 0.0)),
+            atom("ASN", 1, "OD1", "O", Vec3::new(-2.0, 1.2, 0.0)),
+            atom("ASN", 1, "ND2", "N", nd2),
+            atom("ASP", 2, "OD1", "O", Vec3::new(2.4, -1.9, 0.0)),
+            atom("ASP", 2, "OD2", "O", Vec3::new(1.4, -2.6, 0.0)),
+        ]);
+
+        let donor = &hydrogens::donors(&structure)[0];
+        let hydrogens::Hydrogens::Fixed(hs) = &donor.hydrogens else {
+            panic!("an amide is fixed");
+        };
+        assert_eq!(hs.len(), 2);
+
+        // Both acceptors are reachable, and only ever by the same hydrogen.
+        for acceptor in [Vec3::new(2.4, -1.9, 0.0), Vec3::new(1.4, -2.6, 0.0)] {
+            let angles = donor.hydrogens.angles_toward(nd2, acceptor);
+            let reaching: Vec<usize> = angles
+                .iter()
+                .enumerate()
+                .filter(|&(_, &angle)| angle > HBOND_DONOR_ANGLE_MIN)
+                .map(|(h, _)| h)
+                .collect();
+            assert_eq!(reaching, vec![0], "only one hydrogen reaches: {angles:?}");
+        }
+
+        let found = hydrogen_bonds(&structure);
+        assert_eq!(found.len(), 1, "one hydrogen made two bonds: {found:?}");
+    }
+
+    #[test]
+    fn only_typed_acceptors_accept() {
+        let n = Vec3::new(3.3, 1.5, 0.0);
+        let along = (Vec3::new(2.0, 1.4, 0.0) - Vec3::new(1.2, 2.3, 0.0)).normalize();
+        let target = n + along * 3.0;
+
+        // A lysine ammonium is a donor, never an acceptor; a cysteine sulfur is
+        // neither, under the typing PLIP inherits from OpenBabel.
+        let mut atoms = amide_donor_to(target).atoms;
+        atoms.pop();
+        atoms.push(atom("LYS", 9, "NZ", "N", target));
+        assert!(hydrogen_bonds(&protein(atoms)).is_empty());
+
+        let mut atoms = amide_donor_to(target).atoms;
+        atoms.pop();
+        atoms.push(atom("CYS", 9, "SG", "S", target));
+        assert!(hydrogen_bonds(&protein(atoms)).is_empty());
     }
 
     #[test]
