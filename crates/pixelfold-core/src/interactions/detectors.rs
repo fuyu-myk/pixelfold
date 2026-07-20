@@ -16,9 +16,10 @@ use super::classify::{
 };
 use super::params::{
     DISULFIDE_DIST_MAX, HBOND_DIST_MAX, HBOND_DONOR_ANGLE_MIN, HYDROPHOBIC_DIST_MAX,
-    METAL_DIST_MAX, MIN_DIST, SALTBRIDGE_DIST_MAX,
+    METAL_DIST_MAX, MIN_DIST, PICATION_DIST_MAX, PISTACK_ANGLE_DEV, PISTACK_DIST_MAX,
+    PISTACK_OFFSET_MAX, SALTBRIDGE_DIST_MAX,
 };
-use super::{Interaction, InteractionKind, hydrogens};
+use super::{Interaction, InteractionKind, aromatic, hydrogens};
 
 type ResidueKey = (FixedStr<4>, u32, Option<char>);
 
@@ -427,6 +428,120 @@ pub fn salt_bridges(protein: &Protein) -> Vec<Interaction> {
     out
 }
 
+/// Pi-stacking between aromatic rings, on PLIP's geometry.
+///
+/// A pair passes when the ring centroids are within the cutoff, the offset (how
+/// far one centroid sits from over the other's centre) is small, and the planes
+/// are either near parallel or near perpendicular.
+///
+/// A tryptophan's two rings are close and near coplanar, so the same-residue
+/// guard is what stops a residue from stacking with itself.
+pub fn pi_stacking(protein: &Protein) -> Vec<Interaction> {
+    let rings = aromatic::rings(protein);
+    if rings.len() < 2 {
+        return Vec::new();
+    }
+
+    let centers: Vec<Vec3> = rings.iter().map(|ring| ring.center).collect();
+    let grid = Grid::build(&centers, PISTACK_DIST_MAX);
+
+    let mut out = Vec::new();
+    for (a, ring_a) in rings.iter().enumerate() {
+        grid.for_each_within(ring_a.center, PISTACK_DIST_MAX, |b| {
+            if b <= a {
+                return; // report each pair once
+            }
+
+            let ring_b = &rings[b];
+            if ring_a.residue == ring_b.residue {
+                return; // a residue's own rings do not stack
+            }
+
+            let distance = (ring_a.center - ring_b.center).length();
+            if !(MIN_DIST < distance && distance < PISTACK_DIST_MAX) {
+                return;
+            }
+
+            let offset = ring_a
+                .planar_offset(ring_b.center)
+                .min(ring_b.planar_offset(ring_a.center));
+            if offset >= PISTACK_OFFSET_MAX {
+                return;
+            }
+
+            // PLIP guards the parallel case with `0 < angle`, rejecting only
+            // bit-identical normals.
+            let angle = aromatic::plane_angle(ring_a.normal, ring_b.normal);
+            let parallel = angle < PISTACK_ANGLE_DEV;
+            let perpendicular =
+                90.0 - PISTACK_ANGLE_DEV < angle && angle < 90.0 + PISTACK_ANGLE_DEV;
+            if !(parallel || perpendicular) {
+                return;
+            }
+
+            out.push(Interaction {
+                kind: InteractionKind::PiStacking,
+                atoms_a: ring_a.atoms.clone(),
+                atoms_b: ring_b.atoms.clone(),
+                distance,
+                angle: Some(angle),
+            });
+        });
+    }
+
+    out
+}
+
+/// Pi-cation between an aromatic ring and a positive charge centre.
+///
+/// The cations are the same groups salt bridges use: the arginine guanidinium,
+/// the lysine ammonium, and the histidine imidazole. PLIP restricts pi-cation to
+/// exactly these three residues and, on the protein path, brings in no metals,
+/// so neither does this. A histidine is both a ring and a cation, so the
+/// same-residue guard stops its ring from counting its own charge.
+pub fn pi_cation(protein: &Protein) -> Vec<Interaction> {
+    let rings = aromatic::rings(protein);
+    let cations: Vec<ChargedGroup> = charged_groups(protein)
+        .into_iter()
+        .filter(|group| group.sign == Charge::Positive)
+        .collect();
+    if rings.is_empty() || cations.is_empty() {
+        return Vec::new();
+    }
+
+    let centers: Vec<Vec3> = rings.iter().map(|ring| ring.center).collect();
+    let grid = Grid::build(&centers, PICATION_DIST_MAX);
+
+    let mut out = Vec::new();
+    for cation in &cations {
+        let cation_residue = residue_key(&protein.atoms[cation.atoms[0]]);
+        grid.for_each_within(cation.centroid, PICATION_DIST_MAX, |r| {
+            let ring = &rings[r];
+            if ring.residue == cation_residue {
+                return; // a histidine ring does not count its own charge
+            }
+
+            let distance = (ring.center - cation.centroid).length();
+            if !(MIN_DIST < distance && distance < PICATION_DIST_MAX) {
+                return;
+            }
+            if ring.planar_offset(cation.centroid) >= PISTACK_OFFSET_MAX {
+                return;
+            }
+
+            out.push(Interaction {
+                kind: InteractionKind::PiCation,
+                atoms_a: ring.atoms.clone(),
+                atoms_b: cation.atoms.clone(),
+                distance,
+                angle: None,
+            });
+        });
+    }
+
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -789,5 +904,161 @@ mod tests {
             atom("GLU", 2, "OE1", "O", Vec3::new(3.0, 0.0, 0.0)),
         ]);
         assert!(salt_bridges(&like).is_empty());
+    }
+
+    /// A flat six-membered ring, named as a phenylalanine, centred at `center`
+    /// and spanned by two in-plane axes so its plane can be aimed.
+    fn ring_at(seq: u32, center: Vec3, u: Vec3, v: Vec3) -> Vec<Atom> {
+        let names = ["CG", "CD1", "CE1", "CZ", "CE2", "CD2"];
+        (0..6)
+            .map(|k| {
+                let t = std::f32::consts::PI / 3.0 * k as f32;
+                atom(
+                    "PHE",
+                    seq,
+                    names[k],
+                    "C",
+                    center + (u * t.cos() + v * t.sin()) * 1.4,
+                )
+            })
+            .collect()
+    }
+
+    fn stack(a: Vec<Atom>, b: Vec<Atom>) -> Vec<Interaction> {
+        let mut atoms = a;
+        atoms.extend(b);
+        pi_stacking(&protein(atoms))
+    }
+
+    #[test]
+    fn face_to_face_rings_stack_and_report_a_parallel_angle() {
+        // Two rings in parallel planes, one above the other.
+        let found = stack(
+            ring_at(1, Vec3::ZERO, Vec3::X, Vec3::Y),
+            ring_at(2, Vec3::new(0.0, 0.0, 3.8), Vec3::X, Vec3::Y),
+        );
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].kind, InteractionKind::PiStacking);
+        assert!((found[0].distance - 3.8).abs() < 1e-3);
+        assert!(
+            found[0].angle.unwrap() < PISTACK_ANGLE_DEV,
+            "a parallel stack"
+        );
+    }
+
+    #[test]
+    fn edge_to_face_rings_stack_and_report_a_perpendicular_angle() {
+        // The second ring stands on edge, its plane perpendicular to the first.
+        let found = stack(
+            ring_at(1, Vec3::ZERO, Vec3::X, Vec3::Y),
+            ring_at(2, Vec3::new(0.0, 0.0, 4.0), Vec3::X, Vec3::Z),
+        );
+        assert_eq!(found.len(), 1);
+        assert!(
+            found[0].angle.unwrap() > 90.0 - PISTACK_ANGLE_DEV,
+            "a T-shape"
+        );
+    }
+
+    #[test]
+    fn rings_do_not_stack_beyond_the_distance_or_the_offset() {
+        // Parallel but too far apart.
+        assert!(
+            stack(
+                ring_at(1, Vec3::ZERO, Vec3::X, Vec3::Y),
+                ring_at(2, Vec3::new(0.0, 0.0, 6.0), Vec3::X, Vec3::Y),
+            )
+            .is_empty()
+        );
+
+        // Close enough, parallel, but slipped sideways past the offset cutoff.
+        assert!(
+            stack(
+                ring_at(1, Vec3::ZERO, Vec3::X, Vec3::Y),
+                ring_at(2, Vec3::new(3.0, 0.0, 3.0), Vec3::X, Vec3::Y),
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn rings_tilted_between_parallel_and_perpendicular_do_not_stack() {
+        // A 45 degree tilt is neither face-to-face nor edge-to-face.
+        let tilt = (Vec3::Y + Vec3::Z).normalize();
+        assert!(
+            stack(
+                ring_at(1, Vec3::ZERO, Vec3::X, Vec3::Y),
+                ring_at(2, Vec3::new(0.0, 0.0, 3.8), Vec3::X, tilt),
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn a_tryptophans_two_rings_do_not_stack_with_each_other() {
+        let trp = protein(vec![
+            atom("TRP", 1, "CG", "C", Vec3::new(0.0, 0.0, 0.0)),
+            atom("TRP", 1, "CD1", "C", Vec3::new(1.2, 0.5, 0.0)),
+            atom("TRP", 1, "NE1", "N", Vec3::new(2.0, -0.5, 0.0)),
+            atom("TRP", 1, "CE2", "C", Vec3::new(1.3, -1.6, 0.0)),
+            atom("TRP", 1, "CD2", "C", Vec3::new(0.0, -1.4, 0.0)),
+            atom("TRP", 1, "CZ2", "C", Vec3::new(1.6, -2.9, 0.0)),
+            atom("TRP", 1, "CH2", "C", Vec3::new(0.6, -3.9, 0.0)),
+            atom("TRP", 1, "CZ3", "C", Vec3::new(-0.7, -3.7, 0.0)),
+            atom("TRP", 1, "CE3", "C", Vec3::new(-1.0, -2.4, 0.0)),
+        ]);
+        assert!(pi_stacking(&trp).is_empty());
+    }
+
+    fn cation_over(ring: Vec<Atom>, nz: Vec3) -> Vec<Interaction> {
+        let mut atoms = ring;
+        atoms.push(atom("LYS", 9, "NZ", "N", nz));
+        pi_cation(&protein(atoms))
+    }
+
+    #[test]
+    fn a_cation_over_a_ring_face_is_a_pi_cation() {
+        let found = cation_over(
+            ring_at(1, Vec3::ZERO, Vec3::X, Vec3::Y),
+            Vec3::new(0.0, 0.0, 4.5),
+        );
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].kind, InteractionKind::PiCation);
+        assert!((found[0].distance - 4.5).abs() < 1e-3);
+    }
+
+    #[test]
+    fn a_cation_is_rejected_beyond_the_distance_or_off_the_face() {
+        // Straight over the face but past the six angstrom cutoff.
+        assert!(
+            cation_over(
+                ring_at(1, Vec3::ZERO, Vec3::X, Vec3::Y),
+                Vec3::new(0.0, 0.0, 6.5)
+            )
+            .is_empty()
+        );
+
+        // Close, but beside the ring rather than over it.
+        assert!(
+            cation_over(
+                ring_at(1, Vec3::ZERO, Vec3::X, Vec3::Y),
+                Vec3::new(3.0, 0.0, 2.0)
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn a_histidine_ring_does_not_count_its_own_charge() {
+        // A lone histidine is both a ring and a cation; it must not pi-cation
+        // with itself.
+        let his = protein(vec![
+            atom("HIS", 1, "CG", "C", Vec3::new(0.0, 0.0, 0.0)),
+            atom("HIS", 1, "ND1", "N", Vec3::new(1.1, 0.7, 0.0)),
+            atom("HIS", 1, "CE1", "C", Vec3::new(2.2, 0.0, 0.0)),
+            atom("HIS", 1, "NE2", "N", Vec3::new(1.9, -1.2, 0.0)),
+            atom("HIS", 1, "CD2", "C", Vec3::new(0.5, -1.2, 0.0)),
+        ]);
+        assert!(pi_cation(&his).is_empty());
     }
 }

@@ -7,6 +7,7 @@
 //! Geometric thresholds live in [`params`] and are taken from PLIP's source;
 //! atom roles live in [`classify`] and follow explicit residue tables.
 
+pub mod aromatic;
 pub mod classify;
 mod detectors;
 pub mod hydrogens;
@@ -70,6 +71,8 @@ pub fn detect(protein: &Protein) -> Vec<Interaction> {
     interactions.extend(detectors::disulfides(protein));
     interactions.extend(detectors::metal_coordination(protein));
     interactions.extend(detectors::salt_bridges(protein));
+    interactions.extend(detectors::pi_stacking(protein));
+    interactions.extend(detectors::pi_cation(protein));
     interactions.extend(detectors::hydrophobic_contacts(protein));
     interactions
 }
