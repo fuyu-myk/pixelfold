@@ -7,8 +7,10 @@ repository.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+fixedbitset.workspace = true
 glam.workspace = true
 nalgebra.workspace = true
+nom.workspace = true
 pdbtbx.workspace = true
 petgraph.workspace = true
 rust-sasa.workspace = true

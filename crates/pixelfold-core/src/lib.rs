@@ -8,6 +8,7 @@ pub mod interactions;
 pub mod parser;
 pub mod rin;
 pub mod sasa;
+pub mod select;
 pub mod spatial;
 pub mod structure;
 
@@ -15,6 +16,7 @@ pub use dssp::HBond;
 pub use fixed_str::FixedStr;
 pub use interactions::{Interaction, InteractionKind};
 pub use sasa::SurfacePoint;
+pub use select::{AtomSet, Selection, select};
 pub use structure::{
     AltlocPolicy, Atom, BiologicalAssembly, DisplayMode, Protein, SecondaryStructure,
     calculate_bfactor_range, get_calpha_connections, get_calpha_indices,

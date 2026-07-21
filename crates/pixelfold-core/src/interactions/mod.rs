@@ -12,7 +12,7 @@ pub mod classify;
 mod detectors;
 pub mod hydrogens;
 pub mod params;
-mod topology;
+pub mod topology;
 
 use crate::structure::Protein;
 

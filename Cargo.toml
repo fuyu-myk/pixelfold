@@ -18,9 +18,11 @@ pixelfold-tui = { path = "crates/pixelfold-tui" }
 anyhow = "1.0.100"
 bytes = "1.11.0"
 crossterm = "0.29.0"
+fixedbitset = "0.4.2"
 flate2 = "1.1.8"
 futures = "0.3.31"
 glam = "0.30.9"
+nom = "7.1.3"
 nalgebra = { version = "0.33.2", features = ["serde-serialize"] }
 pdbtbx = "0.12.0"
 petgraph = "0.6"
