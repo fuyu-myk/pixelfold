@@ -2,9 +2,11 @@
 //! SASA, interactions, and residue interaction network.
 
 pub mod assembly;
+pub mod components;
 pub mod dssp;
 pub mod fixed_str;
 pub mod interactions;
+mod mmcif;
 pub mod parser;
 pub mod rin;
 pub mod sasa;
@@ -12,6 +14,7 @@ pub mod select;
 pub mod spatial;
 pub mod structure;
 
+pub use components::{Component, Dictionary};
 pub use dssp::HBond;
 pub use fixed_str::FixedStr;
 pub use interactions::{Interaction, InteractionKind};

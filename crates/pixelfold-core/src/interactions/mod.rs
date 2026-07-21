@@ -9,6 +9,7 @@
 
 pub mod aromatic;
 pub mod classify;
+pub mod connectivity;
 mod detectors;
 pub mod hydrogens;
 pub mod params;
@@ -78,5 +79,6 @@ pub fn detect(protein: &Protein) -> Vec<Interaction> {
     interactions.extend(detectors::pi_cation(protein));
     interactions.extend(detectors::hydrophobic_contacts(protein));
     interactions.extend(detectors::water_bridges(protein));
+    interactions.extend(detectors::halogen_bonds(protein));
     interactions
 }

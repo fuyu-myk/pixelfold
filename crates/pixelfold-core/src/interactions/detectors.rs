@@ -15,12 +15,14 @@ use super::classify::{
     is_metal_donor, is_water,
 };
 use super::params::{
-    DISULFIDE_DIST_MAX, HBOND_DIST_MAX, HBOND_DONOR_ANGLE_MIN, HYDROPHOBIC_DIST_MAX,
-    METAL_DIST_MAX, MIN_DIST, PICATION_DIST_MAX, PISTACK_ANGLE_DEV, PISTACK_DIST_MAX,
-    PISTACK_OFFSET_MAX, SALTBRIDGE_DIST_MAX, WATER_BRIDGE_MAX_DIST, WATER_BRIDGE_MIN_DIST,
-    WATER_BRIDGE_OMEGA_MAX, WATER_BRIDGE_OMEGA_MIN, WATER_BRIDGE_THETA_MIN,
+    DISULFIDE_DIST_MAX, HALOGEN_ACCEPTOR_ANGLE, HALOGEN_ACCEPTOR_ELEMENTS, HALOGEN_ANGLE_DEV,
+    HALOGEN_ANTECEDENT_ELEMENTS, HALOGEN_DIST_MAX, HALOGEN_DONOR_ANGLE, HALOGEN_ELEMENTS,
+    HBOND_DIST_MAX, HBOND_DONOR_ANGLE_MIN, HYDROPHOBIC_DIST_MAX, METAL_DIST_MAX, MIN_DIST,
+    PICATION_DIST_MAX, PISTACK_ANGLE_DEV, PISTACK_DIST_MAX, PISTACK_OFFSET_MAX,
+    SALTBRIDGE_DIST_MAX, WATER_BRIDGE_MAX_DIST, WATER_BRIDGE_MIN_DIST, WATER_BRIDGE_OMEGA_MAX,
+    WATER_BRIDGE_OMEGA_MIN, WATER_BRIDGE_THETA_MIN,
 };
-use super::{Interaction, InteractionKind, aromatic, hydrogens};
+use super::{Interaction, InteractionKind, aromatic, connectivity, hydrogens};
 
 type ResidueKey = (FixedStr<4>, u32, Option<char>);
 
@@ -257,6 +259,106 @@ pub fn hydrogen_bonds(protein: &Protein) -> Vec<Interaction> {
             bridge: None,
         })
         .collect()
+}
+
+/// Halogen bonds, of the form C-X...A-Y.
+///
+/// Each side needs exactly one antecedent, which is PLIP's rule and the reason a
+/// thioether sulfur or a ring nitrogen never accepts: with two neighbours there
+/// is no single direction to measure against. The backbone amide nitrogen falls
+/// out the same way, since [`super::connectivity`] gives it the peptide bond as
+/// well as its own carbon.
+///
+/// Two departures from PLIP. Fluorine does not donate, for the reason given at
+/// [`HALOGEN_ELEMENTS`]. And PLIP looks only from its ligand to its binding
+/// site, so a halogenated residue could never donate and a ligand could never
+/// accept.
+pub fn halogen_bonds(protein: &Protein) -> Vec<Interaction> {
+    let bonds = connectivity::bonds(protein);
+
+    // A halogen donates only through the one carbon it hangs from.
+    let donors: Vec<(usize, usize)> = protein
+        .atoms
+        .iter()
+        .enumerate()
+        .filter(|(_, atom)| element_is(atom, HALOGEN_ELEMENTS))
+        .filter_map(|(x, _)| Some((x, bonds.sole_neighbour(protein, x, &["C"])?)))
+        .collect();
+    if donors.is_empty() {
+        return Vec::new();
+    }
+
+    let acceptors: Vec<(usize, usize)> = protein
+        .atoms
+        .iter()
+        .enumerate()
+        .filter(|(_, atom)| element_is(atom, HALOGEN_ACCEPTOR_ELEMENTS))
+        .filter_map(|(a, _)| {
+            let y = bonds.sole_neighbour(protein, a, HALOGEN_ANTECEDENT_ELEMENTS)?;
+            Some((a, y))
+        })
+        .collect();
+    if acceptors.is_empty() {
+        return Vec::new();
+    }
+
+    let acceptor_positions: Vec<Vec3> = acceptors
+        .iter()
+        .map(|&(a, _)| protein.atoms[a].position)
+        .collect();
+    let grid = Grid::build(&acceptor_positions, HALOGEN_DIST_MAX);
+
+    let mut out = Vec::new();
+    for &(halogen, carbon) in &donors {
+        let x = protein.atoms[halogen].position;
+        let donor_residue = residue_key(&protein.atoms[halogen]);
+
+        grid.for_each_within(x, HALOGEN_DIST_MAX, |i| {
+            let (acceptor, antecedent) = acceptors[i];
+            if residue_key(&protein.atoms[acceptor]) == donor_residue {
+                return; // a component does not bond to itself
+            }
+
+            let a = acceptor_positions[i];
+            let distance = (a - x).length();
+            if !(MIN_DIST < distance && distance < HALOGEN_DIST_MAX) {
+                return;
+            }
+
+            let at_acceptor = hydrogens::angle_at(a, protein.atoms[antecedent].position, x);
+            if !within_of(at_acceptor, HALOGEN_ACCEPTOR_ANGLE, HALOGEN_ANGLE_DEV) {
+                return;
+            }
+
+            let at_halogen = hydrogens::angle_at(x, a, protein.atoms[carbon].position);
+            if !within_of(at_halogen, HALOGEN_DONOR_ANGLE, HALOGEN_ANGLE_DEV) {
+                return;
+            }
+
+            out.push(Interaction {
+                kind: InteractionKind::HalogenBond,
+                atoms_a: vec![halogen],
+                atoms_b: vec![acceptor],
+                distance,
+                // The angle at the halogen (running through the C-X bond).
+                angle: Some(at_halogen),
+                bridge: None,
+            });
+        });
+    }
+
+    out
+}
+
+/// Whether an angle sits within `deviation` of `optimum`.
+fn within_of(angle: f32, optimum: f32, deviation: f32) -> bool {
+    optimum - deviation < angle && angle < optimum + deviation
+}
+
+/// Whether an atom's element is one of `elements`, matched case-insensitively.
+fn element_is(atom: &Atom, elements: &[&str]) -> bool {
+    let element = atom.element.as_str();
+    elements.iter().any(|e| element.eq_ignore_ascii_case(e))
 }
 
 /// A water oxygen, the only atom that bridges two residues in this engine.
@@ -679,6 +781,7 @@ mod tests {
             surface_points: Vec::new(),
             hbonds: Vec::new(),
             assembly: None,
+            components: Default::default(),
         }
     }
 
@@ -1230,6 +1333,109 @@ mod tests {
         let beyond = water + amide_direction() * 2.9;
 
         assert!(water_bridges(&bridged(water, beyond)).is_empty());
+    }
+
+    /// A halogenated ligand and a carbonyl acceptor, positioned by construction:
+    /// the acceptor sits straight out along the C-X axis (a 180 degree approach
+    /// at the halogen, inside the 165 +/- 30 window) and its own antecedent is
+    /// swung to meet the 120 +/- 30 window at the acceptor.
+    fn halogen_pair(halogen: &str, element: &str, antecedent: Vec3) -> Protein {
+        let definition = format!(
+            "loop_\n\
+             _chem_comp_atom.comp_id\n\
+             _chem_comp_atom.atom_id\n\
+             _chem_comp_atom.type_symbol\n\
+             LIG C1 C\n\
+             LIG {halogen} {element}\n\
+             #\n\
+             loop_\n\
+             _chem_comp_bond.comp_id\n\
+             _chem_comp_bond.atom_id_1\n\
+             _chem_comp_bond.atom_id_2\n\
+             LIG C1 {halogen}\n\
+             #\n"
+        );
+
+        let acceptor = Vec3::new(5.0, 0.0, 0.0);
+        let mut structure = protein(vec![
+            atom("LIG", 1, "C1", "C", Vec3::new(0.0, 0.0, 0.0)),
+            atom("LIG", 1, halogen, element, Vec3::new(1.9, 0.0, 0.0)),
+            atom("ALA", 2, "O", "O", acceptor),
+            atom("ALA", 2, "C", "C", acceptor + antecedent),
+        ]);
+        structure.components = crate::components::Dictionary::parse(&definition);
+
+        structure
+    }
+
+    /// An antecedent placed so the angle at the acceptor lands near 120 degrees.
+    fn antecedent_at_120() -> Vec3 {
+        Vec3::new(0.6, 1.1, 0.0)
+    }
+
+    #[test]
+    fn a_bromine_pointing_at_a_carbonyl_is_a_halogen_bond() {
+        let structure = halogen_pair("BR2", "BR", antecedent_at_120());
+        let found = halogen_bonds(&structure);
+
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].kind, InteractionKind::HalogenBond);
+        assert_eq!(found[0].atoms_a, vec![1]); // the bromine
+        assert_eq!(found[0].atoms_b, vec![2]); // the carbonyl oxygen
+        assert!((found[0].distance - 3.1).abs() < 1e-3);
+        assert!(
+            found[0].angle.unwrap() > 179.0,
+            "straight through the C-Br bond"
+        );
+    }
+
+    #[test]
+    fn iodine_and_chlorine_donate_but_fluorine_does_not() {
+        // Same geometry, different halogen. Fluorine has no sigma hole, so it is
+        // deliberately not a donor however well placed it is.
+        assert_eq!(
+            halogen_bonds(&halogen_pair("I2", "I", antecedent_at_120())).len(),
+            1
+        );
+        assert_eq!(
+            halogen_bonds(&halogen_pair("CL2", "CL", antecedent_at_120())).len(),
+            1
+        );
+        assert!(halogen_bonds(&halogen_pair("F2", "F", antecedent_at_120())).is_empty());
+    }
+
+    #[test]
+    fn a_bad_angle_at_the_acceptor_is_rejected() {
+        // The antecedent straight behind the acceptor makes the angle there 180
+        // degrees, far outside the 120 +/- 30 window.
+        let structure = halogen_pair("BR2", "BR", Vec3::new(1.4, 0.0, 0.0));
+        assert!(halogen_bonds(&structure).is_empty());
+    }
+
+    #[test]
+    fn a_halogen_with_no_bonded_carbon_does_not_donate() {
+        // A bare bromide ion has no C-X bond and so no sigma hole to donate.
+        let structure = protein(vec![
+            atom("BR", 1, "BR", "BR", Vec3::new(1.9, 0.0, 0.0)),
+            atom("ALA", 2, "O", "O", Vec3::new(5.0, 0.0, 0.0)),
+            atom("ALA", 2, "C", "C", Vec3::new(5.6, 1.1, 0.0)),
+        ]);
+        assert!(halogen_bonds(&structure).is_empty());
+    }
+
+    #[test]
+    fn an_acceptor_with_two_antecedents_is_rejected() {
+        // A thioether sulfur has two carbons, so no single direction to measure
+        // the acceptor angle against.
+        let mut structure = halogen_pair("BR2", "BR", antecedent_at_120());
+        structure.atoms.truncate(2);
+        structure.atoms.extend([
+            atom("MET", 2, "SD", "S", Vec3::new(5.0, 0.0, 0.0)),
+            atom("MET", 2, "CG", "C", Vec3::new(5.6, 1.1, 0.0)),
+            atom("MET", 2, "CE", "C", Vec3::new(5.6, -1.1, 0.0)),
+        ]);
+
+        assert!(halogen_bonds(&structure).is_empty());
     }
 
     #[test]

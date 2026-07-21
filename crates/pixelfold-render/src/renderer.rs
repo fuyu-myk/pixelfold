@@ -286,6 +286,7 @@ mod tests {
             surface_points: vec![],
             hbonds: vec![],
             assembly: None,
+            components: Default::default(),
         };
         let mut cam = Camera::new();
         cam.rotate(1.0, 2.0, 3.0);
@@ -306,6 +307,7 @@ mod tests {
             surface_points: vec![],
             hbonds: vec![],
             assembly: None,
+            components: Default::default(),
         };
         let mut cam = Camera::new();
         auto_frame_protein(&protein, &mut cam, 152.0, 152.0);

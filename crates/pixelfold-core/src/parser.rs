@@ -217,12 +217,17 @@ pub fn load_protein_with_options<P: AsRef<Path>>(
         surface_calculator.calculate_surface(&atoms)
     };
 
-    // A structure whose biological unit differs from the deposited asymmetric
-    // unit is only detectable from the raw file; a gzip or read error just
-    // means no warning.
-    let assembly = std::fs::read_to_string(path)
-        .ok()
-        .and_then(|text| crate::assembly::detect_partial_assembly(&text));
+    // Two things live only in the raw file, past what pdbtbx returns: a
+    // biological unit that differs from the deposited coordinates, and the
+    // chemical definitions of the components used.
+    let file_text = std::fs::read_to_string(path).ok();
+    let assembly = file_text
+        .as_deref()
+        .and_then(crate::assembly::detect_partial_assembly);
+    let components = file_text
+        .as_deref()
+        .map(crate::components::Dictionary::parse)
+        .unwrap_or_default();
 
     Ok(Protein {
         atoms,
@@ -230,6 +235,7 @@ pub fn load_protein_with_options<P: AsRef<Path>>(
         surface_points,
         hbonds,
         assembly,
+        components,
     })
 }
 
@@ -281,6 +287,7 @@ pub fn load_protein_backbone_with_options<P: AsRef<Path>>(
         surface_points,
         hbonds,
         assembly: None,
+        components: Default::default(),
     })
 }
 
@@ -329,6 +336,7 @@ pub fn load_protein_ca_only_with_options<P: AsRef<Path>>(
         surface_points,
         hbonds,
         assembly: None,
+        components: Default::default(),
     })
 }
 

@@ -45,7 +45,7 @@ const SP2_H_ANGLE: f32 = 120.0;
 /// The DD-D-H angle at an sp3 hydroxyl or ammonium (HBPLUS Table III).
 const SP3_H_ANGLE: f32 = 110.0;
 /// A C(prev)-N separation beyond this (A) is a chain break, not a peptide bond.
-const MAX_PEPTIDE_BOND: f32 = 2.5;
+pub(super) const MAX_PEPTIDE_BOND: f32 = 2.5;
 
 /// A hydrogen bond donor and the polar hydrogens it carries.
 pub struct Donor {
@@ -407,6 +407,7 @@ mod tests {
             surface_points: Vec::new(),
             hbonds: Vec::new(),
             assembly: None,
+            components: Default::default(),
         }
     }
 

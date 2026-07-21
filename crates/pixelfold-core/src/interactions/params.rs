@@ -58,8 +58,29 @@ pub const PISTACK_OFFSET_MAX: f32 = 2.0;
 /// is stricter at ~5.0 A.
 pub const PICATION_DIST_MAX: f32 = 6.0;
 
-/// Max halogen X...A distance (PLIP `HALOGEN_DIST_MAX`).
+/// Max halogen X...A distance (PLIP `HALOGEN_DIST_MAX`, Auffinger's van der
+/// Waals sums widened by 0.5).
 pub const HALOGEN_DIST_MAX: f32 = 4.0;
+
+/// Elements that donate a halogen bond, each through the single carbon it hangs
+/// from.
+///
+/// Fluorine is deliberately absent. PLIP admits F, Cl, Br and I alike
+/// (`Mol.is_functional_group`, atomic numbers 9/17/35/53), but the paper PLIP
+/// cites for these very thresholds excludes fluorine on physical grounds:
+/// "Fluorine atoms remain entirely electronegative, whereas each of the other
+/// three halogen atoms shows the emergence of an electropositive crown ...
+/// fluorines are more likely to serve as hydrogen bond acceptors in F...H-O-type
+/// interactions" (Auffinger et al., PNAS 2004).
+pub const HALOGEN_ELEMENTS: &[&str] = &["CL", "BR", "I"];
+
+/// Elements that accept a halogen bond, from PLIP `BindingSite.find_hal`
+/// (atomic numbers 8, 7, 16).
+pub const HALOGEN_ACCEPTOR_ELEMENTS: &[&str] = &["O", "N", "S"];
+
+/// Elements that may stand as the acceptor's antecedent Y, from the same
+/// function (atomic numbers 6, 7, 15, 16).
+pub const HALOGEN_ANTECEDENT_ELEMENTS: &[&str] = &["C", "N", "P", "S"];
 /// Optimal C-X...A donor angle (PLIP `HALOGEN_DON_ANGLE`).
 pub const HALOGEN_DONOR_ANGLE: f32 = 165.0;
 /// Optimal Y-A...X acceptor angle (PLIP `HALOGEN_ACC_ANGLE`).

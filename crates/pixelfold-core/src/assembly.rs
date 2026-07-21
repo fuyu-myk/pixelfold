@@ -7,6 +7,7 @@
 //! primary assembly applies symmetry beyond the identity (so the coordinates on
 //! screen are partial); it does not generate the assembly.
 
+use crate::mmcif::{read_loop, read_value};
 use crate::structure::BiologicalAssembly;
 
 /// Detect a biological assembly that requires symmetry expansion beyond the
@@ -110,101 +111,6 @@ fn oligomeric_details(lines: &[&str], assembly_id: &str) -> Option<String> {
     };
 
     value.filter(|s| !s.is_empty() && s != "?" && s != ".")
-}
-
-/// Read a looped mmCIF category into `(column names without prefix, data rows)`.
-/// Returns the first loop whose columns belong to `prefix`.
-fn read_loop(lines: &[&str], prefix: &str) -> Option<(Vec<String>, Vec<Vec<String>>)> {
-    let mut i = 0;
-    while i < lines.len() {
-        if lines[i].trim() != "loop_" {
-            i += 1;
-            continue;
-        }
-
-        let mut columns = Vec::new();
-        let mut j = i + 1;
-        while j < lines.len() && lines[j].trim_start().starts_with('_') {
-            columns.push(lines[j].trim().to_string());
-            j += 1;
-        }
-
-        if columns.first().is_some_and(|c| c.starts_with(prefix)) {
-            let mut rows = Vec::new();
-            while j < lines.len() {
-                let line = lines[j].trim();
-                if line.is_empty()
-                    || line == "loop_"
-                    || line.starts_with('_')
-                    || line.starts_with('#')
-                    || line.starts_with("data_")
-                {
-                    break;
-                }
-
-                rows.push(tokenize(lines[j]));
-                j += 1;
-            }
-            let columns = columns
-                .iter()
-                .map(|c| c.trim_start_matches(prefix).to_string())
-                .collect();
-            return Some((columns, rows));
-        }
-
-        i = j;
-    }
-
-    None
-}
-
-/// Read a single-record mmCIF item (`_category.item value`).
-fn read_value(lines: &[&str], item: &str) -> Option<String> {
-    lines.iter().find_map(|line| {
-        let rest = line.trim().strip_prefix(item)?;
-        if !rest.starts_with(char::is_whitespace) {
-            return None; // guard against a longer item sharing this prefix
-        }
-
-        tokenize(rest).into_iter().next()
-    })
-}
-
-/// Split an mmCIF line into tokens, honouring single/double quoted values.
-fn tokenize(line: &str) -> Vec<String> {
-    let mut tokens = Vec::new();
-    let mut chars = line.chars().peekable();
-    while let Some(&c) = chars.peek() {
-        if c.is_whitespace() {
-            chars.next();
-        } else if c == '\'' || c == '"' {
-            chars.next();
-            let mut value = String::new();
-            for d in chars.by_ref() {
-                if d == c {
-                    break;
-                }
-
-                value.push(d);
-            }
-
-            tokens.push(value);
-        } else {
-            let mut value = String::new();
-            while let Some(&d) = chars.peek() {
-                if d.is_whitespace() {
-                    break;
-                }
-
-                value.push(d);
-                chars.next();
-            }
-
-            tokens.push(value);
-        }
-    }
-
-    tokens
 }
 
 fn detect_pdb(lines: &[&str]) -> Option<BiologicalAssembly> {

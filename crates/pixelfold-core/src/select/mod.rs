@@ -156,6 +156,7 @@ mod tests {
             surface_points: Vec::new(),
             hbonds: Vec::new(),
             assembly: None,
+            components: Default::default(),
         };
         assert!(select("chain", &protein).is_err());
         assert!(select("", &protein).is_err());

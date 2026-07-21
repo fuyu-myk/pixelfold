@@ -68,6 +68,10 @@ pub struct Protein {
     /// deposited coordinates already are the biological unit, or when no
     /// assembly is declared.
     pub assembly: Option<BiologicalAssembly>,
+    /// The chemical definitions the file carried for its own components,
+    /// informing a ligand's connectivity. Empty when the file declared, as a
+    /// legacy PDB file does not.
+    pub components: crate::components::Dictionary,
 }
 
 /// A biological assembly whose symmetry expansion differs from the deposited
@@ -264,6 +268,7 @@ mod tests {
             surface_points: Vec::new(),
             hbonds: Vec::new(),
             assembly: None,
+            components: Default::default(),
         };
 
         let (b_min, b_max) = calculate_bfactor_range(&protein);

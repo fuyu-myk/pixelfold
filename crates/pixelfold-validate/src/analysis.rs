@@ -126,6 +126,7 @@ mod tests {
             surface_points: Vec::new(),
             hbonds: Vec::new(),
             assembly: None,
+            components: Default::default(),
         }
     }
 
