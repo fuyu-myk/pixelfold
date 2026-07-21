@@ -3,14 +3,49 @@
 //! A standard residue's bonds come from [`super::topology`], a hand-checked table.
 //! Everything else comes from the definitions the structure file carries.
 //!
+//! Both describe a component in isolation, so every linkage *between* components
+//! has to come from the coordinates.
+//!
 //! An atom whose chemistry no source describes simply has no bonds.
 
 use std::collections::HashMap;
 
+use glam::Vec3;
+
+use crate::spatial::Grid;
 use crate::structure::{Atom, Protein};
 
 use super::hydrogens::MAX_PEPTIDE_BOND;
 use super::topology;
+
+/// Covalent radii in Angstroms (Cordero et al., Dalton Trans. 2008, 2832).
+///
+/// Metals are deliberately absent. A coordination bond falls in the same
+/// distance range as a covalent one and is not the same thing. Metal contacts
+/// have their own detector.
+const COVALENT_RADII: &[(&str, f32)] = &[
+    ("C", 0.76),
+    ("N", 0.71),
+    ("O", 0.66),
+    ("P", 1.07),
+    ("S", 1.05),
+    ("F", 0.57),
+    ("CL", 1.02),
+    ("BR", 1.20),
+    ("I", 1.39),
+    ("SE", 1.20),
+    ("B", 0.84),
+    ("SI", 1.11),
+    ("AS", 1.19),
+];
+
+/// Slack added to a radius sum before calling two atoms bonded, which is the
+/// tolerance OpenBabel's own perception uses.
+const COVALENT_TOLERANCE: f32 = 0.4;
+
+/// The widest radius sum plus tolerance that a real inter-residue linkage
+/// reaches: a disulfide at 2.05 A is the longest one these structures contain.
+const MAX_COVALENT_BOND: f32 = 2.6;
 
 /// The bonded heavy-atom neighbours of every atom, indexed by atom.
 ///
@@ -111,7 +146,62 @@ pub fn bonds(protein: &Protein) -> Bonds {
         index = residue.end;
     }
 
+    for (a, b) in covalent_contacts(protein) {
+        if !neighbours[a].contains(&b) {
+            neighbours[a].push(b);
+            neighbours[b].push(a);
+        }
+    }
+
     Bonds { neighbours }
+}
+
+/// Heavy atoms of different residues lying at covalent distance.
+///
+/// Water is left out along with the metals. It is bonded to nothing, and a
+/// solvent oxygen modelled over a side chain is common enough that admitting it
+/// would cost real hydrophobic carbons.
+fn covalent_contacts(protein: &Protein) -> Vec<(usize, usize)> {
+    let positions: Vec<Vec3> = protein.atoms.iter().map(|atom| atom.position).collect();
+    let grid = Grid::build(&positions, MAX_COVALENT_BOND);
+
+    let mut found = Vec::new();
+    for (a, atom) in protein.atoms.iter().enumerate() {
+        let Some(radius) = covalent_radius(atom) else {
+            continue;
+        };
+        let key = residue_key(atom);
+
+        grid.for_each_within(positions[a], MAX_COVALENT_BOND, |b| {
+            if b <= a || residue_key(&protein.atoms[b]) == key {
+                return;
+            }
+            let Some(other) = covalent_radius(&protein.atoms[b]) else {
+                return;
+            };
+
+            let distance = (positions[a] - positions[b]).length();
+            if distance < radius + other + COVALENT_TOLERANCE {
+                found.push((a, b));
+            }
+        });
+    }
+
+    found
+}
+
+/// The covalent radius of an atom's element, or nothing for water and for an
+/// element the table leaves out.
+fn covalent_radius(atom: &Atom) -> Option<f32> {
+    if super::classify::is_water(atom.residue_name.as_str()) {
+        return None;
+    }
+    let element = atom.element.as_str();
+
+    COVALENT_RADII
+        .iter()
+        .find(|(symbol, _)| element.eq_ignore_ascii_case(symbol))
+        .map(|&(_, radius)| radius)
 }
 
 /// The names bonded to `name` within its component, from the residue table for a
@@ -247,6 +337,55 @@ mod tests {
             Some(2),
             "the carbonyl oxygen hangs off its carbon alone"
         );
+    }
+
+    /// The linkage that joins one nucleotide to the next.
+    #[test]
+    fn a_covalent_linkage_between_residues_is_perceived_by_distance() {
+        let structure = protein(vec![
+            atom("DG", 1, "O3'", "O", Vec3::ZERO),
+            atom("DC", 2, "P", "P", Vec3::new(1.6, 0.0, 0.0)),
+        ]);
+        let bonds = bonds(&structure);
+
+        assert!(bonds.of(0).contains(&1));
+        assert!(bonds.of(1).contains(&0));
+    }
+
+    #[test]
+    fn atoms_merely_within_hydrogen_bonding_range_are_not_bonded() {
+        // A hydrogen bond is 2.6 A and upward; no covalent bond reaches there.
+        let structure = protein(vec![
+            atom("SER", 1, "OG", "O", Vec3::ZERO),
+            atom("SER", 2, "OG", "O", Vec3::new(2.7, 0.0, 0.0)),
+        ]);
+
+        assert!(bonds(&structure).of(0).is_empty());
+    }
+
+    /// Solvent is bonded to nothing, and a water modelled over a side chain is
+    /// common enough that admitting it would cost real chemistry.
+    #[test]
+    fn a_water_is_never_bonded_however_close_it_sits() {
+        let structure = protein(vec![
+            atom("LEU", 1, "CD1", "C", Vec3::ZERO),
+            atom("HOH", 2, "O", "O", Vec3::new(0.8, 0.0, 0.0)),
+        ]);
+
+        assert!(bonds(&structure).of(0).is_empty());
+    }
+
+    /// A metal contact falls in the same distance range as a covalent bond and
+    /// is not one; counting it would disqualify the carbon from the hydrophobic
+    /// set and give the sulfur a second antecedent.
+    #[test]
+    fn a_metal_contact_is_not_a_covalent_bond() {
+        let structure = protein(vec![
+            atom("CYS", 1, "SG", "S", Vec3::ZERO),
+            atom("ZN", 2, "ZN", "Zn", Vec3::new(2.3, 0.0, 0.0)),
+        ]);
+
+        assert!(bonds(&structure).of(0).is_empty());
     }
 
     #[test]

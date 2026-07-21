@@ -70,6 +70,11 @@ impl Component {
         self.aromatic.iter().any(|a| a == atom_name)
     }
 
+    /// Every atom the file flags as aromatic, in the order it lists them.
+    pub fn aromatic_atoms(&self) -> impl Iterator<Item = &str> {
+        self.aromatic.iter().map(String::as_str)
+    }
+
     /// How many hydrogens the definition gives this heavy atom.
     pub fn hydrogen_count(&self, atom_name: &str) -> usize {
         self.hydrogens.get(atom_name).copied().unwrap_or(0)

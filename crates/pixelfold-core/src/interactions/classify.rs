@@ -112,7 +112,7 @@ pub fn is_cysteine_sulfur(atom: &Atom) -> bool {
 ///
 /// Histidine's ND1 and NE2 both appear here and both also donate: only one
 /// carries a hydrogen in a given tautomer, and the coordinates do not say which.
-pub fn is_hbond_acceptor(protein: &Protein, index: usize) -> bool {
+pub fn is_hbond_acceptor(protein: &Protein, bonds: &Bonds, index: usize) -> bool {
     let atom = &protein.atoms[index];
     let residue = atom.residue_name.as_str();
 
@@ -129,10 +129,43 @@ pub fn is_hbond_acceptor(protein: &Protein, index: usize) -> bool {
         return matches!((residue, atom.name.as_str()), ("HIS", "ND1" | "NE2"));
     }
 
-    protein
-        .components
-        .get(residue)
-        .is_some_and(|component| accepts(component, atom.name.as_str()))
+    let name = atom.name.as_str();
+    let Some(component) = protein.components.get(residue) else {
+        return false;
+    };
+
+    // A nitrogen the coordinates bond outside its own definition is the nitrogen
+    // of a linkage, which is an amide in every common case.
+    if atom.element.as_str().eq_ignore_ascii_case("N")
+        && is_linked(protein, bonds, component, index)
+    {
+        return false;
+    }
+
+    accepts(component, name)
+}
+
+/// Whether the coordinates bond an atom to something its own component
+/// definition does not list.
+fn is_linked(protein: &Protein, bonds: &Bonds, component: &Component, index: usize) -> bool {
+    let name = protein.atoms[index].name.as_str();
+
+    bonds.of(index).iter().any(|&n| {
+        let neighbour = protein.atoms[n].name.as_str();
+        !component.neighbours(name).any(|other| other == neighbour)
+    })
+}
+
+/// True when an oxygen belongs to an acid group that is ionised at pH 7.4: a
+/// carboxylate or a phosphate.
+pub(super) fn is_acid_oxygen(component: &Component, name: &str) -> bool {
+    component
+        .element_of(name)
+        .is_some_and(|element| element.eq_ignore_ascii_case("O"))
+        && component.neighbours(name).count() == 1
+        && component
+            .neighbours(name)
+            .any(|centre| free_oxygens(component, centre) >= 2)
 }
 
 /// Whether an atom of a component accepts a hydrogen bond, on OpenBabel's rules.
@@ -205,7 +238,7 @@ fn accepts_at_nitrogen(component: &Component, name: &str) -> bool {
 
 /// The hybridisation OpenBabel's typing rules assign, decoded from its SMARTS
 /// table into the graph terms available here.
-fn hybridisation(component: &Component, name: &str) -> u8 {
+pub(super) fn hybridisation(component: &Component, name: &str) -> u8 {
     let bonded: Vec<(&str, BondOrder)> = component.bonded(name).collect();
 
     if bonded.iter().any(|&(_, order)| order == BondOrder::Triple)
@@ -587,6 +620,92 @@ LIG F1  CF   sing
         assert!(!apolar("MET", METHIONINE, "CG")); // reaches SD
         assert!(!apolar("MET", METHIONINE, "CE")); // reaches SD
         assert!(apolar("MET", METHIONINE, "CB"));
+    }
+
+    /// A modified residue's backbone nitrogen is an amide nitrogen and accepts
+    /// nothing, but its own definition cannot show that.
+    #[test]
+    fn a_nitrogen_bonded_outside_its_own_component_does_not_accept() {
+        const HYDROXYPROLINE: &str = "\
+loop_
+_chem_comp_atom.comp_id
+_chem_comp_atom.atom_id
+_chem_comp_atom.type_symbol
+HYP N   N
+HYP H   H
+HYP CA  C
+HYP CD  C
+#
+loop_
+_chem_comp_bond.comp_id
+_chem_comp_bond.atom_id_1
+_chem_comp_bond.atom_id_2
+HYP N  H
+HYP N  CA
+HYP N  CD
+#
+";
+        let mut structure = residue("HYP", &[("N", "N"), ("CA", "C"), ("CD", "C")]);
+        structure.components = crate::components::Dictionary::parse(HYDROXYPROLINE);
+        structure.atoms[1].position = Vec3::new(1.5, 0.0, 0.0);
+        structure.atoms[2].position = Vec3::new(-0.7, 1.3, 0.0);
+
+        // On its own, the free component reads as an acceptor.
+        let alone = super::super::connectivity::bonds(&structure);
+        assert!(is_hbond_acceptor(&structure, &alone, 0));
+
+        // Bonded into a chain, the same nitrogen is a tertiary amide.
+        let mut linked = structure.atoms.clone();
+        let mut carbon = atom("GLY", "C", "C");
+        carbon.residue_seq = 2;
+        carbon.position = Vec3::new(-0.5, -1.3, 0.0);
+        linked.push(carbon);
+        structure.atoms = linked;
+
+        let bonds = super::super::connectivity::bonds(&structure);
+        assert!(bonds.of(0).contains(&3), "the linkage was perceived");
+        assert!(!is_hbond_acceptor(&structure, &bonds, 0));
+    }
+
+    /// The definitions write the neutral acid, and at pH 7.4 it is not.
+    #[test]
+    fn phosphate_and_carboxylate_oxygens_are_acid_oxygens_but_a_hydroxyl_is_not() {
+        const ACIDS: &str = "\
+loop_
+_chem_comp_atom.comp_id
+_chem_comp_atom.atom_id
+_chem_comp_atom.type_symbol
+LIG P1  P
+LIG OP1 O
+LIG OP2 O
+LIG OP3 O
+LIG C1  C
+LIG O1  O
+LIG O2  O
+LIG C2  C
+LIG O3  O
+#
+loop_
+_chem_comp_bond.comp_id
+_chem_comp_bond.atom_id_1
+_chem_comp_bond.atom_id_2
+_chem_comp_bond.value_order
+LIG P1 OP1 doub
+LIG P1 OP2 sing
+LIG P1 OP3 sing
+LIG C1 O1  doub
+LIG C1 O2  sing
+LIG C2 O3  sing
+#
+";
+        let dictionary = crate::components::Dictionary::parse(ACIDS);
+        let component = dictionary.get("LIG").expect("the component");
+
+        for name in ["OP1", "OP2", "OP3", "O1", "O2"] {
+            assert!(is_acid_oxygen(component, name), "{name} is an acid oxygen");
+        }
+        assert!(!is_acid_oxygen(component, "O3"), "a lone hydroxyl is not");
+        assert!(!is_acid_oxygen(component, "C1"));
     }
 
     #[test]

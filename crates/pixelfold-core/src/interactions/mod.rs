@@ -70,15 +70,18 @@ pub struct Interaction {
 
 /// Detect every supported interaction in a structure.
 pub fn detect(protein: &Protein) -> Vec<Interaction> {
+    let bonds = connectivity::bonds(protein);
+
     let mut interactions = Vec::new();
-    interactions.extend(detectors::hydrogen_bonds(protein));
+    interactions.extend(detectors::hydrogen_bonds(protein, &bonds));
     interactions.extend(detectors::disulfides(protein));
     interactions.extend(detectors::metal_coordination(protein));
     interactions.extend(detectors::salt_bridges(protein));
     interactions.extend(detectors::pi_stacking(protein));
     interactions.extend(detectors::pi_cation(protein));
-    interactions.extend(detectors::hydrophobic_contacts(protein));
-    interactions.extend(detectors::water_bridges(protein));
-    interactions.extend(detectors::halogen_bonds(protein));
+    interactions.extend(detectors::hydrophobic_contacts(protein, &bonds));
+    interactions.extend(detectors::water_bridges(protein, &bonds));
+    interactions.extend(detectors::halogen_bonds(protein, &bonds));
+
     interactions
 }

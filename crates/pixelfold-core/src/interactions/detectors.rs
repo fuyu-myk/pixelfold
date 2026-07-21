@@ -202,9 +202,10 @@ fn assign(donor: &hydrogens::Donor, reachable: Vec<Reachable>) -> Vec<Bond> {
 /// These are potential hydrogen bonds, in HBPLUS's sense: where a tautomer or a
 /// torsion is undetermined by the coordinates, what is reported is what the
 /// geometry allows, and some of what it allows is mutually exclusive.
-pub fn hydrogen_bonds(protein: &Protein) -> Vec<Interaction> {
-    let donors = hydrogens::donors(protein);
-    let (acceptors, acceptor_positions) = collect(protein, |i| is_hbond_acceptor(protein, i));
+pub fn hydrogen_bonds(protein: &Protein, bonds: &connectivity::Bonds) -> Vec<Interaction> {
+    let donors = hydrogens::donors(protein, bonds);
+    let (acceptors, acceptor_positions) =
+        collect(protein, |i| is_hbond_acceptor(protein, bonds, i));
     if donors.is_empty() || acceptors.is_empty() {
         return Vec::new();
     }
@@ -269,9 +270,7 @@ pub fn hydrogen_bonds(protein: &Protein) -> Vec<Interaction> {
 /// [`HALOGEN_ELEMENTS`]. And PLIP looks only from its ligand to its binding
 /// site, so a halogenated residue could never donate and a ligand could never
 /// accept.
-pub fn halogen_bonds(protein: &Protein) -> Vec<Interaction> {
-    let bonds = connectivity::bonds(protein);
-
+pub fn halogen_bonds(protein: &Protein, bonds: &connectivity::Bonds) -> Vec<Interaction> {
     // A halogen donates only through the one carbon it hangs from.
     let donors: Vec<(usize, usize)> = protein
         .atoms
@@ -375,10 +374,11 @@ fn is_water_oxygen(atom: &Atom) -> bool {
 /// through whichever hydrogen reaches the water straightest. Additionally, this looks
 /// between any two residues over looking only for bridges between its ligand and its
 /// binding site.
-pub fn water_bridges(protein: &Protein) -> Vec<Interaction> {
+pub fn water_bridges(protein: &Protein, bonds: &connectivity::Bonds) -> Vec<Interaction> {
     let (waters, water_positions) = collect(protein, |i| is_water_oxygen(&protein.atoms[i]));
-    let (acceptors, acceptor_positions) = collect(protein, |i| is_hbond_acceptor(protein, i));
-    let donors = hydrogens::donors(protein);
+    let (acceptors, acceptor_positions) =
+        collect(protein, |i| is_hbond_acceptor(protein, bonds, i));
+    let donors = hydrogens::donors(protein, bonds);
     if waters.is_empty() || acceptors.is_empty() || donors.is_empty() {
         return Vec::new();
     }
@@ -469,9 +469,8 @@ struct Contact {
 /// over. PLIP reduces them (`PLInteraction.refine_hydrophobic`); the reduction
 /// used here is the one PLIP itself switches to when its partner is a peptide
 /// rather than a small molecule, which is the case that matches a protein.
-pub fn hydrophobic_contacts(protein: &Protein) -> Vec<Interaction> {
-    let bonds = connectivity::bonds(protein);
-    let (carbons, positions) = collect(protein, |i| is_apolar_carbon(protein, &bonds, i));
+pub fn hydrophobic_contacts(protein: &Protein, bonds: &connectivity::Bonds) -> Vec<Interaction> {
+    let (carbons, positions) = collect(protein, |i| is_apolar_carbon(protein, bonds, i));
     if carbons.len() < 2 {
         return Vec::new();
     }
@@ -771,6 +770,24 @@ mod tests {
         }
     }
 
+    /// The detectors that need connectivity, each over the structure's own bond
+    /// graph. `detect` builds that graph once and shares it.
+    fn hbonds(structure: &Protein) -> Vec<Interaction> {
+        hydrogen_bonds(structure, &connectivity::bonds(structure))
+    }
+
+    fn hydrophobic(structure: &Protein) -> Vec<Interaction> {
+        hydrophobic_contacts(structure, &connectivity::bonds(structure))
+    }
+
+    fn bridges(structure: &Protein) -> Vec<Interaction> {
+        water_bridges(structure, &connectivity::bonds(structure))
+    }
+
+    fn halogens(structure: &Protein) -> Vec<Interaction> {
+        halogen_bonds(structure, &connectivity::bonds(structure))
+    }
+
     fn protein(atoms: Vec<Atom>) -> Protein {
         Protein {
             atoms,
@@ -891,7 +908,7 @@ mod tests {
         let along = (Vec3::new(2.0, 1.4, 0.0) - Vec3::new(1.2, 2.3, 0.0)).normalize();
         let structure = amide_donor_to(n + along * 3.0);
 
-        let found: Vec<_> = hydrogen_bonds(&structure);
+        let found: Vec<_> = hbonds(&structure);
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].kind, InteractionKind::HydrogenBond);
         assert_eq!(found[0].atoms_a, vec![4]); // the amide nitrogen
@@ -906,10 +923,10 @@ mod tests {
         let along = (Vec3::new(2.0, 1.4, 0.0) - Vec3::new(1.2, 2.3, 0.0)).normalize();
 
         // Straight on, but too far away.
-        assert!(hydrogen_bonds(&amide_donor_to(n + along * 5.0)).is_empty());
+        assert!(hbonds(&amide_donor_to(n + along * 5.0)).is_empty());
 
         // Close enough, but sitting behind the donor where the hydrogen is not.
-        assert!(hydrogen_bonds(&amide_donor_to(n - along * 3.0)).is_empty());
+        assert!(hbonds(&amide_donor_to(n - along * 3.0)).is_empty());
     }
 
     #[test]
@@ -936,7 +953,7 @@ mod tests {
         ));
         let structure = protein(atoms);
 
-        let found = hydrogen_bonds(&structure);
+        let found = hbonds(&structure);
         assert_eq!(found.len(), 1, "one hydrogen cannot make three bonds");
         assert_eq!(found[0].atoms_b, vec![6], "the straightest acceptor wins");
     }
@@ -958,7 +975,7 @@ mod tests {
             atom("ASP", 2, "OD2", "O", Vec3::new(1.4, -2.6, 0.0)),
         ]);
 
-        let donor = &hydrogens::donors(&structure)[0];
+        let donor = &hydrogens::donors(&structure, &connectivity::bonds(&structure))[0];
         let hydrogens::Hydrogens::Fixed(hs) = &donor.hydrogens else {
             panic!("an amide is fixed");
         };
@@ -976,7 +993,7 @@ mod tests {
             assert_eq!(reaching, vec![0], "only one hydrogen reaches: {angles:?}");
         }
 
-        let found = hydrogen_bonds(&structure);
+        let found = hbonds(&structure);
         assert_eq!(found.len(), 1, "one hydrogen made two bonds: {found:?}");
     }
 
@@ -991,12 +1008,12 @@ mod tests {
         let mut atoms = amide_donor_to(target).atoms;
         atoms.pop();
         atoms.push(atom("LYS", 9, "NZ", "N", target));
-        assert!(hydrogen_bonds(&protein(atoms)).is_empty());
+        assert!(hbonds(&protein(atoms)).is_empty());
 
         let mut atoms = amide_donor_to(target).atoms;
         atoms.pop();
         atoms.push(atom("CYS", 9, "SG", "S", target));
-        assert!(hydrogen_bonds(&protein(atoms)).is_empty());
+        assert!(hbonds(&protein(atoms)).is_empty());
     }
 
     /// A residue's backbone, parked far from the origin so it can never make a
@@ -1040,7 +1057,7 @@ mod tests {
             alanine(1, Vec3::ZERO),
             leucine(2, [Vec3::new(3.5, 0.0, 0.0); 4]),
         ]);
-        let found = hydrophobic_contacts(&close);
+        let found = hydrophobic(&close);
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].kind, InteractionKind::Hydrophobic);
         assert!((found[0].distance - 3.5).abs() < 1e-4);
@@ -1049,7 +1066,7 @@ mod tests {
             alanine(1, Vec3::ZERO),
             leucine(2, [Vec3::new(4.5, 0.0, 0.0); 4]),
         ]);
-        assert!(hydrophobic_contacts(&apart).is_empty());
+        assert!(hydrophobic(&apart).is_empty());
     }
 
     #[test]
@@ -1067,7 +1084,7 @@ mod tests {
         methionine.push(atom("MET", 3, "CE", "C", Vec3::new(0.0, 4.0, 3.0)));
 
         let structure = joined([alanine(1, Vec3::ZERO), serine, methionine]);
-        assert!(hydrophobic_contacts(&structure).is_empty());
+        assert!(hydrophobic(&structure).is_empty());
     }
 
     #[test]
@@ -1082,7 +1099,7 @@ mod tests {
                 Vec3::new(2.5, -1.0, 0.0),
             ],
         )]);
-        assert!(hydrophobic_contacts(&structure).is_empty());
+        assert!(hydrophobic(&structure).is_empty());
     }
 
     #[test]
@@ -1102,7 +1119,7 @@ mod tests {
             ),
         ]);
 
-        let found = hydrophobic_contacts(&structure);
+        let found = hydrophobic(&structure);
         assert_eq!(found.len(), 1);
         assert!(
             (found[0].distance - 3.0).abs() < 1e-4,
@@ -1128,7 +1145,7 @@ mod tests {
             alanine(2, Vec3::new(3.0, 0.0, 0.0)),
         ]);
 
-        let found = hydrophobic_contacts(&structure);
+        let found = hydrophobic(&structure);
         assert_eq!(found.len(), 1);
         assert!((found[0].distance - 3.0).abs() < 1e-4); // the shorter leg
     }
@@ -1143,7 +1160,7 @@ mod tests {
             alanine(3, Vec3::new(0.0, 3.1, 0.0)),
             alanine(4, Vec3::new(0.0, 0.0, 3.2)),
         ]);
-        assert_eq!(hydrophobic_contacts(&structure).len(), 3);
+        assert_eq!(hydrophobic(&structure).len(), 3);
     }
 
     #[test]
@@ -1346,7 +1363,7 @@ mod tests {
         // to the side so the angle at the water lands inside the window.
         let nitrogen = Vec3::new(3.3, 1.5, 0.0);
         let water = nitrogen + amide_direction() * 3.0;
-        let found = water_bridges(&bridged(water, water + Vec3::new(0.0, -2.9, 0.6)));
+        let found = bridges(&bridged(water, water + Vec3::new(0.0, -2.9, 0.6)));
 
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].kind, InteractionKind::WaterBridge);
@@ -1366,11 +1383,11 @@ mod tests {
 
         // The water sits too far from the donor.
         let far = nitrogen + amide_direction() * 5.0;
-        assert!(water_bridges(&bridged(far, far + Vec3::new(0.0, -2.9, 0.6))).is_empty());
+        assert!(bridges(&bridged(far, far + Vec3::new(0.0, -2.9, 0.6))).is_empty());
 
         // The water is in range of the donor but the acceptor is too far from it.
         let water = nitrogen + amide_direction() * 3.0;
-        assert!(water_bridges(&bridged(water, water + Vec3::new(0.0, -6.0, 0.0))).is_empty());
+        assert!(bridges(&bridged(water, water + Vec3::new(0.0, -6.0, 0.0))).is_empty());
     }
 
     #[test]
@@ -1380,7 +1397,7 @@ mod tests {
         let water = nitrogen + amide_direction() * 3.0;
         let beyond = water + amide_direction() * 2.9;
 
-        assert!(water_bridges(&bridged(water, beyond)).is_empty());
+        assert!(bridges(&bridged(water, beyond)).is_empty());
     }
 
     /// A halogenated ligand and a carbonyl acceptor, positioned by construction:
@@ -1424,7 +1441,7 @@ mod tests {
     #[test]
     fn a_bromine_pointing_at_a_carbonyl_is_a_halogen_bond() {
         let structure = halogen_pair("BR2", "BR", antecedent_at_120());
-        let found = halogen_bonds(&structure);
+        let found = halogens(&structure);
 
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].kind, InteractionKind::HalogenBond);
@@ -1442,14 +1459,14 @@ mod tests {
         // Same geometry, different halogen. Fluorine has no sigma hole, so it is
         // deliberately not a donor however well placed it is.
         assert_eq!(
-            halogen_bonds(&halogen_pair("I2", "I", antecedent_at_120())).len(),
+            halogens(&halogen_pair("I2", "I", antecedent_at_120())).len(),
             1
         );
         assert_eq!(
-            halogen_bonds(&halogen_pair("CL2", "CL", antecedent_at_120())).len(),
+            halogens(&halogen_pair("CL2", "CL", antecedent_at_120())).len(),
             1
         );
-        assert!(halogen_bonds(&halogen_pair("F2", "F", antecedent_at_120())).is_empty());
+        assert!(halogens(&halogen_pair("F2", "F", antecedent_at_120())).is_empty());
     }
 
     #[test]
@@ -1457,7 +1474,7 @@ mod tests {
         // The antecedent straight behind the acceptor makes the angle there 180
         // degrees, far outside the 120 +/- 30 window.
         let structure = halogen_pair("BR2", "BR", Vec3::new(1.4, 0.0, 0.0));
-        assert!(halogen_bonds(&structure).is_empty());
+        assert!(halogens(&structure).is_empty());
     }
 
     #[test]
@@ -1468,7 +1485,7 @@ mod tests {
             atom("ALA", 2, "O", "O", Vec3::new(5.0, 0.0, 0.0)),
             atom("ALA", 2, "C", "C", Vec3::new(5.6, 1.1, 0.0)),
         ]);
-        assert!(halogen_bonds(&structure).is_empty());
+        assert!(halogens(&structure).is_empty());
     }
 
     #[test]
@@ -1483,7 +1500,87 @@ mod tests {
             atom("MET", 2, "CE", "C", Vec3::new(5.6, -1.1, 0.0)),
         ]);
 
-        assert!(halogen_bonds(&structure).is_empty());
+        assert!(halogens(&structure).is_empty());
+    }
+
+    /// A ligand hydroxyl and a ligand ring, defined the way a structure file
+    /// states them, so both flow through the detectors as any residue's would.
+    const LIGAND: &str = "\
+loop_
+_chem_comp_atom.comp_id
+_chem_comp_atom.atom_id
+_chem_comp_atom.type_symbol
+_chem_comp_atom.pdbx_aromatic_flag
+LIG C1 C Y
+LIG C2 C Y
+LIG C3 C Y
+LIG C4 C Y
+LIG C5 C Y
+LIG C6 C Y
+LIG C7 C N
+LIG O8 O N
+LIG H8 H N
+#
+loop_
+_chem_comp_bond.comp_id
+_chem_comp_bond.atom_id_1
+_chem_comp_bond.atom_id_2
+LIG C1 C2
+LIG C2 C3
+LIG C3 C4
+LIG C4 C5
+LIG C5 C6
+LIG C6 C1
+LIG C1 C7
+LIG C7 O8
+LIG O8 H8
+#
+";
+
+    fn with_ligand(atoms: Vec<Atom>) -> Protein {
+        let mut structure = protein(atoms);
+        structure.components = crate::components::Dictionary::parse(LIGAND);
+
+        structure
+    }
+
+    #[test]
+    fn a_ligand_hydroxyl_donates_a_hydrogen_bond() {
+        // The hydroxyl turns about its C-O bond, so an acceptor out along the
+        // cone is reachable and one behind the carbon is not.
+        let reach = |acceptor: Vec3| {
+            hbonds(&with_ligand(vec![
+                atom("LIG", 1, "C7", "C", Vec3::new(-1.4, 0.0, 0.0)),
+                atom("LIG", 1, "O8", "O", Vec3::ZERO),
+                atom("GLY", 2, "O", "O", acceptor),
+            ]))
+        };
+
+        let found = reach(Vec3::new(2.8, 0.6, 0.0));
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].kind, InteractionKind::HydrogenBond);
+        assert_eq!(found[0].atoms_a, vec![1], "the ligand oxygen donates");
+
+        assert!(reach(Vec3::new(-4.0, 0.3, 0.0)).is_empty());
+    }
+
+    #[test]
+    fn a_ligand_ring_stacks_with_a_phenylalanine() {
+        let mut atoms = ring_at(1, Vec3::ZERO, Vec3::X, Vec3::Y);
+        for (k, position) in (0..6)
+            .map(|k| {
+                let t = std::f32::consts::PI / 3.0 * k as f32;
+                Vec3::new(0.0, 0.0, 3.8) + (Vec3::X * t.cos() + Vec3::Y * t.sin()) * 1.4
+            })
+            .enumerate()
+        {
+            atoms.push(atom("LIG", 2, &format!("C{}", k + 1), "C", position));
+        }
+
+        let found = pi_stacking(&with_ligand(atoms));
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].kind, InteractionKind::PiStacking);
+        assert!((found[0].distance - 3.8).abs() < 1e-3);
     }
 
     #[test]
@@ -1496,6 +1593,6 @@ mod tests {
             atom("ALA", 2, "N", "N", Vec3::new(3.3, 1.5, 0.0)),
             atom("GLY", 8, "O", "O", Vec3::new(5.0, 2.0, 0.0)),
         ]);
-        assert!(water_bridges(&dry).is_empty());
+        assert!(bridges(&dry).is_empty());
     }
 }
