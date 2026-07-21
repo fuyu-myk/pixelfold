@@ -7,12 +7,44 @@
 //!
 //! A legacy PDB file has no such categories, and a handful of mmCIF files omit
 //! them; both yield an empty dictionary, and callers fall back to the built-in
-//! tables for the standard residues. Hydrogens are dropped, since the coordinates
-//! are heavy-atom only.
+//! tables for the standard residues.
+//!
+//! Hydrogens are not kept as atoms, since the coordinates are heavy-atom only
+//! and there would be nothing to match them against. They are counted instead:
+//! whether an atom bears a hydrogen is what decides if it can donate, and the
+//! count is part of the degree that decides if a nitrogen can accept.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::mmcif::{column_of, read_loop};
+
+/// How strongly two atoms are bonded, as the file writes it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BondOrder {
+    Single,
+    Double,
+    Triple,
+    Aromatic,
+}
+
+impl BondOrder {
+    fn parse(value: &str) -> Self {
+        match value.to_ascii_uppercase().as_str() {
+            "DOUB" => BondOrder::Double,
+            "TRIP" => BondOrder::Triple,
+            "AROM" => BondOrder::Aromatic,
+            _ => BondOrder::Single,
+        }
+    }
+}
+
+/// One heavy-atom bond.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Bond {
+    first: String,
+    second: String,
+    order: BondOrder,
+}
 
 /// One component's atoms and bonds, by atom name.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -21,8 +53,10 @@ pub struct Component {
     elements: HashMap<String, String>,
     /// Atom names flagged aromatic.
     aromatic: Vec<String>,
-    /// Heavy-atom bonds, as name pairs.
-    bonds: Vec<(String, String)>,
+    /// Heavy-atom bonds.
+    bonds: Vec<Bond>,
+    /// How many hydrogens each heavy atom carries.
+    hydrogens: HashMap<String, usize>,
 }
 
 impl Component {
@@ -36,13 +70,26 @@ impl Component {
         self.aromatic.iter().any(|a| a == atom_name)
     }
 
+    /// How many hydrogens the definition gives this heavy atom.
+    pub fn hydrogen_count(&self, atom_name: &str) -> usize {
+        self.hydrogens.get(atom_name).copied().unwrap_or(0)
+    }
+
     /// The heavy atoms bonded to `atom_name`.
     pub fn neighbours<'a>(&'a self, atom_name: &'a str) -> impl Iterator<Item = &'a str> + 'a {
-        self.bonds.iter().filter_map(move |(a, b)| {
-            if a == atom_name {
-                Some(b.as_str())
-            } else if b == atom_name {
-                Some(a.as_str())
+        self.bonded(atom_name).map(|(name, _)| name)
+    }
+
+    /// The heavy atoms bonded to `atom_name`, each with the bond's order.
+    pub fn bonded<'a>(
+        &'a self,
+        atom_name: &'a str,
+    ) -> impl Iterator<Item = (&'a str, BondOrder)> + 'a {
+        self.bonds.iter().filter_map(move |bond| {
+            if bond.first == atom_name {
+                Some((bond.second.as_str(), bond.order))
+            } else if bond.second == atom_name {
+                Some((bond.first.as_str(), bond.order))
             } else {
                 None
             }
@@ -71,6 +118,8 @@ impl Dictionary {
     pub fn parse(file_text: &str) -> Self {
         let lines: Vec<&str> = file_text.lines().collect();
         let mut components: HashMap<String, Component> = HashMap::new();
+        // Hydrogen names per component.
+        let mut hydrogen_names: HashMap<String, HashSet<String>> = HashMap::new();
 
         if let Some((columns, rows)) = read_loop(&lines, "_chem_comp_atom.") {
             let (Some(id), Some(name), Some(symbol)) = (
@@ -89,6 +138,10 @@ impl Dictionary {
                     continue;
                 };
                 if symbol.eq_ignore_ascii_case("H") || symbol.eq_ignore_ascii_case("D") {
+                    hydrogen_names
+                        .entry(id.clone())
+                        .or_default()
+                        .insert(name.clone());
                     continue; // the coordinates hold no hydrogens to match
                 }
 
@@ -106,8 +159,9 @@ impl Dictionary {
                 column_of(&columns, "atom_id_1"),
                 column_of(&columns, "atom_id_2"),
             ) else {
-                return Self { components };
+                return Self::with_numeric_aliases(components);
             };
+            let order = column_of(&columns, "value_order");
 
             for row in rows {
                 let (Some(id), Some(first), Some(second)) =
@@ -115,15 +169,28 @@ impl Dictionary {
                 else {
                     continue;
                 };
+                let hydrogens = hydrogen_names.get(id);
                 let Some(component) = components.get_mut(id) else {
                     continue;
                 };
 
-                // A bond naming an atom the component did not define is a bond
-                // to a hydrogen, which was dropped above.
-                if component.elements.contains_key(first) && component.elements.contains_key(second)
-                {
-                    component.bonds.push((first.clone(), second.clone()));
+                let first_heavy = component.elements.contains_key(first);
+                let second_heavy = component.elements.contains_key(second);
+                let is_hydrogen =
+                    |name: &String| hydrogens.is_some_and(|names| names.contains(name));
+
+                if first_heavy && second_heavy {
+                    component.bonds.push(Bond {
+                        first: first.clone(),
+                        second: second.clone(),
+                        order: order
+                            .and_then(|o| row.get(o))
+                            .map_or(BondOrder::Single, |value| BondOrder::parse(value)),
+                    });
+                } else if first_heavy && is_hydrogen(second) {
+                    *component.hydrogens.entry(first.clone()).or_default() += 1;
+                } else if second_heavy && is_hydrogen(first) {
+                    *component.hydrogens.entry(second.clone()).or_default() += 1;
                 }
             }
         }
@@ -311,6 +378,32 @@ _chem_comp_atom.type_symbol
 
         // ALA and LIG read as no number, so nothing extra is registered.
         assert_eq!(dictionary.len(), 2);
+    }
+
+    #[test]
+    fn hydrogens_are_counted_against_the_atom_they_hang_from() {
+        let dictionary = Dictionary::parse(SAMPLE);
+        let alanine = dictionary.get("ALA").unwrap();
+        let ligand = dictionary.get("LIG").unwrap();
+
+        // The alanine nitrogen carries one hydrogen in the definition.
+        assert_eq!(alanine.hydrogen_count("N"), 1);
+        assert_eq!(alanine.hydrogen_count("CA"), 0);
+        // The ligand's second ring carbon carries one; the bromine none.
+        assert_eq!(ligand.hydrogen_count("C2"), 1);
+        assert_eq!(ligand.hydrogen_count("BR3"), 0);
+        // An atom the definition never mentions carries none.
+        assert_eq!(alanine.hydrogen_count("ABSENT"), 0);
+    }
+
+    #[test]
+    fn bond_order_is_read_from_the_file() {
+        let dictionary = Dictionary::parse(SAMPLE);
+        let ligand = dictionary.get("LIG").unwrap();
+
+        let orders: Vec<(&str, BondOrder)> = ligand.bonded("C1").collect();
+        assert!(orders.contains(&("C2", BondOrder::Aromatic)));
+        assert!(orders.contains(&("BR3", BondOrder::Single)));
     }
 
     #[test]

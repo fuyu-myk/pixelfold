@@ -31,14 +31,10 @@ fn residue_key(atom: &Atom) -> ResidueKey {
 }
 
 /// Indices of the atoms satisfying `role`, with their positions.
-fn collect(protein: &Protein, role: impl Fn(&Atom) -> bool) -> (Vec<usize>, Vec<Vec3>) {
-    let indices: Vec<usize> = protein
-        .atoms
-        .iter()
-        .enumerate()
-        .filter(|(_, atom)| role(atom))
-        .map(|(index, _)| index)
-        .collect();
+///
+/// The role takes an index rather than the atom for lookup in the bond graph.
+fn collect(protein: &Protein, role: impl Fn(usize) -> bool) -> (Vec<usize>, Vec<Vec3>) {
+    let indices: Vec<usize> = (0..protein.atoms.len()).filter(|&i| role(i)).collect();
     let positions = indices.iter().map(|&i| protein.atoms[i].position).collect();
 
     (indices, positions)
@@ -47,7 +43,7 @@ fn collect(protein: &Protein, role: impl Fn(&Atom) -> bool) -> (Vec<usize>, Vec<
 /// Cysteine SG-SG disulfide bridges. Detection is distance-only; the CB-SG-SG-CB
 /// dihedral clusters near 90 degrees in real bridges but is not a gate.
 pub fn disulfides(protein: &Protein) -> Vec<Interaction> {
-    let (sulfurs, positions) = collect(protein, is_cysteine_sulfur);
+    let (sulfurs, positions) = collect(protein, |i| is_cysteine_sulfur(&protein.atoms[i]));
     if sulfurs.len() < 2 {
         return Vec::new();
     }
@@ -83,12 +79,12 @@ pub fn disulfides(protein: &Protein) -> Vec<Interaction> {
 
 /// Metal ions coordinated by an O, N, or S donor.
 pub fn metal_coordination(protein: &Protein) -> Vec<Interaction> {
-    let (metals, metal_positions) = collect(protein, is_metal);
+    let (metals, metal_positions) = collect(protein, |i| is_metal(&protein.atoms[i]));
     if metals.is_empty() {
         return Vec::new();
     }
 
-    let (donors, donor_positions) = collect(protein, is_metal_donor);
+    let (donors, donor_positions) = collect(protein, |i| is_metal_donor(&protein.atoms[i]));
     if donors.is_empty() {
         return Vec::new();
     }
@@ -208,7 +204,7 @@ fn assign(donor: &hydrogens::Donor, reachable: Vec<Reachable>) -> Vec<Bond> {
 /// geometry allows, and some of what it allows is mutually exclusive.
 pub fn hydrogen_bonds(protein: &Protein) -> Vec<Interaction> {
     let donors = hydrogens::donors(protein);
-    let (acceptors, acceptor_positions) = collect(protein, is_hbond_acceptor);
+    let (acceptors, acceptor_positions) = collect(protein, |i| is_hbond_acceptor(protein, i));
     if donors.is_empty() || acceptors.is_empty() {
         return Vec::new();
     }
@@ -380,8 +376,8 @@ fn is_water_oxygen(atom: &Atom) -> bool {
 /// between any two residues over looking only for bridges between its ligand and its
 /// binding site.
 pub fn water_bridges(protein: &Protein) -> Vec<Interaction> {
-    let (waters, water_positions) = collect(protein, is_water_oxygen);
-    let (acceptors, acceptor_positions) = collect(protein, is_hbond_acceptor);
+    let (waters, water_positions) = collect(protein, |i| is_water_oxygen(&protein.atoms[i]));
+    let (acceptors, acceptor_positions) = collect(protein, |i| is_hbond_acceptor(protein, i));
     let donors = hydrogens::donors(protein);
     if waters.is_empty() || acceptors.is_empty() || donors.is_empty() {
         return Vec::new();
@@ -474,7 +470,8 @@ struct Contact {
 /// used here is the one PLIP itself switches to when its partner is a peptide
 /// rather than a small molecule, which is the case that matches a protein.
 pub fn hydrophobic_contacts(protein: &Protein) -> Vec<Interaction> {
-    let (carbons, positions) = collect(protein, is_apolar_carbon);
+    let bonds = connectivity::bonds(protein);
+    let (carbons, positions) = collect(protein, |i| is_apolar_carbon(protein, &bonds, i));
     if carbons.len() < 2 {
         return Vec::new();
     }
@@ -870,11 +867,6 @@ mod tests {
         assert_eq!(found[0].atoms_b.len(), 2); // whole carboxylate
     }
 
-    /// Give an atom an explicit residue number so contacts can span residues.
-    fn at(residue: &str, seq: u32, name: &str, position: Vec3) -> Atom {
-        atom(residue, seq, name, "C", position)
-    }
-
     /// Two residues, the first donating its amide hydrogen towards a carbonyl
     /// oxygen placed by the caller. Residue 1's C=O fixes residue 2's amide H.
     fn amide_donor_to(acceptor: Vec3) -> Protein {
@@ -1007,20 +999,55 @@ mod tests {
         assert!(hydrogen_bonds(&protein(atoms)).is_empty());
     }
 
+    /// A residue's backbone, parked far from the origin so it can never make a
+    /// contact of its own. None of these atoms are apolar anyway: CA reaches the
+    /// nitrogen and C reaches the oxygen. It exists so the side-chain carbons
+    /// have something to be bonded to, since a carbon with no bonds is not
+    /// apolar.
+    fn backbone(residue: &str, seq: u32) -> Vec<Atom> {
+        let away = Vec3::new(0.0, -40.0, 0.0);
+        vec![
+            atom(residue, seq, "N", "N", away),
+            atom(residue, seq, "CA", "C", away + Vec3::new(1.5, 0.0, 0.0)),
+            atom(residue, seq, "C", "C", away + Vec3::new(2.0, 1.4, 0.0)),
+            atom(residue, seq, "O", "O", away + Vec3::new(1.2, 2.3, 0.0)),
+        ]
+    }
+
+    /// An alanine whose only apolar carbon, CB, sits where asked.
+    fn alanine(seq: u32, cb: Vec3) -> Vec<Atom> {
+        let mut atoms = backbone("ALA", seq);
+        atoms.push(atom("ALA", seq, "CB", "C", cb));
+        atoms
+    }
+
+    /// A leucine whose four apolar carbons sit where asked.
+    fn leucine(seq: u32, side_chain: [Vec3; 4]) -> Vec<Atom> {
+        let mut atoms = backbone("LEU", seq);
+        for (name, position) in ["CB", "CG", "CD1", "CD2"].iter().zip(side_chain) {
+            atoms.push(atom("LEU", seq, name, "C", position));
+        }
+        atoms
+    }
+
+    fn joined(residues: impl IntoIterator<Item = Vec<Atom>>) -> Protein {
+        protein(residues.into_iter().flatten().collect())
+    }
+
     #[test]
     fn hydrophobic_contact_found_in_range_and_rejected_beyond_it() {
-        let close = protein(vec![
-            at("ALA", 1, "CB", Vec3::ZERO),
-            at("LEU", 2, "CD1", Vec3::new(3.5, 0.0, 0.0)),
+        let close = joined([
+            alanine(1, Vec3::ZERO),
+            leucine(2, [Vec3::new(3.5, 0.0, 0.0); 4]),
         ]);
         let found = hydrophobic_contacts(&close);
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].kind, InteractionKind::Hydrophobic);
         assert!((found[0].distance - 3.5).abs() < 1e-4);
 
-        let apart = protein(vec![
-            at("ALA", 1, "CB", Vec3::ZERO),
-            at("LEU", 2, "CD1", Vec3::new(4.5, 0.0, 0.0)),
+        let apart = joined([
+            alanine(1, Vec3::ZERO),
+            leucine(2, [Vec3::new(4.5, 0.0, 0.0); 4]),
         ]);
         assert!(hydrophobic_contacts(&apart).is_empty());
     }
@@ -1029,24 +1056,32 @@ mod tests {
     fn only_apolar_carbons_contact() {
         // A serine CB reaches its hydroxyl oxygen, and a methionine CG its
         // sulfur, so neither is apolar however close it sits.
-        let structure = protein(vec![
-            at("ALA", 1, "CB", Vec3::ZERO),
-            at("SER", 2, "CB", Vec3::new(3.0, 0.0, 0.0)),
-            at("MET", 3, "CG", Vec3::new(0.0, 3.0, 0.0)),
-            atom("MET", 4, "SD", "S", Vec3::new(0.0, 0.0, 3.0)),
-            at("ALA", 5, "CA", Vec3::new(0.0, 0.0, -3.0)),
-        ]);
+        let mut serine = backbone("SER", 2);
+        serine.push(atom("SER", 2, "CB", "C", Vec3::new(3.0, 0.0, 0.0)));
+        serine.push(atom("SER", 2, "OG", "O", Vec3::new(3.0, 1.4, 0.0)));
+
+        let mut methionine = backbone("MET", 3);
+        methionine.push(atom("MET", 3, "CB", "C", Vec3::new(0.0, 20.0, 0.0)));
+        methionine.push(atom("MET", 3, "CG", "C", Vec3::new(0.0, 3.0, 0.0)));
+        methionine.push(atom("MET", 3, "SD", "S", Vec3::new(0.0, 3.0, 1.8)));
+        methionine.push(atom("MET", 3, "CE", "C", Vec3::new(0.0, 4.0, 3.0)));
+
+        let structure = joined([alanine(1, Vec3::ZERO), serine, methionine]);
         assert!(hydrophobic_contacts(&structure).is_empty());
     }
 
     #[test]
     fn atoms_of_one_residue_do_not_contact_each_other() {
         // Leucine's own carbons are all within 4 A of one another.
-        let structure = protein(vec![
-            at("LEU", 1, "CB", Vec3::ZERO),
-            at("LEU", 1, "CG", Vec3::new(1.5, 0.0, 0.0)),
-            at("LEU", 1, "CD1", Vec3::new(2.5, 1.0, 0.0)),
-        ]);
+        let structure = joined([leucine(
+            1,
+            [
+                Vec3::ZERO,
+                Vec3::new(1.5, 0.0, 0.0),
+                Vec3::new(2.5, 1.0, 0.0),
+                Vec3::new(2.5, -1.0, 0.0),
+            ],
+        )]);
         assert!(hydrophobic_contacts(&structure).is_empty());
     }
 
@@ -1054,19 +1089,25 @@ mod tests {
     fn one_residue_pair_reports_one_contact_not_every_carbon_pair() {
         // A leucine packed against an alanine: four apolar carbons all inside
         // the cutoff of the alanine's CB, which is one touch, not four.
-        let structure = protein(vec![
-            at("ALA", 1, "CB", Vec3::ZERO),
-            at("LEU", 2, "CB", Vec3::new(3.0, 0.0, 0.0)),
-            at("LEU", 2, "CG", Vec3::new(3.2, 1.0, 0.0)),
-            at("LEU", 2, "CD1", Vec3::new(3.4, 2.0, 0.0)),
-            at("LEU", 2, "CD2", Vec3::new(3.6, 0.0, 1.0)),
+        let structure = joined([
+            alanine(1, Vec3::ZERO),
+            leucine(
+                2,
+                [
+                    Vec3::new(3.0, 0.0, 0.0),
+                    Vec3::new(3.2, 1.0, 0.0),
+                    Vec3::new(3.4, 2.0, 0.0),
+                    Vec3::new(3.6, 0.0, 1.0),
+                ],
+            ),
         ]);
 
         let found = hydrophobic_contacts(&structure);
         assert_eq!(found.len(), 1);
-        assert_eq!(found[0].atoms_a, vec![0]); // the alanine CB
-        assert_eq!(found[0].atoms_b, vec![1]); // the closest leucine carbon
-        assert!((found[0].distance - 3.0).abs() < 1e-4);
+        assert!(
+            (found[0].distance - 3.0).abs() < 1e-4,
+            "the closest pair wins"
+        );
     }
 
     #[test]
@@ -1074,10 +1115,17 @@ mod tests {
         // The mirror of the case above: two carbons of one residue reaching a
         // single carbon of another. Reducing only by the first atom of the pair
         // would leave both, so this is what the second pass is for.
-        let structure = protein(vec![
-            at("LEU", 1, "CB", Vec3::ZERO),
-            at("LEU", 1, "CG", Vec3::new(0.0, 1.5, 0.0)),
-            at("ALA", 2, "CB", Vec3::new(3.0, 0.0, 0.0)),
+        let structure = joined([
+            leucine(
+                1,
+                [
+                    Vec3::ZERO,
+                    Vec3::new(0.0, 1.5, 0.0),
+                    Vec3::new(0.0, 30.0, 0.0),
+                    Vec3::new(0.0, 32.0, 0.0),
+                ],
+            ),
+            alanine(2, Vec3::new(3.0, 0.0, 0.0)),
         ]);
 
         let found = hydrophobic_contacts(&structure);
@@ -1087,13 +1135,13 @@ mod tests {
 
     #[test]
     fn distinct_residue_pairs_each_keep_a_contact() {
-        // Reduction must not collapse genuinely different partners: one leucine
+        // Reduction must not collapse genuinely different partners: one alanine
         // carbon touching three separate alanines is three contacts.
-        let structure = protein(vec![
-            at("LEU", 1, "CB", Vec3::ZERO),
-            at("ALA", 2, "CB", Vec3::new(3.0, 0.0, 0.0)),
-            at("ALA", 3, "CB", Vec3::new(0.0, 3.1, 0.0)),
-            at("ALA", 4, "CB", Vec3::new(0.0, 0.0, 3.2)),
+        let structure = joined([
+            alanine(1, Vec3::ZERO),
+            alanine(2, Vec3::new(3.0, 0.0, 0.0)),
+            alanine(3, Vec3::new(0.0, 3.1, 0.0)),
+            alanine(4, Vec3::new(0.0, 0.0, 3.2)),
         ]);
         assert_eq!(hydrophobic_contacts(&structure).len(), 3);
     }

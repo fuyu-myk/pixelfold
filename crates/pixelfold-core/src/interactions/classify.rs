@@ -10,8 +10,11 @@
 //! and Arg protonated (+1), His admitted to the cationic set, Cys and Tyr
 //! neutral.
 
-use crate::structure::Atom;
+use crate::structure::{Atom, Protein};
 
+use crate::components::{BondOrder, Component};
+
+use super::connectivity::Bonds;
 use super::params::METAL_ELEMENTS;
 use super::topology;
 
@@ -109,17 +112,214 @@ pub fn is_cysteine_sulfur(atom: &Atom) -> bool {
 ///
 /// Histidine's ND1 and NE2 both appear here and both also donate: only one
 /// carries a hydrogen in a given tautomer, and the coordinates do not say which.
-pub fn is_hbond_acceptor(atom: &Atom) -> bool {
+pub fn is_hbond_acceptor(protein: &Protein, index: usize) -> bool {
+    let atom = &protein.atoms[index];
     let residue = atom.residue_name.as_str();
-    if !topology::is_standard_residue(residue) {
-        return false; // ligand chemistry needs the chemical component dictionary
+
+    if is_water(residue) {
+        // A water is not an ordinary acceptor here.
+        return false;
     }
 
-    if atom.element.as_str().eq_ignore_ascii_case("O") {
-        return true;
+    if topology::is_standard_residue(residue) {
+        if atom.element.as_str().eq_ignore_ascii_case("O") {
+            return true;
+        }
+
+        return matches!((residue, atom.name.as_str()), ("HIS", "ND1" | "NE2"));
     }
 
-    matches!((residue, atom.name.as_str()), ("HIS", "ND1" | "NE2"))
+    protein
+        .components
+        .get(residue)
+        .is_some_and(|component| accepts(component, atom.name.as_str()))
+}
+
+/// Whether an atom of a component accepts a hydrogen bond, on OpenBabel's rules.
+///
+/// The standard residues are answered by table above, because their chemistry is
+/// known and fixed. Everything else is decided here from what the file says the
+/// component is: its elements, its bond orders, its aromatic flags, and how many
+/// hydrogens each atom carries.
+///
+/// Sulfur is the one branch left out. OpenBabel admits it only at a formal
+/// charge of -1, and the file's component definitions carry no charge here, so a
+/// thiolate is missed. Neutral sulfur would not have accepted anyway.
+fn accepts(component: &Component, name: &str) -> bool {
+    let Some(element) = component.element_of(name) else {
+        return false;
+    };
+
+    match element.to_ascii_uppercase().as_str() {
+        "O" => accepts_at_oxygen(component, name),
+        "N" => accepts_at_nitrogen(component, name),
+        // Organic fluorine does not accept; a bare fluoride would.
+        "F" => !component
+            .neighbours(name)
+            .any(|n| component.element_of(n).is_some_and(is_carbon)),
+        _ => false,
+    }
+}
+
+/// An oxygen accepts unless it is nitro, aromatic, a sulfone oxygen, a bridge
+/// between two aromatics, or the single-bonded oxygen of an ester.
+fn accepts_at_oxygen(component: &Component, name: &str) -> bool {
+    if is_nitro_oxygen(component, name)
+        || component.is_aromatic(name)
+        || is_sulfone_oxygen(component, name)
+    {
+        return false;
+    }
+
+    let mut aromatic_neighbours = 0;
+    for (neighbour, order) in component.bonded(name) {
+        if component.is_aromatic(neighbour) {
+            aromatic_neighbours += 1;
+            if aromatic_neighbours == 2 {
+                return false; // an ether between two aromatic rings
+            }
+            continue;
+        }
+
+        if order == BondOrder::Single
+            && component.element_of(neighbour).is_some_and(is_carbon)
+            && has_carbonyl(component, neighbour)
+            && !is_carboxyl_oxygen(component, name)
+        {
+            return false; // the bridging oxygen of an ester
+        }
+    }
+
+    true
+}
+
+/// A nitrogen accepts unless its lone pair is spoken for: a four-coordinate
+/// ammonium, or a three-coordinate sp2 nitrogen such as an amide or a
+/// pyrrole-type ring.
+fn accepts_at_nitrogen(component: &Component, name: &str) -> bool {
+    let degree = component.neighbours(name).count() + component.hydrogen_count(name);
+
+    !((degree == 4 && hybridisation(component, name) == 3)
+        || (degree == 3 && hybridisation(component, name) == 2))
+}
+
+/// The hybridisation OpenBabel's typing rules assign, decoded from its SMARTS
+/// table into the graph terms available here.
+fn hybridisation(component: &Component, name: &str) -> u8 {
+    let bonded: Vec<(&str, BondOrder)> = component.bonded(name).collect();
+
+    if bonded.iter().any(|&(_, order)| order == BondOrder::Triple)
+        || bonded
+            .iter()
+            .filter(|&&(_, order)| order == BondOrder::Double)
+            .count()
+            >= 2
+    {
+        return 1;
+    }
+
+    let unsaturated_neighbour = bonded.iter().any(|&(neighbour, order)| {
+        if order != BondOrder::Single && order != BondOrder::Aromatic {
+            return false;
+        }
+        let Some(element) = component.element_of(neighbour) else {
+            return false;
+        };
+        let organic = matches!(element.to_ascii_uppercase().as_str(), "C" | "N" | "O");
+
+        organic
+            && component
+                .bonded(neighbour)
+                .any(|(_, o)| o != BondOrder::Single)
+    });
+
+    let sp2 = component.is_aromatic(name)
+        || bonded.iter().any(|&(_, order)| order == BondOrder::Double)
+        || unsaturated_neighbour
+        || bonded
+            .iter()
+            .any(|&(neighbour, _)| component.is_aromatic(neighbour));
+
+    if sp2 { 2 } else { 3 }
+}
+
+/// A terminal oxygen hanging off `name`, which is how OpenBabel counts the
+/// oxygens of a nitro, sulfone, or carboxyl group.
+fn free_oxygens(component: &Component, name: &str) -> usize {
+    component
+        .neighbours(name)
+        .filter(|&n| {
+            component
+                .element_of(n)
+                .is_some_and(|e| e.eq_ignore_ascii_case("O"))
+                && component.neighbours(n).count() == 1
+        })
+        .count()
+}
+
+fn free_sulfurs(component: &Component, name: &str) -> usize {
+    component
+        .neighbours(name)
+        .filter(|&n| {
+            component
+                .element_of(n)
+                .is_some_and(|e| e.eq_ignore_ascii_case("S"))
+                && component.neighbours(n).count() == 1
+        })
+        .count()
+}
+
+/// A terminal oxygen whose only heavy neighbour is `element`, and the name of
+/// that neighbour.
+fn terminal_on<'a>(component: &'a Component, name: &'a str, element: &str) -> Option<&'a str> {
+    if component.neighbours(name).count() != 1 {
+        return None;
+    }
+
+    component.neighbours(name).find(|&n| {
+        component
+            .element_of(n)
+            .is_some_and(|e| e.eq_ignore_ascii_case(element))
+    })
+}
+
+fn is_nitro_oxygen(component: &Component, name: &str) -> bool {
+    terminal_on(component, name, "N").is_some_and(|n| free_oxygens(component, n) == 2)
+}
+
+/// A sulfone oxygen: OpenBabel lets any nitrogen on the sulfur rescue the oxygen
+/// as an acceptor.
+fn is_sulfone_oxygen(component: &Component, name: &str) -> bool {
+    terminal_on(component, name, "S").is_some_and(|s| {
+        free_oxygens(component, s) == 2
+            && !component.neighbours(s).any(|n| {
+                component
+                    .element_of(n)
+                    .is_some_and(|e| e.eq_ignore_ascii_case("N"))
+            })
+    })
+}
+
+fn is_carboxyl_oxygen(component: &Component, name: &str) -> bool {
+    terminal_on(component, name, "C").is_some_and(|c| {
+        free_oxygens(component, c) == 2
+            || (free_oxygens(component, c) == 1 && free_sulfurs(component, c) == 1)
+    })
+}
+
+/// Whether a carbon carries a double bond to an oxygen, which is what makes a
+/// single C-O bond an ester bond.
+fn has_carbonyl(component: &Component, carbon: &str) -> bool {
+    component.bonded(carbon).any(|(neighbour, order)| {
+        order == BondOrder::Double
+            && component
+                .element_of(neighbour)
+                .is_some_and(|e| e.eq_ignore_ascii_case("O"))
+    })
+}
+
+fn is_carbon(element: &str) -> bool {
+    element.eq_ignore_ascii_case("C")
 }
 
 /// True when the atom is an apolar carbon: a carbon bonded only to carbons and
@@ -127,17 +327,28 @@ pub fn is_hbond_acceptor(atom: &Atom) -> bool {
 ///
 /// This is PLIP's hydrophobic atom, verbatim (`Mol.hydrophobic_atoms`: carbons
 /// whose neighbours' atomic numbers are a subset of {1, 6}). PLIP reads the
-/// neighbours from OpenBabel's perceived bonds; pixelfold reads them from
-/// [`super::topology`], which gives the same answer for a standard residue and
-/// no answer at all for a ligand until the chemical component dictionary lands.
+/// neighbours from OpenBabel's perceived bonds; these come from the bond graph,
+/// which draws on the residue table for a standard residue and on the file's own
+/// component definitions for a ligand. Hydrogens are absent from the graph, so
+/// "every heavy neighbour is a carbon" is the same rule.
+///
+/// An atom with no bonds at all is not apolar.which keeps a lone ion out of the
+/// hydrophobic set.
 ///
 /// Sulfur is excluded on both counts, which surprises chemical intuition and is
 /// worth stating: methionine's SD is not an apolar atom, and its flanking CG and
 /// CE are disqualified for bonding to it, so methionine contributes only CB.
 /// RING instead admits sulfur to its van der Waals contacts.
-pub fn is_apolar_carbon(atom: &Atom) -> bool {
-    atom.element.as_str().eq_ignore_ascii_case("C")
-        && topology::bonded_only_to_carbon(atom.residue_name.as_str(), atom.name.as_str())
+pub fn is_apolar_carbon(protein: &Protein, bonds: &Bonds, index: usize) -> bool {
+    let atom = &protein.atoms[index];
+    if !atom.element.as_str().eq_ignore_ascii_case("C") {
+        return false;
+    }
+
+    let mut neighbours = bonds.of(index).iter().peekable();
+
+    neighbours.peek().is_some()
+        && neighbours.all(|&n| protein.atoms[n].element.as_str().eq_ignore_ascii_case("C"))
 }
 
 #[cfg(test)]
@@ -213,28 +424,176 @@ mod tests {
         assert!(!is_cysteine_sulfur(&atom("CYS", "CB", "C")));
     }
 
-    #[test]
-    fn apolar_carbons_are_side_chain_carbons_with_no_polar_neighbour() {
-        assert!(is_apolar_carbon(&atom("LEU", "CD1", "C")));
-        assert!(is_apolar_carbon(&atom("PHE", "CZ", "C")));
-        assert!(is_apolar_carbon(&atom("ALA", "CB", "C")));
+    /// A residue laid out so its side chain can be walked: the bond graph,
+    /// decides whether a carbon is apolar.
+    fn residue(name: &str, atoms: &[(&str, &str)]) -> Protein {
+        let atoms = atoms
+            .iter()
+            .map(|(atom_name, element)| {
+                let mut a = atom(name, atom_name, element);
+                a.residue_seq = 1;
+                a
+            })
+            .collect();
 
-        // Backbone carbons always reach a nitrogen or an oxygen.
-        assert!(!is_apolar_carbon(&atom("LEU", "CA", "C")));
-        assert!(!is_apolar_carbon(&atom("LEU", "C", "C")));
+        Protein {
+            atoms,
+            title: String::new(),
+            surface_points: Vec::new(),
+            hbonds: Vec::new(),
+            assembly: None,
+            components: Default::default(),
+        }
+    }
 
-        // Carbons one bond from a heteroatom.
-        assert!(!is_apolar_carbon(&atom("SER", "CB", "C"))); // OG
-        assert!(!is_apolar_carbon(&atom("TYR", "CZ", "C"))); // OH
-        assert!(!is_apolar_carbon(&atom("MET", "CG", "C"))); // SD
+    fn apolar(residue_name: &str, atoms: &[(&str, &str)], wanted: &str) -> bool {
+        let structure = residue(residue_name, atoms);
+        let bonds = super::super::connectivity::bonds(&structure);
+        let index = structure
+            .atoms
+            .iter()
+            .position(|a| a.name == wanted)
+            .expect("the atom under test");
+
+        is_apolar_carbon(&structure, &bonds, index)
+    }
+
+    const LEUCINE: &[(&str, &str)] = &[
+        ("N", "N"),
+        ("CA", "C"),
+        ("C", "C"),
+        ("O", "O"),
+        ("CB", "C"),
+        ("CG", "C"),
+        ("CD1", "C"),
+        ("CD2", "C"),
+    ];
+    const SERINE: &[(&str, &str)] = &[
+        ("N", "N"),
+        ("CA", "C"),
+        ("C", "C"),
+        ("O", "O"),
+        ("CB", "C"),
+        ("OG", "O"),
+    ];
+    const METHIONINE: &[(&str, &str)] = &[
+        ("N", "N"),
+        ("CA", "C"),
+        ("C", "C"),
+        ("O", "O"),
+        ("CB", "C"),
+        ("CG", "C"),
+        ("SD", "S"),
+        ("CE", "C"),
+    ];
+
+    /// One component exercising each branch of the acceptor rules, written the
+    /// way a structure file states them.
+    fn typed(atom_name: &str) -> bool {
+        const DEFINITION: &str = "\
+loop_
+_chem_comp_atom.comp_id
+_chem_comp_atom.atom_id
+_chem_comp_atom.type_symbol
+_chem_comp_atom.pdbx_aromatic_flag
+LIG C1   C  N
+LIG O2   O  N
+LIG N3   N  N
+LIG H3   H  N
+LIG C4   C  N
+LIG N5   N  N
+LIG H5A  H  N
+LIG H5B  H  N
+LIG H5C  H  N
+LIG C6   C  N
+LIG N7   N  Y
+LIG C8   C  Y
+LIG NO   N  N
+LIG ONA  O  N
+LIG ONB  O  N
+LIG CE1  C  N
+LIG OE2  O  N
+LIG CE3  C  N
+LIG OE4  O  N
+LIG F1   F  N
+LIG CF   C  N
+#
+loop_
+_chem_comp_bond.comp_id
+_chem_comp_bond.atom_id_1
+_chem_comp_bond.atom_id_2
+_chem_comp_bond.value_order
+LIG C1  O2   doub
+LIG C1  N3   sing
+LIG N3  H3   sing
+LIG N3  C4   sing
+LIG N5  H5A  sing
+LIG N5  H5B  sing
+LIG N5  H5C  sing
+LIG N5  C6   sing
+LIG N7  C8   arom
+LIG NO  ONA  doub
+LIG NO  ONB  doub
+LIG NO  C1   sing
+LIG CE1 OE2  doub
+LIG CE1 OE4  sing
+LIG OE4 CE3  sing
+LIG F1  CF   sing
+#
+";
+        let dictionary = crate::components::Dictionary::parse(DEFINITION);
+        let component = dictionary.get("LIG").expect("the component");
+
+        accepts(component, atom_name)
     }
 
     #[test]
-    fn sulfur_is_never_apolar_and_nor_is_a_ligand_carbon() {
-        assert!(!is_apolar_carbon(&atom("MET", "SD", "S")));
-        assert!(!is_apolar_carbon(&atom("CYS", "SG", "S")));
+    fn a_ligand_oxygen_accepts_unless_its_lone_pair_is_spoken_for() {
+        assert!(typed("O2"), "a carbonyl oxygen accepts");
+        assert!(typed("OE2"), "an ester carbonyl oxygen accepts");
 
-        // Ligand chemistry needs the chemical component dictionary.
-        assert!(!is_apolar_carbon(&atom("STI", "C1", "C")));
+        assert!(!typed("ONA"), "a nitro oxygen does not");
+        assert!(!typed("OE4"), "the bridging oxygen of an ester does not");
+    }
+
+    #[test]
+    fn a_ligand_nitrogen_accepts_only_with_a_free_lone_pair() {
+        // An amide nitrogen is three-coordinate counting its hydrogen, and sp2
+        // through the neighbouring carbonyl.
+        assert!(!typed("N3"), "an amide nitrogen does not accept");
+        // An ammonium is four-coordinate.
+        assert!(!typed("N5"), "an ammonium does not accept");
+        // An aromatic nitrogen with no hydrogen is two-coordinate.
+        assert!(typed("N7"), "a pyridine-type nitrogen accepts");
+    }
+
+    #[test]
+    fn organic_fluorine_never_accepts() {
+        assert!(!typed("F1"));
+    }
+
+    #[test]
+    fn apolar_carbons_are_side_chain_carbons_with_no_polar_neighbour() {
+        assert!(apolar("LEU", LEUCINE, "CD1"));
+        assert!(apolar("LEU", LEUCINE, "CG"));
+        assert!(apolar("LEU", LEUCINE, "CB"));
+
+        // Backbone carbons always reach a nitrogen or an oxygen.
+        assert!(!apolar("LEU", LEUCINE, "CA"));
+        assert!(!apolar("LEU", LEUCINE, "C"));
+
+        // Carbons one bond from a heteroatom.
+        assert!(!apolar("SER", SERINE, "CB")); // reaches OG
+        assert!(!apolar("MET", METHIONINE, "CG")); // reaches SD
+        assert!(!apolar("MET", METHIONINE, "CE")); // reaches SD
+        assert!(apolar("MET", METHIONINE, "CB"));
+    }
+
+    #[test]
+    fn sulfur_is_never_apolar_and_nor_is_an_unbonded_atom() {
+        assert!(!apolar("MET", METHIONINE, "SD"));
+
+        // A component with no definition and no residue table has no bonds (apolar).
+        assert!(!apolar("STI", &[("C1", "C"), ("C2", "C")], "C1"));
     }
 }
