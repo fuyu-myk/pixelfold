@@ -85,15 +85,21 @@ impl Hydrogens {
     /// since turning one hydrogen turns them all, and it is the approximation
     /// this makes of a rotor that Reduce models by scanning torsions.
     pub fn angles_toward(&self, donor: Vec3, acceptor: Vec3) -> Vec<f32> {
+        self.positions_toward(acceptor)
+            .into_iter()
+            .map(|hydrogen| angle_at(hydrogen, donor, acceptor))
+            .collect()
+    }
+
+    /// Where each of this donor's hydrogens sits when reaching toward `target`.
+    ///
+    /// A rotor's hydrogens share one circle, so each is reported at the point
+    /// that best reaches the target and they coincide there. A caller that needs
+    /// one hydrogen rather than all of them takes the one making the best angle.
+    pub fn positions_toward(&self, target: Vec3) -> Vec<Vec3> {
         match self {
-            Hydrogens::Fixed(positions) => positions
-                .iter()
-                .map(|&h| angle_at(h, donor, acceptor))
-                .collect(),
-            Hydrogens::Rotor { circle, count } => {
-                let angle = angle_at(circle.toward(acceptor), donor, acceptor);
-                vec![angle; *count]
-            }
+            Hydrogens::Fixed(positions) => positions.clone(),
+            Hydrogens::Rotor { circle, count } => vec![circle.toward(target); *count],
         }
     }
 }
@@ -222,15 +228,17 @@ fn planar_pair(donor: Vec3, neighbour: Vec3, beyond: Vec3) -> Option<[Vec3; 2]> 
 struct Carbonyl {
     chain: crate::fixed_str::FixedStr<4>,
     c: Vec3,
-    o: Vec3,
+    /// The carbonyl oxygen, absent when the model left it out.
+    o: Option<Vec3>,
 }
 
 /// Every donor in the structure, with its hydrogens placed.
 ///
 /// A donor whose hydrogen cannot be placed is not a donor. That is the residue
-/// after a chain break, whose amide hydrogen has no preceding carbonyl to point
-/// away from. It is not the first residue of a chain, which carries an ammonium
-/// rather than an amide and needs nothing outside itself.
+/// after a chain break, and the residue whose predecessor was modelled without
+/// its carbonyl oxygen: both have an amide hydrogen with no direction to take.
+/// It is not the first residue of a chain, which carries an ammonium rather than
+/// an amide and needs nothing outside itself.
 pub fn donors(protein: &Protein) -> Vec<Donor> {
     let mut out = Vec::new();
     let mut preceding: Option<Carbonyl> = None;
@@ -256,18 +264,15 @@ pub fn donors(protein: &Protein) -> Vec<Donor> {
             }
         }
 
-        // A residue with no carbonyl cannot precede a peptide bond.
-        preceding = match (
-            position_of(protein, residue.clone(), "C", None),
-            position_of(protein, residue.clone(), "O", None),
-        ) {
-            (Some(c), Some(o)) => Some(Carbonyl {
+        // Remember the last backbone carbonyl carbon seen, with its oxygen if
+        // the model has one.
+        if let Some(c) = position_of(protein, residue.clone(), "C", None) {
+            preceding = Some(Carbonyl {
                 chain: protein.atoms[start].chain_id,
                 c,
-                o,
-            }),
-            _ => None,
-        };
+                o: position_of(protein, residue.clone(), "O", None),
+            });
+        }
     }
 
     out
@@ -302,7 +307,7 @@ fn place(
                     if (previous.c - donor).length() > MAX_PEPTIDE_BOND {
                         return None;
                     }
-                    let along = (previous.c - previous.o).try_normalize()?;
+                    let along = (previous.c - previous.o?).try_normalize()?;
 
                     Some(Hydrogens::Fixed(vec![donor + along * H_BOND_LENGTH]))
                 }
@@ -559,6 +564,46 @@ mod tests {
         ]);
 
         assert!(donors(&structure).is_empty());
+    }
+
+    /// A predecessor bonded but modelled without its carbonyl oxygen leaves the
+    /// amide hydrogen with no direction. Treating that as a chain start would
+    /// hand a one-hydrogen amide three hydrogens free to swing anywhere, which
+    /// reaches acceptors the real hydrogen cannot.
+    #[test]
+    fn an_amide_whose_preceding_carbonyl_oxygen_is_missing_does_not_donate() {
+        let structure = protein(vec![
+            atom("PRO", 1, "N", Vec3::new(0.0, 0.0, 0.0)),
+            atom("PRO", 1, "CA", Vec3::new(1.5, 0.0, 0.0)),
+            atom("PRO", 1, "C", Vec3::new(2.0, 1.4, 0.0)),
+            // The carbonyl oxygen of residue 1 was not modelled.
+            atom("ALA", 2, "N", Vec3::new(3.3, 1.5, 0.0)),
+            atom("ALA", 2, "CA", Vec3::new(4.0, 2.8, 0.0)),
+        ]);
+
+        assert!(donors(&structure).is_empty());
+    }
+
+    /// A water or ligand between two bonded residues must not make the second
+    /// look like the start of a chain.
+    #[test]
+    fn a_residue_without_a_backbone_carbon_does_not_break_the_chain() {
+        let structure = protein(vec![
+            atom("PRO", 1, "N", Vec3::new(0.0, 0.0, 0.0)),
+            atom("PRO", 1, "CA", Vec3::new(1.5, 0.0, 0.0)),
+            atom("PRO", 1, "C", Vec3::new(2.0, 1.4, 0.0)),
+            atom("PRO", 1, "O", Vec3::new(1.2, 2.3, 0.0)),
+            atom("HOH", 90, "O", Vec3::new(20.0, 20.0, 20.0)),
+            atom("ALA", 2, "N", Vec3::new(3.3, 1.5, 0.0)),
+            atom("ALA", 2, "CA", Vec3::new(4.0, 2.8, 0.0)),
+        ]);
+
+        let found = donors(&structure);
+        assert_eq!(found.len(), 1);
+        assert!(
+            matches!(found[0].hydrogens, Hydrogens::Fixed(_)),
+            "the amide is still interior, not a terminal ammonium"
+        );
     }
 
     #[test]

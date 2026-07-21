@@ -12,12 +12,13 @@ use crate::structure::{Atom, Protein};
 
 use super::classify::{
     Charge, charged_group, is_apolar_carbon, is_cysteine_sulfur, is_hbond_acceptor, is_metal,
-    is_metal_donor,
+    is_metal_donor, is_water,
 };
 use super::params::{
     DISULFIDE_DIST_MAX, HBOND_DIST_MAX, HBOND_DONOR_ANGLE_MIN, HYDROPHOBIC_DIST_MAX,
     METAL_DIST_MAX, MIN_DIST, PICATION_DIST_MAX, PISTACK_ANGLE_DEV, PISTACK_DIST_MAX,
-    PISTACK_OFFSET_MAX, SALTBRIDGE_DIST_MAX,
+    PISTACK_OFFSET_MAX, SALTBRIDGE_DIST_MAX, WATER_BRIDGE_MAX_DIST, WATER_BRIDGE_MIN_DIST,
+    WATER_BRIDGE_OMEGA_MAX, WATER_BRIDGE_OMEGA_MIN, WATER_BRIDGE_THETA_MIN,
 };
 use super::{Interaction, InteractionKind, aromatic, hydrogens};
 
@@ -70,6 +71,7 @@ pub fn disulfides(protein: &Protein) -> Vec<Interaction> {
                 atoms_b: vec![sulfurs[b]],
                 distance,
                 angle: None,
+                bridge: None,
             });
         });
     }
@@ -106,6 +108,7 @@ pub fn metal_coordination(protein: &Protein) -> Vec<Interaction> {
                 atoms_b: vec![donors[d]],
                 distance,
                 angle: None,
+                bridge: None,
             });
         });
     }
@@ -251,8 +254,107 @@ pub fn hydrogen_bonds(protein: &Protein) -> Vec<Interaction> {
             atoms_b: vec![bond.acceptor],
             distance: bond.distance,
             angle: Some(bond.angle),
+            bridge: None,
         })
         .collect()
+}
+
+/// A water oxygen, the only atom that bridges two residues in this engine.
+fn is_water_oxygen(atom: &Atom) -> bool {
+    is_water(atom.residue_name.as_str()) && atom.element.as_str().eq_ignore_ascii_case("O")
+}
+
+/// Water bridges: an ordered water linking a donor and an acceptor that do not
+/// reach each other directly.
+///
+/// Both legs must sit in the same distance band, the donor must point a hydrogen
+/// at the water, and the two legs must meet at the water within an angular
+/// window. That last gate is what separates a bridge from a water that merely
+/// happens to sit between two residues: the geometry has to look like two
+/// hydrogen bonds through one oxygen, not a coincidence of proximity.
+///
+/// Two differences from PLIP. This reports one bridge per donor instead of multiple,
+/// through whichever hydrogen reaches the water straightest. Additionally, this looks
+/// between any two residues over looking only for bridges between its ligand and its
+/// binding site.
+pub fn water_bridges(protein: &Protein) -> Vec<Interaction> {
+    let (waters, water_positions) = collect(protein, is_water_oxygen);
+    let (acceptors, acceptor_positions) = collect(protein, is_hbond_acceptor);
+    let donors = hydrogens::donors(protein);
+    if waters.is_empty() || acceptors.is_empty() || donors.is_empty() {
+        return Vec::new();
+    }
+
+    let grid = Grid::build(&water_positions, WATER_BRIDGE_MAX_DIST);
+    let band = WATER_BRIDGE_MIN_DIST..=WATER_BRIDGE_MAX_DIST;
+
+    // The acceptor legs of each water, so the donor pass can join on them.
+    let mut legs: HashMap<usize, Vec<(usize, f32)>> = HashMap::new();
+    for (a, &acceptor) in acceptors.iter().enumerate() {
+        let position = acceptor_positions[a];
+        grid.for_each_within(position, WATER_BRIDGE_MAX_DIST, |w| {
+            let distance = (position - water_positions[w]).length();
+            if band.contains(&distance) {
+                legs.entry(w).or_default().push((acceptor, distance));
+            }
+        });
+    }
+
+    let mut out = Vec::new();
+    for donor in &donors {
+        let origin = protein.atoms[donor.atom].position;
+        let donor_residue = residue_key(&protein.atoms[donor.atom]);
+
+        grid.for_each_within(origin, WATER_BRIDGE_MAX_DIST, |w| {
+            let Some(reachable) = legs.get(&w) else {
+                return;
+            };
+
+            let water = water_positions[w];
+            let donor_leg = (origin - water).length();
+            if !band.contains(&donor_leg) {
+                return;
+            }
+
+            // The hydrogen that points most nearly at the water carries the leg.
+            let Some((hydrogen, donor_angle)) = donor
+                .hydrogens
+                .positions_toward(water)
+                .into_iter()
+                .map(|h| (h, hydrogens::angle_at(h, origin, water)))
+                .max_by(|(_, a), (_, b)| a.total_cmp(b))
+            else {
+                return;
+            };
+            if donor_angle <= WATER_BRIDGE_THETA_MIN {
+                return;
+            }
+
+            for &(acceptor, acceptor_leg) in reachable {
+                if residue_key(&protein.atoms[acceptor]) == donor_residue {
+                    continue; // a residue does not bridge to itself
+                }
+
+                let water_angle =
+                    hydrogens::angle_at(water, protein.atoms[acceptor].position, hydrogen);
+                if !(WATER_BRIDGE_OMEGA_MIN < water_angle && water_angle < WATER_BRIDGE_OMEGA_MAX) {
+                    continue;
+                }
+
+                out.push(Interaction {
+                    kind: InteractionKind::WaterBridge,
+                    atoms_a: vec![donor.atom],
+                    atoms_b: vec![acceptor],
+                    // The longer leg, the one that limits the bridge.
+                    distance: donor_leg.max(acceptor_leg),
+                    angle: Some(water_angle),
+                    bridge: Some(waters[w]),
+                });
+            }
+        });
+    }
+
+    out
 }
 
 /// One surviving apolar carbon pair.
@@ -311,6 +413,7 @@ pub fn hydrophobic_contacts(protein: &Protein) -> Vec<Interaction> {
             atoms_b: vec![contact.b],
             distance: contact.distance,
             angle: None,
+            bridge: None,
         })
         .collect()
 }
@@ -421,6 +524,7 @@ pub fn salt_bridges(protein: &Protein) -> Vec<Interaction> {
                 atoms_b: anion.atoms.clone(),
                 distance,
                 angle: None,
+                bridge: None,
             });
         });
     }
@@ -485,6 +589,7 @@ pub fn pi_stacking(protein: &Protein) -> Vec<Interaction> {
                 atoms_b: ring_b.atoms.clone(),
                 distance,
                 angle: Some(angle),
+                bridge: None,
             });
         });
     }
@@ -535,6 +640,7 @@ pub fn pi_cation(protein: &Protein) -> Vec<Interaction> {
                 atoms_b: cation.atoms.clone(),
                 distance,
                 angle: None,
+                bridge: None,
             });
         });
     }
@@ -1060,5 +1166,82 @@ mod tests {
             atom("HIS", 1, "CD2", "C", Vec3::new(0.5, -1.2, 0.0)),
         ]);
         assert!(pi_cation(&his).is_empty());
+    }
+
+    /// A donor residue, an acceptor residue, and a water between them. Residue 1
+    /// is a proline so it contributes the carbonyl that fixes residue 2's amide
+    /// hydrogen without donating a terminal ammonium of its own.
+    fn bridged(water: Vec3, acceptor: Vec3) -> Protein {
+        protein(vec![
+            atom("PRO", 1, "N", "N", Vec3::new(0.0, 0.0, 0.0)),
+            atom("PRO", 1, "CA", "C", Vec3::new(1.5, 0.0, 0.0)),
+            atom("PRO", 1, "C", "C", Vec3::new(2.0, 1.4, 0.0)),
+            atom("PRO", 1, "O", "O", Vec3::new(1.2, 2.3, 0.0)),
+            atom("ALA", 2, "N", "N", Vec3::new(3.3, 1.5, 0.0)),
+            atom("ALA", 2, "CA", "C", Vec3::new(4.0, 2.8, 0.0)),
+            atom("HOH", 9, "O", "O", water),
+            atom("GLY", 8, "O", "O", acceptor),
+        ])
+    }
+
+    /// Residue 2's amide hydrogen points along this direction from its nitrogen.
+    fn amide_direction() -> Vec3 {
+        (Vec3::new(2.0, 1.4, 0.0) - Vec3::new(1.2, 2.3, 0.0)).normalize()
+    }
+
+    #[test]
+    fn a_water_bridges_a_donor_to_an_acceptor() {
+        // Water 3 A along the amide hydrogen's direction, with an acceptor off
+        // to the side so the angle at the water lands inside the window.
+        let nitrogen = Vec3::new(3.3, 1.5, 0.0);
+        let water = nitrogen + amide_direction() * 3.0;
+        let found = water_bridges(&bridged(water, water + Vec3::new(0.0, -2.9, 0.6)));
+
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].kind, InteractionKind::WaterBridge);
+        assert_eq!(found[0].atoms_a, vec![4]); // the amide nitrogen
+        assert_eq!(found[0].atoms_b, vec![7]); // the carbonyl oxygen
+        assert_eq!(found[0].bridge, Some(6)); // the water oxygen
+        let angle = found[0].angle.unwrap();
+        assert!(
+            WATER_BRIDGE_OMEGA_MIN < angle && angle < WATER_BRIDGE_OMEGA_MAX,
+            "the angle at the water is inside the window: {angle}"
+        );
+    }
+
+    #[test]
+    fn a_leg_outside_the_distance_band_is_not_a_bridge() {
+        let nitrogen = Vec3::new(3.3, 1.5, 0.0);
+
+        // The water sits too far from the donor.
+        let far = nitrogen + amide_direction() * 5.0;
+        assert!(water_bridges(&bridged(far, far + Vec3::new(0.0, -2.9, 0.6))).is_empty());
+
+        // The water is in range of the donor but the acceptor is too far from it.
+        let water = nitrogen + amide_direction() * 3.0;
+        assert!(water_bridges(&bridged(water, water + Vec3::new(0.0, -6.0, 0.0))).is_empty());
+    }
+
+    #[test]
+    fn an_acceptor_straight_through_the_water_is_not_a_bridge() {
+        // Two hydrogen bonds cannot leave one oxygen in opposite directions.
+        let nitrogen = Vec3::new(3.3, 1.5, 0.0);
+        let water = nitrogen + amide_direction() * 3.0;
+        let beyond = water + amide_direction() * 2.9;
+
+        assert!(water_bridges(&bridged(water, beyond)).is_empty());
+    }
+
+    #[test]
+    fn a_structure_without_water_has_no_bridges() {
+        let dry = protein(vec![
+            atom("PRO", 1, "N", "N", Vec3::new(0.0, 0.0, 0.0)),
+            atom("PRO", 1, "CA", "C", Vec3::new(1.5, 0.0, 0.0)),
+            atom("PRO", 1, "C", "C", Vec3::new(2.0, 1.4, 0.0)),
+            atom("PRO", 1, "O", "O", Vec3::new(1.2, 2.3, 0.0)),
+            atom("ALA", 2, "N", "N", Vec3::new(3.3, 1.5, 0.0)),
+            atom("GLY", 8, "O", "O", Vec3::new(5.0, 2.0, 0.0)),
+        ]);
+        assert!(water_bridges(&dry).is_empty());
     }
 }

@@ -62,6 +62,9 @@ pub struct Interaction {
     /// The value the type's cutoff was applied to, e.g. centroid separation.
     pub distance: f32,
     pub angle: Option<f32>,
+    /// The atom mediating an indirect interaction, like the bridging water
+    /// oxygen of a water bridge. `None` where the two sides meet directly.
+    pub bridge: Option<usize>,
 }
 
 /// Detect every supported interaction in a structure.
@@ -74,5 +77,6 @@ pub fn detect(protein: &Protein) -> Vec<Interaction> {
     interactions.extend(detectors::pi_stacking(protein));
     interactions.extend(detectors::pi_cation(protein));
     interactions.extend(detectors::hydrophobic_contacts(protein));
+    interactions.extend(detectors::water_bridges(protein));
     interactions
 }
