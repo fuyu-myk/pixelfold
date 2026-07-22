@@ -36,7 +36,7 @@ pub trait Row {
 pub fn write<T, W>(out: &mut W, records: &[T], format: Format) -> Result<()>
 where
     T: Row + Serialize,
-    W: Write,
+    W: Write + ?Sized,
 {
     match format {
         Format::Json => {
@@ -63,7 +63,7 @@ where
 fn write_table<T, W>(out: &mut W, records: &[T]) -> Result<()>
 where
     T: Row,
-    W: Write,
+    W: Write + ?Sized,
 {
     let all = T::columns();
     let rows: Vec<Vec<String>> = records.iter().map(Row::cells).collect();

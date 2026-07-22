@@ -192,6 +192,70 @@ fn a_closed_pipe_is_not_a_failure_in_any_format() {
     }
 }
 
+/// The residue interaction network is built from the whole interaction engine,
+/// aggregated to the residue level, and exports as node-link JSON.
+#[test]
+fn the_network_exports_as_node_link_json() {
+    let run = run!("1CRN", &["rin", "--format", "json", "--type", "disulfide"]);
+    assert!(run.ok, "command failed: {}", run.stderr);
+
+    let parsed: serde_json::Value = serde_json::from_str(&run.stdout).expect("valid json");
+    let edges = parsed["edges"].as_array().expect("edges");
+    // Crambin's three disulfides join three residue pairs.
+    assert_eq!(edges.len(), 3);
+    assert!(edges.iter().all(|e| e["kind"] == "disulfide"));
+
+    let nodes = parsed["nodes"].as_array().expect("nodes");
+    // Six cysteines, each an endpoint of one bridge.
+    assert_eq!(nodes.len(), 6);
+    assert!(nodes.iter().all(|n| n["resn"] == "CYS" && n["degree"] == 1));
+}
+
+/// The GraphML export is well-formed XML that an importer can read.
+#[test]
+fn the_network_exports_as_valid_graphml() {
+    let run = run!("1CRN", &["rin", "--format", "graphml"]);
+    assert!(run.ok, "command failed: {}", run.stderr);
+
+    assert!(
+        run.stdout
+            .starts_with(r#"<?xml version="1.0" encoding="UTF-8"?>"#)
+    );
+    // Every opened element is closed.
+    for tag in ["node", "edge"] {
+        assert_eq!(
+            run.stdout.matches(&format!("<{tag} ")).count(),
+            run.stdout.matches(&format!("</{tag}>")).count(),
+            "unbalanced {tag} tags",
+        );
+    }
+}
+
+/// `-o` writes the network to a file rather than standard output.
+#[test]
+fn the_network_can_be_written_to_a_file() {
+    let Some(structure) = cached("1CRN") else {
+        return;
+    };
+    let dir = std::env::temp_dir().join(format!("pixelfold-rin-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let out = dir.join("net.json");
+
+    let status = Command::new(env!("CARGO_BIN_EXE_pixelfold"))
+        .args(["rin", "--format", "json", "-o"])
+        .arg(&out)
+        .arg(&structure)
+        .status()
+        .expect("the binary runs");
+    assert!(status.success());
+
+    let text = std::fs::read_to_string(&out).expect("the file was written");
+    let parsed: serde_json::Value = serde_json::from_str(&text).expect("valid json");
+    assert!(parsed["nodes"].is_array());
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
 /// Reading a file needs no cache, so an unusable cache directory must not stop
 /// it. Only a download touches the cache.
 #[test]

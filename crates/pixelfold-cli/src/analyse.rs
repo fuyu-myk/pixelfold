@@ -69,19 +69,33 @@ impl Row for InteractionRecord {
     }
 }
 
-/// Every interaction touching the chosen atoms, of the wanted kinds.
+/// Every detected interaction touching the chosen atoms, of the wanted kinds.
 ///
-/// An interaction is kept when *either* side is chosen.
+/// An interaction is kept when *either* side is chosen. An empty `kinds` keeps
+/// every kind.
+///
+/// This is the shared filter behind both the flat report and the network.
+pub fn selected(
+    protein: &Protein,
+    chosen: &AtomSet,
+    kinds: &[InteractionKind],
+) -> Vec<Interaction> {
+    detect(protein)
+        .into_iter()
+        .filter(|found| kinds.is_empty() || kinds.contains(&found.kind))
+        .filter(|found| touches(found, chosen))
+        .collect()
+}
+
+/// The chosen interactions as flat records, in a deterministic order.
 pub fn interactions(
     protein: &Protein,
     chosen: &AtomSet,
     kinds: &[InteractionKind],
 ) -> Vec<InteractionRecord> {
-    let mut records: Vec<InteractionRecord> = detect(protein)
-        .into_iter()
-        .filter(|found| kinds.is_empty() || kinds.contains(&found.kind))
-        .filter(|found| touches(found, chosen))
-        .map(|found| record(protein, &found))
+    let mut records: Vec<InteractionRecord> = selected(protein, chosen, kinds)
+        .iter()
+        .map(|found| record(protein, found))
         .collect();
 
     records.sort_by(|a, b| {

@@ -88,8 +88,12 @@ pixelfold interactions 4HHB --type salt-bridge --format tsv
 pixelfold ss 1CRN
 pixelfold sasa 1UBQ --format json
 
+# The residue interaction network, for Cytoscape or Gephi
+pixelfold rin 4HHB --format graphml -o net.graphml
+
 # Any of them narrowed by the selection language
 pixelfold interactions 1IEP --select 'byres within 4.5 of resn STI'
+pixelfold rin 1IEP --select 'resn STI'
 pixelfold sasa 4HHB --select 'chain A and ss H'
 ```
 

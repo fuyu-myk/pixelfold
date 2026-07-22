@@ -20,7 +20,7 @@ use crate::structure::Protein;
 pub use classify::Charge;
 
 /// The kind of a detected interaction.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum InteractionKind {
     HydrogenBond,
     SaltBridge,

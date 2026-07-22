@@ -1,14 +1,17 @@
-use std::path::PathBuf;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use pixelfold_core::InteractionKind;
 
 mod analyse;
+mod graph;
 mod load;
 mod report;
 mod resolve;
 
+use graph::GraphFormat;
 use report::Format;
 
 /// Terminal protein structure viewer and interaction engine.
@@ -95,6 +98,30 @@ enum Command {
         /// Shorthand for --select 'resn CODE', the interactions of one component
         #[arg(short, long, value_name = "CODE", conflicts_with = "select")]
         ligand: Option<String>,
+    },
+    /// Build the residue interaction network
+    Rin {
+        /// Path to a .pdb/.cif file, or a 4-character PDB id
+        structure: String,
+
+        /// Restrict the network to interactions touching this selection
+        #[arg(short, long, value_name = "QUERY")]
+        select: Option<String>,
+
+        /// Include only these interaction types (repeatable)
+        #[arg(short = 't', long = "type", value_enum, value_name = "TYPE")]
+        types: Vec<KindArg>,
+
+        /// How to write the network
+        #[arg(long, value_enum, default_value_t = GraphFormat::Json)]
+        format: GraphFormat,
+
+        /// Write to this file instead of standard output
+        #[arg(short, long, value_name = "FILE")]
+        output: Option<PathBuf>,
+
+        #[command(flatten)]
+        common: Common,
     },
     /// Report secondary structure per residue
     Ss {
@@ -215,6 +242,24 @@ fn run(command: Command) -> Result<()> {
             )
         }
 
+        Command::Rin {
+            structure,
+            select,
+            types,
+            format,
+            output,
+            common,
+        } => {
+            let protein = loaded(&structure, &common)?;
+            let chosen = load::chosen(&protein, select.as_deref())?;
+            let kinds: Vec<InteractionKind> = types.into_iter().map(Into::into).collect();
+
+            let interactions = analyse::selected(&protein, &chosen, &kinds);
+            let network = pixelfold_core::rin::build(&protein, &interactions);
+
+            emit_to(output.as_deref(), |out| graph::write(out, &network, format))
+        }
+
         Command::Ss { analysis } => {
             let protein = loaded(&analysis.structure, &analysis.common)?;
             let chosen = load::chosen(&protein, analysis.select.as_deref())?;
@@ -258,11 +303,35 @@ fn emit<T>(records: &[T], format: Format) -> Result<()>
 where
     T: report::Row + serde::Serialize,
 {
-    let mut out = std::io::stdout().lock();
+    emit_to(None, |out| report::write(out, records, format))
+}
 
-    match report::write(&mut out, records, format) {
-        Err(error) if is_broken_pipe(&error) => Ok(()),
-        other => other,
+/// Run `render` against a file when one is named, or standard output otherwise.
+///
+/// A closed pipe on standard output is valid (`... | head`); a write to a file
+/// that fails is a real error and is reported.
+fn emit_to(
+    output: Option<&Path>,
+    render: impl FnOnce(&mut dyn std::io::Write) -> Result<()>,
+) -> Result<()> {
+    match output {
+        Some(path) => {
+            let mut file = std::io::BufWriter::new(
+                std::fs::File::create(path)
+                    .with_context(|| format!("could not write {}", path.display()))?,
+            );
+            render(&mut file)?;
+            file.flush()?;
+
+            Ok(())
+        }
+        None => {
+            let mut out = std::io::stdout().lock();
+            match render(&mut out) {
+                Err(error) if is_broken_pipe(&error) => Ok(()),
+                other => other,
+            }
+        }
     }
 }
 
@@ -362,5 +431,32 @@ mod tests {
             kinds,
             vec![InteractionKind::HydrogenBond, InteractionKind::PiStacking]
         );
+    }
+
+    #[test]
+    fn rin_takes_a_graph_format_and_an_output_file() {
+        let cli = Cli::try_parse_from([
+            "pixelfold",
+            "rin",
+            "4HHB",
+            "--format",
+            "graphml",
+            "-o",
+            "net.graphml",
+        ])
+        .expect("parses");
+
+        let Some(Command::Rin {
+            structure,
+            format,
+            output,
+            ..
+        }) = cli.command
+        else {
+            panic!("expected the rin command");
+        };
+        assert_eq!(structure, "4HHB");
+        assert_eq!(format, GraphFormat::Graphml);
+        assert_eq!(output.as_deref(), Some(Path::new("net.graphml")));
     }
 }

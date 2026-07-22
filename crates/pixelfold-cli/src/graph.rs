@@ -1,0 +1,320 @@
+//! Writes the residue interaction network for another tool to read.
+//!
+//! Three shapes: node-link JSON that a browser or a script parses directly,
+//! GraphML that Cytoscape and Gephi import, and a flat edge list for a
+//! dataframe.
+
+use std::io::Write;
+
+use anyhow::Result;
+use clap::ValueEnum;
+use pixelfold_core::Network;
+use pixelfold_core::rin::{Edge, Node};
+use serde::Serialize;
+
+/// How to write a network.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, ValueEnum)]
+pub enum GraphFormat {
+    /// Node-link JSON: `{ "nodes": [...], "edges": [...] }` (default)
+    #[default]
+    Json,
+    /// GraphML, for Cytoscape and Gephi
+    Graphml,
+    /// The edge list as tab-separated values
+    Tsv,
+}
+
+/// Write `network` to `out` in `format`.
+pub fn write<W: Write + ?Sized>(out: &mut W, network: &Network, format: GraphFormat) -> Result<()> {
+    match format {
+        GraphFormat::Json => write_json(out, network),
+        GraphFormat::Graphml => write_graphml(out, network),
+        GraphFormat::Tsv => write_tsv(out, network),
+    }
+}
+
+/// A distance rounded to the precision the coordinates carry.
+fn distance(value: f32) -> f32 {
+    (value * 100.0).round() / 100.0
+}
+
+#[derive(Serialize)]
+struct JsonNetwork<'a> {
+    nodes: Vec<JsonNode<'a>>,
+    edges: Vec<JsonEdge<'a>>,
+}
+
+#[derive(Serialize)]
+struct JsonNode<'a> {
+    id: &'a str,
+    chain: &'a str,
+    resi: u32,
+    icode: Option<char>,
+    resn: &'a str,
+    ss: char,
+    degree: usize,
+}
+
+#[derive(Serialize)]
+struct JsonEdge<'a> {
+    source: &'a str,
+    target: &'a str,
+    kind: &'a str,
+    count: usize,
+    min_distance: f32,
+    interchain: bool,
+}
+
+fn json_node(node: &Node) -> JsonNode<'_> {
+    JsonNode {
+        id: &node.id,
+        chain: &node.chain,
+        resi: node.resi,
+        icode: node.icode,
+        resn: &node.resn,
+        ss: node.ss,
+        degree: node.degree,
+    }
+}
+
+fn json_edge(edge: &Edge) -> JsonEdge<'_> {
+    JsonEdge {
+        source: &edge.source,
+        target: &edge.target,
+        kind: edge.kind.label(),
+        count: edge.count,
+        min_distance: distance(edge.min_distance),
+        interchain: edge.interchain,
+    }
+}
+
+fn write_json<W: Write + ?Sized>(out: &mut W, network: &Network) -> Result<()> {
+    let json = JsonNetwork {
+        nodes: network.nodes.iter().map(json_node).collect(),
+        edges: network.edges.iter().map(json_edge).collect(),
+    };
+    serde_json::to_writer_pretty(&mut *out, &json)?;
+    writeln!(out)?;
+
+    Ok(())
+}
+
+/// The edge list, one row per edge. Node attributes have no place in a single
+/// flat table, so this carries the edges alone; JSON or GraphML carry the whole
+/// graph.
+fn write_tsv<W: Write + ?Sized>(out: &mut W, network: &Network) -> Result<()> {
+    writeln!(out, "source\ttarget\tkind\tcount\tmin_distance\tinterchain")?;
+    for edge in &network.edges {
+        writeln!(
+            out,
+            "{}\t{}\t{}\t{}\t{:.2}\t{}",
+            edge.source,
+            edge.target,
+            edge.kind.label(),
+            edge.count,
+            distance(edge.min_distance),
+            edge.interchain,
+        )?;
+    }
+
+    Ok(())
+}
+
+/// The GraphML attribute keys, one per node and edge field.
+const KEYS: &str = concat!(
+    r#"  <key id="v_chain" for="node" attr.name="chain" attr.type="string"/>"#,
+    "\n",
+    r#"  <key id="v_resi" for="node" attr.name="resi" attr.type="int"/>"#,
+    "\n",
+    r#"  <key id="v_icode" for="node" attr.name="icode" attr.type="string"/>"#,
+    "\n",
+    r#"  <key id="v_resn" for="node" attr.name="resn" attr.type="string"/>"#,
+    "\n",
+    r#"  <key id="v_ss" for="node" attr.name="ss" attr.type="string"/>"#,
+    "\n",
+    r#"  <key id="v_degree" for="node" attr.name="degree" attr.type="int"/>"#,
+    "\n",
+    r#"  <key id="e_kind" for="edge" attr.name="kind" attr.type="string"/>"#,
+    "\n",
+    r#"  <key id="e_count" for="edge" attr.name="count" attr.type="int"/>"#,
+    "\n",
+    r#"  <key id="e_distance" for="edge" attr.name="min_distance" attr.type="double"/>"#,
+    "\n",
+    r#"  <key id="e_interchain" for="edge" attr.name="interchain" attr.type="boolean"/>"#,
+);
+
+fn write_graphml<W: Write + ?Sized>(out: &mut W, network: &Network) -> Result<()> {
+    writeln!(out, r#"<?xml version="1.0" encoding="UTF-8"?>"#)?;
+    writeln!(
+        out,
+        r#"<graphml xmlns="http://graphml.graphdrawing.org/xmlns">"#
+    )?;
+    writeln!(out, "{KEYS}")?;
+    writeln!(out, r#"  <graph edgedefault="undirected">"#)?;
+
+    for node in &network.nodes {
+        writeln!(out, r#"    <node id="{}">"#, escape(&node.id))?;
+        data(out, "v_chain", &escape(&node.chain))?;
+        data(out, "v_resi", &node.resi.to_string())?;
+        if let Some(icode) = node.icode {
+            data(out, "v_icode", &escape(&icode.to_string()))?;
+        }
+        data(out, "v_resn", &escape(&node.resn))?;
+        data(out, "v_ss", &node.ss.to_string())?;
+        data(out, "v_degree", &node.degree.to_string())?;
+        writeln!(out, "    </node>")?;
+    }
+
+    for edge in &network.edges {
+        writeln!(
+            out,
+            r#"    <edge source="{}" target="{}">"#,
+            escape(&edge.source),
+            escape(&edge.target),
+        )?;
+        data(out, "e_kind", edge.kind.label())?;
+        data(out, "e_count", &edge.count.to_string())?;
+        data(
+            out,
+            "e_distance",
+            &format!("{:.2}", distance(edge.min_distance)),
+        )?;
+        data(out, "e_interchain", &edge.interchain.to_string())?;
+        writeln!(out, "    </edge>")?;
+    }
+
+    writeln!(out, "  </graph>")?;
+    writeln!(out, "</graphml>")?;
+
+    Ok(())
+}
+
+fn data<W: Write + ?Sized>(out: &mut W, key: &str, value: &str) -> Result<()> {
+    writeln!(out, r#"      <data key="{key}">{value}</data>"#)?;
+
+    Ok(())
+}
+
+/// Escape the five XML metacharacters, so an odd chain id or residue name cannot
+/// break the document.
+fn escape(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&apos;"),
+            _ => out.push(ch),
+        }
+    }
+
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pixelfold_core::InteractionKind;
+    use pixelfold_core::rin::{Edge, Network, Node};
+
+    fn network() -> Network {
+        Network {
+            nodes: vec![
+                Node {
+                    id: "A/1".into(),
+                    chain: "A".into(),
+                    resi: 1,
+                    icode: None,
+                    resn: "LYS".into(),
+                    ss: 'H',
+                    degree: 1,
+                },
+                Node {
+                    id: "A/2".into(),
+                    chain: "A".into(),
+                    resi: 2,
+                    icode: Some('B'),
+                    resn: "GLU".into(),
+                    ss: 'E',
+                    degree: 1,
+                },
+            ],
+            edges: vec![Edge {
+                source: "A/1".into(),
+                target: "A/2".into(),
+                kind: InteractionKind::SaltBridge,
+                count: 1,
+                min_distance: 3.456,
+                interchain: false,
+            }],
+        }
+    }
+
+    fn rendered(format: GraphFormat) -> String {
+        let mut out = Vec::new();
+        write(&mut out, &network(), format).expect("writing to a vec cannot fail");
+
+        String::from_utf8(out).expect("utf8")
+    }
+
+    #[test]
+    fn json_is_node_link_and_rounds_the_distance() {
+        let parsed: serde_json::Value =
+            serde_json::from_str(&rendered(GraphFormat::Json)).expect("valid json");
+
+        assert_eq!(parsed["nodes"][1]["icode"], "B");
+        assert_eq!(parsed["edges"][0]["kind"], "salt-bridge");
+        assert_eq!(parsed["edges"][0]["min_distance"], 3.46);
+        assert_eq!(parsed["edges"][0]["interchain"], false);
+    }
+
+    #[test]
+    fn the_tsv_edge_list_has_a_header_and_a_row_per_edge() {
+        let text = rendered(GraphFormat::Tsv);
+        let lines: Vec<&str> = text.lines().collect();
+
+        assert_eq!(
+            lines[0],
+            "source\ttarget\tkind\tcount\tmin_distance\tinterchain"
+        );
+        assert_eq!(lines[1], "A/1\tA/2\tsalt-bridge\t1\t3.46\tfalse");
+    }
+
+    #[test]
+    fn graphml_is_well_formed_and_declares_its_keys() {
+        let text = rendered(GraphFormat::Graphml);
+
+        assert!(text.starts_with(r#"<?xml version="1.0" encoding="UTF-8"?>"#));
+        assert!(
+            text.contains(r#"<key id="e_kind" for="edge" attr.name="kind" attr.type="string"/>"#)
+        );
+        assert!(text.contains(r#"<node id="A/1">"#));
+        assert!(text.contains(r#"<edge source="A/1" target="A/2">"#));
+        assert!(text.contains("<data key=\"e_kind\">salt-bridge</data>"));
+        // The insertion code reaches the node.
+        assert!(text.contains("<data key=\"v_icode\">B</data>"));
+        // Every open tag is closed.
+        assert_eq!(
+            text.matches("<node ").count(),
+            text.matches("</node>").count()
+        );
+        assert_eq!(
+            text.matches("<edge ").count(),
+            text.matches("</edge>").count()
+        );
+    }
+
+    #[test]
+    fn xml_metacharacters_in_a_value_are_escaped() {
+        let mut net = network();
+        net.nodes[0].resn = "A<&B".into();
+        let mut out = Vec::new();
+        write(&mut out, &net, GraphFormat::Graphml).expect("write");
+        let text = String::from_utf8(out).expect("utf8");
+
+        assert!(text.contains("A&lt;&amp;B"));
+        assert!(!text.contains("A<&B"));
+    }
+}
