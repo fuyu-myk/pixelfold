@@ -57,7 +57,7 @@ Crates:
   - `[~]` `raster/` : (today: `render/src/renderer.rs` orthographic projection + camera, plus `render/src/draw.rs` Bresenham line + b-factor/hbond/hydrophobicity color mapping; z-buffer, sphere impostors, depth cue, slab, ID buffer are planned)
   - `[ ]` `sink/` : kitty, sixel, iterm2, unicode, png
 - `[~]` `crates/pixelfold-fetch/` : RCSB search + structure download (addition beyond roadmap layout; used by both the CLI `fetch` subcommand and the TUI search mode). (today: `client.rs` async reqwest wrapper, `download.rs` concurrent gzip download for the search TUI, `types.rs` API response types, and `fetch_cif` a blocking single-structure download for the CLI resolver)
-- `[~]` `crates/pixelfold-cli/` : headless subcommands (the product): view, rin, interactions, sasa, ss, render, fetch, validate. (today: `clap` arg parsing, a path/PDB-id resolver that auto-fetches uncached ids into the XDG cache, then dispatches to `pixelfold_tui::view`/`search`. Named subcommands still to come)
+- `[~]` `crates/pixelfold-cli/` : headless subcommands (the product): view, rin, interactions, sasa, ss, render, fetch, validate. (today: `clap` subcommands `view`/`interactions`/`ss`/`sasa`/`fetch`, each over a path/PDB-id resolver that auto-fetches uncached ids into the XDG cache. Every analysis takes `--select` (the selection language) and `--format table|tsv|json`; `interactions` additionally takes `--type` per interaction kind and `--ligand CODE` as shorthand. A bare `pixelfold <structure>` still opens the viewer. `rin` and `render` still to come, the latter with the renderer)
 - `[~]` `crates/pixelfold-tui/` : ratatui front-end (the demo), now a library. (today: `args`/`app`/`inputs`/`ui` split the entry + event loop + input + render; `lib.rs` `App` state; `search/` search mode)
 - `[~]` `crates/pixelfold-validate/` : validation harness, precision/recall vs DSSP, FreeSASA, PLIP, RING. (today: compares pixelfold's DSSP (Q3, H-bond edge F1) and SASA (MAE/median/Pearson) against committed golden files and prints a markdown report; PLIP/RING interaction validation waits on the interaction engine; golden files themselves come from the dockerised reference tools)
 - `[~]` `benchmarks/` : pinned PDB manifest + golden reference files. (today: `manifest.toml` with a confident starter set per stratum (expand toward the target counts); `golden/` for `<ID>.dssp.json` / `<ID>.freesasa.json`; `tools/` a pinned DSSP 4 + FreeSASA Docker image + `generate_golden.py` that produces the golden set; `thresholds.toml` the `--check` regression gates (all off until baselines exist); structures cache under `benchmarks/cache/`, gitignored. A CI job runs the harness once golden files land)
@@ -97,8 +97,12 @@ Two binaries now exist (`pixelfold` from cli, `pixelfold-validate`); `default-me
 
 `pixelfold-cli/src/`:
 
-- `main.rs` : `clap` parser (`--no-surface`, `--cache-dir`, `--altloc`, `--fetch`), XDG cache dir (via `dirs`), fetch-on-miss, dispatch to `pixelfold_tui::view`/`search`
+- `main.rs` : `clap` subcommand definitions + dispatch; XDG cache dir (via `dirs`); the bare-structure viewer path kept for compatibility
+- `load.rs` : resolve, fetch on miss, load without the surface (nothing headless renders), and evaluate `--select`; a selection matching nothing is an error rather than an empty report
+- `analyse.rs` : what each subcommand computes, as records; an interaction is reported when *either* side is selected, which is what asking for a ligand's interactions means. Distances and angles are rounded once here so every format agrees and none claims more precision than the coordinates carry. Every record carries the insertion code, without which a chymotrypsin-numbered structure emits byte-identical rows for different residues. SASA is computed over the polymer alone (no solvent, no hydrogens), the same atom set `pixelfold-validate` compares against FreeSASA: counting the ordered waters occludes the surface being measured and triples the error against the reference
+- `report.rs` : the `Row` trait and the three writers (aligned table, TSV, JSON). An empty result still prints its columns, so nothing-found reads differently from wrong-command
 - `resolve.rs` : structure resolver returning a `Resolution` (existing path / cached id / fetch request / error), unit-tested
+- `tests/headless.rs` : the built binary run over a cached structure, covering each format and the selection error paths
 
 `pixelfold-tui/src/`:
 

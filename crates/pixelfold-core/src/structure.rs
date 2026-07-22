@@ -39,6 +39,17 @@ pub enum SecondaryStructure {
 }
 
 impl SecondaryStructure {
+    /// The DSSP-style letter, which is also what the selection language's `ss`
+    /// predicate matches on.
+    pub fn code(&self) -> char {
+        match self {
+            SecondaryStructure::Helix => 'H',
+            SecondaryStructure::Sheet => 'E',
+            SecondaryStructure::Turn => 'T',
+            SecondaryStructure::Coil => 'C',
+        }
+    }
+
     pub fn color_rgb(&self) -> (u8, u8, u8) {
         match self {
             SecondaryStructure::Helix => (255, 100, 100), // Red

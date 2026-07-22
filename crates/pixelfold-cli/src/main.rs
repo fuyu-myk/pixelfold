@@ -1,18 +1,28 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
-use clap::{CommandFactory, Parser, ValueEnum};
+use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
+use pixelfold_core::InteractionKind;
 
+mod analyse;
+mod load;
+mod report;
 mod resolve;
 
-/// Terminal 3D protein structure viewer.
+use report::Format;
+
+/// Terminal protein structure viewer and interaction engine.
 #[derive(Parser)]
 #[command(
     name = "pixelfold",
     version,
-    about = "Terminal 3D protein structure viewer"
+    about = "Terminal protein structure viewer and interaction engine",
+    subcommand_negates_reqs = true
 )]
 struct Cli {
+    #[command(subcommand)]
+    command: Option<Command>,
+
     /// Path to a .pdb/.cif file, or a 4-character PDB id (for example 4HHB)
     structure: Option<String>,
 
@@ -24,13 +34,116 @@ struct Cli {
     #[arg(long)]
     no_surface: bool,
 
+    #[command(flatten)]
+    common: Common,
+}
+
+/// Options every command that loads a structure shares.
+#[derive(Clone, clap::Args)]
+struct Common {
     /// Directory for cached downloads (default: the system cache dir under pixelfold/)
-    #[arg(long, value_name = "DIR")]
+    #[arg(long, value_name = "DIR", global = true)]
     cache_dir: Option<PathBuf>,
 
     /// How to resolve atoms modelled in alternate locations
-    #[arg(long, value_enum, default_value_t = AltlocArg::Occupancy)]
+    #[arg(long, value_enum, default_value_t = AltlocArg::Occupancy, global = true)]
     altloc: AltlocArg,
+}
+
+/// Options every headless analysis shares.
+#[derive(Clone, clap::Args)]
+struct Analysis {
+    /// Path to a .pdb/.cif file, or a 4-character PDB id
+    structure: String,
+
+    /// Restrict the report to what this selection matches, for example
+    /// 'chain A and resi 10-40' or 'byres within 5 of resn STI'
+    #[arg(short, long, value_name = "QUERY")]
+    select: Option<String>,
+
+    /// How to write the result
+    #[arg(long, value_enum, default_value_t = Format::Table)]
+    format: Format,
+
+    #[command(flatten)]
+    common: Common,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// Open the interactive viewer (the default when no command is given)
+    View {
+        /// Path to a .pdb/.cif file, or a 4-character PDB id
+        structure: String,
+
+        /// Skip surface calculation for faster loading of large structures
+        #[arg(long)]
+        no_surface: bool,
+
+        #[command(flatten)]
+        common: Common,
+    },
+    /// Report non-covalent interactions
+    Interactions {
+        #[command(flatten)]
+        analysis: Analysis,
+
+        /// Report only these interaction types (repeatable)
+        #[arg(short = 't', long = "type", value_enum, value_name = "TYPE")]
+        types: Vec<KindArg>,
+
+        /// Shorthand for --select 'resn CODE', the interactions of one component
+        #[arg(short, long, value_name = "CODE", conflicts_with = "select")]
+        ligand: Option<String>,
+    },
+    /// Report secondary structure per residue
+    Ss {
+        #[command(flatten)]
+        analysis: Analysis,
+    },
+    /// Report solvent-accessible surface area per residue
+    Sasa {
+        #[command(flatten)]
+        analysis: Analysis,
+    },
+    /// Search RCSB and download structures
+    Fetch {
+        /// Search terms; omit to open the search interface empty
+        query: Option<String>,
+
+        #[command(flatten)]
+        common: Common,
+    },
+}
+
+/// The interaction types `--type` accepts, named as the engine labels them.
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum KindArg {
+    HydrogenBond,
+    SaltBridge,
+    Hydrophobic,
+    PiStacking,
+    PiCation,
+    HalogenBond,
+    WaterBridge,
+    MetalCoordination,
+    Disulfide,
+}
+
+impl From<KindArg> for InteractionKind {
+    fn from(arg: KindArg) -> Self {
+        match arg {
+            KindArg::HydrogenBond => InteractionKind::HydrogenBond,
+            KindArg::SaltBridge => InteractionKind::SaltBridge,
+            KindArg::Hydrophobic => InteractionKind::Hydrophobic,
+            KindArg::PiStacking => InteractionKind::PiStacking,
+            KindArg::PiCation => InteractionKind::PiCation,
+            KindArg::HalogenBond => InteractionKind::HalogenBond,
+            KindArg::WaterBridge => InteractionKind::WaterBridge,
+            KindArg::MetalCoordination => InteractionKind::MetalCoordination,
+            KindArg::Disulfide => InteractionKind::Disulfide,
+        }
+    }
 }
 
 /// Alternate-location handling policy for the CLI.
@@ -60,38 +173,194 @@ impl From<AltlocArg> for pixelfold_core::AltlocPolicy {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    let cache_dir = match cli.cache_dir {
-        Some(dir) => dir,
-        None => default_cache_dir()?,
-    };
-    std::fs::create_dir_all(&cache_dir)?;
-
-    if cli.fetch {
-        return pixelfold_tui::search(cli.structure, cache_dir);
+    match cli.command {
+        Some(command) => run(command),
+        None if cli.fetch => search(cli.structure, &cli.common),
+        None => match cli.structure {
+            Some(structure) => view(&structure, cli.no_surface, &cli.common),
+            None => {
+                Cli::command().print_help()?;
+                println!();
+                Ok(())
+            }
+        },
     }
-
-    let Some(input) = cli.structure else {
-        Cli::command().print_help()?;
-        println!();
-        return Ok(());
-    };
-
-    let path = match resolve::resolve(&input, &cache_dir)? {
-        resolve::Resolution::Found(path) => path,
-        resolve::Resolution::Fetch { id, dest } => {
-            eprintln!("Fetching {id} from RCSB...");
-            pixelfold_fetch::fetch_cif(&id, &cache_dir)?;
-            dest
-        }
-    };
-    pixelfold_tui::view(&path, cli.no_surface, cli.altloc.into())
 }
 
-/// The default cache directory: the system cache dir with a `pixelfold` subdirectory.
-fn default_cache_dir() -> Result<PathBuf> {
-    let base = dirs::cache_dir().ok_or_else(|| {
-        anyhow::anyhow!("could not determine a cache directory; pass --cache-dir")
-    })?;
+fn run(command: Command) -> Result<()> {
+    match command {
+        Command::View {
+            structure,
+            no_surface,
+            common,
+        } => view(&structure, no_surface, &common),
 
-    Ok(base.join("pixelfold"))
+        Command::Fetch { query, common } => search(query, &common),
+
+        Command::Interactions {
+            analysis,
+            types,
+            ligand,
+        } => {
+            let query = ligand
+                .map(|code| format!("resn {code}"))
+                .or(analysis.select);
+            let protein = loaded(&analysis.structure, &analysis.common)?;
+            let chosen = load::chosen(&protein, query.as_deref())?;
+            let kinds: Vec<InteractionKind> = types.into_iter().map(Into::into).collect();
+
+            emit(
+                &analyse::interactions(&protein, &chosen, &kinds),
+                analysis.format,
+            )
+        }
+
+        Command::Ss { analysis } => {
+            let protein = loaded(&analysis.structure, &analysis.common)?;
+            let chosen = load::chosen(&protein, analysis.select.as_deref())?;
+
+            emit(&analyse::secondary(&protein, &chosen), analysis.format)
+        }
+
+        Command::Sasa { analysis } => {
+            let protein = loaded(&analysis.structure, &analysis.common)?;
+            let chosen = load::chosen(&protein, analysis.select.as_deref())?;
+
+            emit(&analyse::sasa(&protein, &chosen), analysis.format)
+        }
+    }
+}
+
+fn search(query: Option<String>, common: &Common) -> Result<()> {
+    let dir = cache_dir(common)?;
+    std::fs::create_dir_all(&dir)?;
+
+    pixelfold_tui::search(query, dir)
+}
+
+fn view(structure: &str, no_surface: bool, common: &Common) -> Result<()> {
+    let dir = cache_dir(common)?;
+    let path = load::structure_path(structure, &dir)?;
+
+    pixelfold_tui::view(&path, no_surface, common.altloc.into())
+}
+
+fn loaded(structure: &str, common: &Common) -> Result<pixelfold_core::Protein> {
+    let dir = cache_dir(common)?;
+
+    load::analysis_structure(structure, &dir, common.altloc.into())
+}
+
+/// Write records to standard output.
+///
+/// Closed pipes are valid, e.g. `pixelfold interactions ... | head`.
+fn emit<T>(records: &[T], format: Format) -> Result<()>
+where
+    T: report::Row + serde::Serialize,
+{
+    let mut out = std::io::stdout().lock();
+
+    match report::write(&mut out, records, format) {
+        Err(error) if is_broken_pipe(&error) => Ok(()),
+        other => other,
+    }
+}
+
+/// Whether an error is the reader at the other end of the pipe.
+///
+/// Two spellings reach here: a write through `writeln!` fails as an
+/// `io::Error`, while a write through serde fails as a `serde_json::Error`.
+fn is_broken_pipe(error: &anyhow::Error) -> bool {
+    let pipe = |kind| kind == std::io::ErrorKind::BrokenPipe;
+
+    error
+        .downcast_ref::<std::io::Error>()
+        .is_some_and(|io| pipe(io.kind()))
+        || error
+            .downcast_ref::<serde_json::Error>()
+            .and_then(serde_json::Error::io_error_kind)
+            .is_some_and(pipe)
+}
+
+/// Where downloads are cached.
+///
+/// The directory is not created here.
+fn cache_dir(common: &Common) -> Result<PathBuf> {
+    match &common.cache_dir {
+        Some(dir) => Ok(dir.clone()),
+        None => Ok(dirs::cache_dir()
+            .ok_or_else(|| {
+                anyhow::anyhow!("could not determine a cache directory; pass --cache-dir")
+            })?
+            .join("pixelfold")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_command_line_is_well_formed() {
+        Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn a_bare_structure_still_opens_the_viewer() {
+        let cli = Cli::try_parse_from(["pixelfold", "4HHB"]).expect("parses");
+
+        assert!(cli.command.is_none());
+        assert_eq!(cli.structure.as_deref(), Some("4HHB"));
+    }
+
+    #[test]
+    fn subcommands_take_their_own_structure() {
+        let cli =
+            Cli::try_parse_from(["pixelfold", "sasa", "1UBQ", "--format", "tsv"]).expect("parses");
+
+        let Some(Command::Sasa { analysis }) = cli.command else {
+            panic!("expected the sasa command");
+        };
+        assert_eq!(analysis.structure, "1UBQ");
+        assert_eq!(analysis.format, Format::Tsv);
+    }
+
+    #[test]
+    fn a_ligand_shorthand_and_a_selection_are_mutually_exclusive() {
+        assert!(
+            Cli::try_parse_from([
+                "pixelfold",
+                "interactions",
+                "1IEP",
+                "--ligand",
+                "STI",
+                "--select",
+                "chain A",
+            ])
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn interaction_types_repeat() {
+        let cli = Cli::try_parse_from([
+            "pixelfold",
+            "interactions",
+            "1IEP",
+            "--type",
+            "hydrogen-bond",
+            "--type",
+            "pi-stacking",
+        ])
+        .expect("parses");
+
+        let Some(Command::Interactions { types, .. }) = cli.command else {
+            panic!("expected the interactions command");
+        };
+        let kinds: Vec<InteractionKind> = types.into_iter().map(Into::into).collect();
+        assert_eq!(
+            kinds,
+            vec![InteractionKind::HydrogenBond, InteractionKind::PiStacking]
+        );
+    }
 }

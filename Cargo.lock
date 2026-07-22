@@ -1459,6 +1459,8 @@ dependencies = [
  "pixelfold-core",
  "pixelfold-fetch",
  "pixelfold-tui",
+ "serde",
+ "serde_json",
  "tempfile",
 ]
 

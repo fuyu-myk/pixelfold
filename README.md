@@ -74,6 +74,25 @@ pixelfold data/protein.cif
 pixelfold 1CRN
 ```
 
+Everything the viewer computes is also available headless, for scripting and
+pipelines:
+
+```bash
+# Non-covalent interactions, as a table
+pixelfold interactions 1IEP --ligand STI
+
+# One interaction type, as TSV to pipe onward
+pixelfold interactions 4HHB --type salt-bridge --format tsv
+
+# Secondary structure and solvent accessibility, per residue
+pixelfold ss 1CRN
+pixelfold sasa 1UBQ --format json
+
+# Any of them narrowed by the selection language
+pixelfold interactions 1IEP --select 'byres within 4.5 of resn STI'
+pixelfold sasa 4HHB --select 'chain A and ss H'
+```
+
 ### Controls
 
 #### Search mode
