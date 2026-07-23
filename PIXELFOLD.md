@@ -59,7 +59,7 @@ Crates:
 - `[~]` `crates/pixelfold-fetch/` : RCSB search + structure download (addition beyond roadmap layout; used by both the CLI `fetch` subcommand and the TUI search mode). (today: `client.rs` async reqwest wrapper, `download.rs` concurrent gzip download for the search TUI, `types.rs` API response types, and `fetch_cif` a blocking single-structure download for the CLI resolver)
 - `[~]` `crates/pixelfold-cli/` : headless subcommands (the product): view, rin, interactions, sasa, ss, render, fetch, validate. (today: `clap` subcommands `view`/`interactions`/`ss`/`sasa`/`rin`/`fetch`, each over a path/PDB-id resolver that auto-fetches uncached ids into the XDG cache. Every analysis takes `--select` (the selection language); the flat reports take `--format table|tsv|json` and `interactions` additionally `--type` per kind and `--ligand CODE`; `rin` takes `--type`, `--format json|graphml|tsv` (node-link JSON, GraphML for Cytoscape/Gephi, or a flat edge list), and `-o` to write a file. A bare `pixelfold <structure>` still opens the viewer. `render` still to come, with the renderer)
 - `[~]` `crates/pixelfold-tui/` : ratatui front-end (the demo), now a library. (today: `args`/`app`/`inputs`/`ui` split the entry + event loop + input + render; `lib.rs` `App` state; `search/` search mode)
-- `[~]` `crates/pixelfold-validate/` : validation harness, precision/recall vs DSSP, FreeSASA, PLIP, RING. (today: compares pixelfold's DSSP (Q3, H-bond edge F1) and SASA (MAE/median/Pearson) against committed golden files and prints a markdown report; PLIP/RING interaction validation waits on the interaction engine; golden files themselves come from the dockerised reference tools)
+- `[~]` `crates/pixelfold-validate/` : validation harness, precision/recall vs DSSP, FreeSASA, PLIP, RING. (today: compares pixelfold's DSSP (Q3, H-bond edge F1) and SASA (MAE/median/Pearson) against committed golden files and prints a markdown report. The interaction comparison exists: it reduces `detect()` to unordered residue pairs per type and scores per-type precision/recall/F1 against PLIP and RING golden files (`<ID>.plip.json` / `<ID>.ring.json`), matching only the types a reference reports. The comparison machinery is done and unit-tested; the golden files themselves, and the README numbers, wait on the dockerised PLIP/RING reference tools)
 - `[~]` `benchmarks/` : pinned PDB manifest + golden reference files. (today: `manifest.toml` with a confident starter set per stratum (expand toward the target counts); `golden/` for `<ID>.dssp.json` / `<ID>.freesasa.json`; `tools/` a pinned DSSP 4 + FreeSASA Docker image + `generate_golden.py` that produces the golden set; `thresholds.toml` the `--check` regression gates (all off until baselines exist); structures cache under `benchmarks/cache/`, gitignored. A CI job runs the harness once golden files land)
 
 Two binaries now exist (`pixelfold` from cli, `pixelfold-validate`); `default-members = ["crates/pixelfold-cli"]` keeps bare `cargo run` pointed at `pixelfold`.
@@ -118,16 +118,16 @@ Two binaries now exist (`pixelfold` from cli, `pixelfold-validate`); `default-me
 
 - `main.rs` : CLI (`--manifest`/`--golden-dir`/`--cache-dir`/`--offline`); loads the manifest, resolves + loads each structure, runs the analyses, compares against golden, prints the report
 - `metrics.rs` : pure metrics (Q3 agreement, edge precision/recall/F1, SASA MAE/median/Pearson)
-- `golden.rs` : serde schema + loader for the golden JSON files (per-residue SS + H-bonds; per-residue SASA)
-- `analysis.rs` : extract pixelfold's per-residue prediction (SS, H-bond edges, per-residue SASA) from a loaded `Protein`
-- `compare.rs` : align a prediction to golden by residue and score it
+- `golden.rs` : serde schema + loader for the golden JSON files (per-residue SS + H-bonds; per-residue SASA; per-type interaction edges from PLIP/RING, normalised by the generator to pixelfold's type names)
+- `analysis.rs` : extract pixelfold's prediction (SS, H-bond edges, per-residue SASA, and `detect()` reduced to unordered residue pairs per interaction type) from a loaded `Protein`
+- `compare.rs` : align a prediction to golden by residue and score it, including per-type interaction precision/recall/F1 against each reference tool (scoring only the types that tool reports)
 - `report.rs` : aggregate per-entry metrics into a markdown table (per-entry breakdown + summary)
 - `check.rs` : `--check` regression gate comparing aggregate metrics to `benchmarks/thresholds.toml`
 
 `benchmarks/`:
 
 - `manifest.toml` : stratified PDB entry list (confident starter set)
-- `golden/` : reference outputs, `<ID>.dssp.json` (mkdssp) and `<ID>.freesasa.json` (FreeSASA); PLIP/RING added in the interaction work
+- `golden/` : reference outputs, `<ID>.dssp.json` (mkdssp) and `<ID>.freesasa.json` (FreeSASA); the interaction comparison reads `<ID>.plip.json` / `<ID>.ring.json` (each `{kinds, interactions}`) once the dockerised tools produce them
 - `cache/` : downloaded structures (gitignored)
 
 Structure resolution now goes through the CLI: an existing path is used as given, a 4-character PDB id is looked up in (and downloads land in) the XDG cache dir (`dirs::cache_dir()/pixelfold`, override with `--cache-dir`). The old `env!("CARGO_MANIFEST_DIR")` lookup is gone. `crates/pixelfold-tui/data/` remains only as optional local sample structures (gitignored), reachable by explicit path.

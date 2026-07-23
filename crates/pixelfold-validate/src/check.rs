@@ -67,6 +67,7 @@ mod tests {
             mean_sasa_mae: None,
             mean_sasa_median: None,
             mean_sasa_pearson: None,
+            interactions: Vec::new(),
         }
     }
 

@@ -23,7 +23,7 @@ use pixelfold_core::AltlocPolicy;
 use pixelfold_core::parser::load_protein_with_options;
 
 use crate::compare::{EntryMetrics, compare};
-use crate::golden::{DsspGolden, SasaGolden};
+use crate::golden::{DsspGolden, InteractionGolden, SasaGolden};
 use crate::report::{render_markdown, summarize};
 
 /// Validate pixelfold against reference implementations (DSSP, FreeSASA).
@@ -123,11 +123,17 @@ fn evaluate(
 
     let dssp: Option<DsspGolden> = golden::load(&golden_dir.join(format!("{id}.dssp.json")))?;
     let sasa: Option<SasaGolden> = golden::load(&golden_dir.join(format!("{id}.freesasa.json")))?;
+    let plip: Option<InteractionGolden> =
+        golden::load(&golden_dir.join(format!("{id}.plip.json")))?;
+    let ring: Option<InteractionGolden> =
+        golden::load(&golden_dir.join(format!("{id}.ring.json")))?;
 
     Ok(Some(compare(
         &id,
         &prediction,
         dssp.as_ref(),
         sasa.as_ref(),
+        plip.as_ref(),
+        ring.as_ref(),
     )))
 }

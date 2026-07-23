@@ -2,9 +2,34 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::analysis::{Prediction, reduce_dssp_letter};
-use crate::golden::{DsspGolden, ResidueKey, SasaGolden};
+use crate::analysis::{Prediction, ordered_pair, reduce_dssp_letter};
+use crate::golden::{DsspGolden, InteractionGolden, ResidueKey, SasaGolden};
 use crate::metrics::{ErrorStats, PrF1, Ss3, error_stats, q3_agreement, set_prf1};
+
+/// Which reference tool an interaction comparison is against.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Tool {
+    Plip,
+    Ring,
+}
+
+impl Tool {
+    pub fn label(self) -> &'static str {
+        match self {
+            Tool::Plip => "PLIP",
+            Tool::Ring => "RING",
+        }
+    }
+}
+
+/// Precision, recall, and F1 for one interaction type against one reference,
+/// with the edge counts the score was computed over.
+pub struct KindMetric {
+    pub kind: String,
+    pub prf1: PrF1,
+    pub predicted: usize,
+    pub reference: usize,
+}
 
 /// Metrics for one benchmark entry; each field is `None` when its golden is
 /// absent (or, for H-bonds, when the reference does not report them).
@@ -14,6 +39,10 @@ pub struct EntryMetrics {
     pub hbond_f1: Option<PrF1>,
     pub sasa: Option<ErrorStats>,
     pub aligned_residues: usize,
+    /// Per-type interaction metrics against PLIP, absent when no PLIP golden.
+    pub plip: Option<Vec<KindMetric>>,
+    /// Per-type interaction metrics against RING, absent when no RING golden.
+    pub ring: Option<Vec<KindMetric>>,
 }
 
 /// Compare a prediction against whichever golden references are available.
@@ -22,6 +51,8 @@ pub fn compare(
     prediction: &Prediction,
     dssp: Option<&DsspGolden>,
     sasa: Option<&SasaGolden>,
+    plip: Option<&InteractionGolden>,
+    ring: Option<&InteractionGolden>,
 ) -> EntryMetrics {
     let (q3, hbond_f1, aligned_residues) = match dssp {
         Some(dssp) => compare_dssp(prediction, dssp),
@@ -34,7 +65,41 @@ pub fn compare(
         hbond_f1,
         sasa: sasa.and_then(|s| compare_sasa(prediction, s)),
         aligned_residues,
+        plip: plip.map(|g| compare_interactions(prediction, g)),
+        ring: ring.map(|g| compare_interactions(prediction, g)),
     }
+}
+
+/// Per-type precision/recall/F1 of the prediction against an interaction golden.
+///
+/// Only the kinds the reference reports are scored. A kind the reference reports
+/// but found none of still scores, against whatever pixelfold found; a kind the
+/// reference does not report at all is left out.
+fn compare_interactions(prediction: &Prediction, golden: &InteractionGolden) -> Vec<KindMetric> {
+    let mut reference: HashMap<&str, HashSet<(ResidueKey, ResidueKey)>> = HashMap::new();
+    for edge in &golden.interactions {
+        reference
+            .entry(edge.kind.as_str())
+            .or_default()
+            .insert(ordered_pair(edge.a.clone(), edge.b.clone()));
+    }
+
+    let empty = HashSet::new();
+    golden
+        .kinds
+        .iter()
+        .map(|kind| {
+            let predicted = prediction.interactions.get(kind).unwrap_or(&empty);
+            let found = reference.get(kind.as_str()).unwrap_or(&empty);
+
+            KindMetric {
+                kind: kind.clone(),
+                prf1: set_prf1(predicted, found),
+                predicted: predicted.len(),
+                reference: found.len(),
+            }
+        })
+        .collect()
 }
 
 fn compare_dssp(prediction: &Prediction, dssp: &DsspGolden) -> (Option<f64>, Option<PrF1>, usize) {
@@ -81,13 +146,22 @@ fn compare_sasa(prediction: &Prediction, sasa: &SasaGolden) -> Option<ErrorStats
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::golden::{DsspResidue, SasaResidue};
+    use crate::golden::{DsspResidue, InteractionEdge, SasaResidue};
 
     fn key(seq: i64) -> ResidueKey {
         ResidueKey {
             chain: "A".to_string(),
             seq,
             icode: None,
+        }
+    }
+
+    fn prediction() -> Prediction {
+        Prediction {
+            ss: vec![(key(1), Ss3::Helix)],
+            hbonds: HashSet::new(),
+            sasa: vec![],
+            interactions: HashMap::new(),
         }
     }
 
@@ -103,6 +177,7 @@ mod tests {
             ],
             hbonds: [(key(1), key(3))].into_iter().collect(),
             sasa: vec![(key(1), 10.0), (key(2), 20.0), (key(3), 30.0)],
+            interactions: HashMap::new(),
         };
 
         let dssp = DsspGolden {
@@ -142,22 +217,18 @@ mod tests {
             ],
         };
 
-        let m = compare("self", &prediction, Some(&dssp), Some(&sasa));
+        let m = compare("self", &prediction, Some(&dssp), Some(&sasa), None, None);
         assert_eq!(m.q3, Some(1.0));
         assert_eq!(m.aligned_residues, 3);
         assert_eq!(m.hbond_f1.unwrap().f1, 1.0);
         let sasa = m.sasa.unwrap();
         assert_eq!(sasa.mae, 0.0);
         assert!((sasa.pearson - 1.0).abs() < 1e-9);
+        assert!(m.plip.is_none() && m.ring.is_none());
     }
 
     #[test]
     fn residues_missing_from_the_prediction_are_skipped() {
-        let prediction = Prediction {
-            ss: vec![(key(1), Ss3::Helix)],
-            hbonds: HashSet::new(),
-            sasa: vec![],
-        };
         let dssp = DsspGolden {
             residues: vec![
                 DsspResidue {
@@ -171,9 +242,100 @@ mod tests {
             ],
             hbonds: None,
         };
-        let m = compare("x", &prediction, Some(&dssp), None);
+        let m = compare("x", &prediction(), Some(&dssp), None, None, None);
         assert_eq!(m.aligned_residues, 1); // only residue 1 aligned
         assert_eq!(m.q3, Some(1.0));
         assert!(m.hbond_f1.is_none()); // reference omitted H-bonds
+    }
+
+    fn edge(kind: &str, a: i64, b: i64) -> InteractionEdge {
+        InteractionEdge {
+            kind: kind.to_string(),
+            a: key(a),
+            b: key(b),
+        }
+    }
+
+    /// A prediction and a golden that agree on one type and disagree on another,
+    /// with the two directions of one edge treated as the same edge.
+    #[test]
+    fn interactions_score_per_type_and_ignore_direction() {
+        let mut interactions = HashMap::new();
+        interactions.insert(
+            "hydrogen-bond".to_string(),
+            [ordered_pair(key(1), key(5)), ordered_pair(key(2), key(6))]
+                .into_iter()
+                .collect(),
+        );
+        interactions.insert(
+            "salt-bridge".to_string(),
+            [ordered_pair(key(1), key(9))].into_iter().collect(),
+        );
+        let prediction = Prediction {
+            ss: vec![],
+            hbonds: HashSet::new(),
+            sasa: vec![],
+            interactions,
+        };
+
+        let golden = InteractionGolden {
+            kinds: vec![
+                "hydrogen-bond".to_string(),
+                "salt-bridge".to_string(),
+                "pi-stacking".to_string(),
+            ],
+            interactions: vec![
+                // Same two hydrogen bonds, one written in the reverse direction.
+                edge("hydrogen-bond", 5, 1),
+                edge("hydrogen-bond", 2, 6),
+                // A salt bridge the reference has and pixelfold missed, plus one
+                // they share.
+                edge("salt-bridge", 1, 9),
+                edge("salt-bridge", 3, 8),
+            ],
+        };
+
+        let metrics = compare_interactions(&prediction, &golden);
+        let by_kind: HashMap<&str, &KindMetric> =
+            metrics.iter().map(|m| (m.kind.as_str(), m)).collect();
+
+        // Hydrogen bonds match exactly despite the reversed direction.
+        assert_eq!(by_kind["hydrogen-bond"].prf1.f1, 1.0);
+
+        // Salt bridge: pixelfold found 1 of the reference's 2, all correct.
+        let salt = &by_kind["salt-bridge"].prf1;
+        assert!((salt.precision - 1.0).abs() < 1e-9);
+        assert!((salt.recall - 0.5).abs() < 1e-9);
+
+        // Pi-stacking is a reported kind that both found none of: a vacuous 1.0.
+        assert_eq!(by_kind["pi-stacking"].prf1.f1, 1.0);
+        assert_eq!(by_kind["pi-stacking"].predicted, 0);
+    }
+
+    /// A kind the reference does not report is not scored, so pixelfold finding
+    /// some of it is not counted against precision.
+    #[test]
+    fn a_kind_the_reference_omits_is_not_scored() {
+        let mut interactions = HashMap::new();
+        interactions.insert(
+            "disulfide".to_string(),
+            [ordered_pair(key(1), key(2))].into_iter().collect(),
+        );
+        let prediction = Prediction {
+            ss: vec![],
+            hbonds: HashSet::new(),
+            sasa: vec![],
+            interactions,
+        };
+
+        // PLIP does not detect disulfides, so its golden does not list the kind.
+        let golden = InteractionGolden {
+            kinds: vec!["hydrogen-bond".to_string()],
+            interactions: vec![],
+        };
+
+        let metrics = compare_interactions(&prediction, &golden);
+        assert!(metrics.iter().all(|m| m.kind != "disulfide"));
+        assert_eq!(metrics.len(), 1);
     }
 }

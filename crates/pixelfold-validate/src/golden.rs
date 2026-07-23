@@ -10,7 +10,10 @@ use anyhow::{Context, Result};
 use serde::Deserialize;
 
 /// A residue identity shared by predictions and golden references.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Deserialize)]
+///
+/// Ordered so an interaction's two residues can be put in a canonical order,
+/// collapsing the two directions of one edge to a single unordered pair.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize)]
 pub struct ResidueKey {
     pub chain: String,
     pub seq: i64,
@@ -42,6 +45,27 @@ pub struct DsspResidue {
 pub struct HBondEdge {
     pub donor: ResidueKey,
     pub acceptor: ResidueKey,
+}
+
+/// PLIP or RING reference: residue-residue non-covalent interactions by type.
+///
+/// The generator normalises each tool's own type names and residue numbering to
+/// pixelfold's, so the comparison here is a plain set intersection per type.
+#[derive(Clone, Debug, Deserialize)]
+pub struct InteractionGolden {
+    /// The interaction kinds this reference reports, by pixelfold's label.
+    pub kinds: Vec<String>,
+    #[serde(default)]
+    pub interactions: Vec<InteractionEdge>,
+}
+
+/// One residue-residue interaction of a given kind. The pair is unordered; the
+/// loader puts it in a canonical order before comparison.
+#[derive(Clone, Debug, Deserialize)]
+pub struct InteractionEdge {
+    pub kind: String,
+    pub a: ResidueKey,
+    pub b: ResidueKey,
 }
 
 /// FreeSASA reference: per-residue solvent-accessible surface area (A^2).

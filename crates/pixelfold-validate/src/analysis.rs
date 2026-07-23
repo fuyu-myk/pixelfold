@@ -2,12 +2,17 @@
 
 use std::collections::{HashMap, HashSet};
 
+use pixelfold_core::interactions::detect;
 use pixelfold_core::sasa::SurfaceCalculator;
 use pixelfold_core::structure::Atom;
 use pixelfold_core::{Protein, SecondaryStructure};
 
 use crate::golden::ResidueKey;
 use crate::metrics::Ss3;
+
+/// A non-covalent interaction reduced to what is compared against a reference:
+/// an unordered residue pair, keyed by interaction type.
+pub type InteractionEdges = HashMap<String, HashSet<(ResidueKey, ResidueKey)>>;
 
 /// Pixelfold's per-residue prediction for one structure.
 pub struct Prediction {
@@ -17,6 +22,13 @@ pub struct Prediction {
     pub hbonds: HashSet<(ResidueKey, ResidueKey)>,
     /// Solvent-accessible surface area per residue (A^2), residue order.
     pub sasa: Vec<(ResidueKey, f64)>,
+    /// Non-covalent interactions as unordered residue pairs, per type.
+    pub interactions: InteractionEdges,
+}
+
+/// Order a residue pair canonically, so an edge and its reverse are one key.
+pub fn ordered_pair(a: ResidueKey, b: ResidueKey) -> (ResidueKey, ResidueKey) {
+    if a <= b { (a, b) } else { (b, a) }
 }
 
 /// Run the comparable analyses (DSSP is already assigned on load; SASA is
@@ -65,7 +77,41 @@ pub fn predict(protein: &Protein) -> Prediction {
         })
         .collect();
 
-    Prediction { ss, hbonds, sasa }
+    Prediction {
+        ss,
+        hbonds,
+        sasa,
+        interactions: interaction_edges(protein),
+    }
+}
+
+/// Every detected interaction reduced to an unordered residue pair, grouped by
+/// type. Interactions of one type between the same residue pair collapse, since
+/// the reference tools report a residue pair once per type rather than once per
+/// atom pair.
+fn interaction_edges(protein: &Protein) -> InteractionEdges {
+    let mut edges: InteractionEdges = HashMap::new();
+
+    for interaction in detect(protein) {
+        let (Some(&a), Some(&b)) = (interaction.atoms_a.first(), interaction.atoms_b.first())
+        else {
+            continue;
+        };
+        let (key_a, key_b) = (
+            residue_key(&protein.atoms[a]),
+            residue_key(&protein.atoms[b]),
+        );
+        if key_a == key_b {
+            continue; // an interaction within one residue is not an edge
+        }
+
+        edges
+            .entry(interaction.kind.label().to_string())
+            .or_default()
+            .insert(ordered_pair(key_a, key_b));
+    }
+
+    edges
 }
 
 /// The DSSP single-letter code reduced to three states, for golden references.
