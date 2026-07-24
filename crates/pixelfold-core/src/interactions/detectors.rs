@@ -559,7 +559,10 @@ struct ChargedGroup {
 
 /// One charged group per charged residue, built from the atoms actually present
 /// (a residue missing its carboxylate oxygens contributes nothing).
-fn charged_groups(protein: &Protein) -> Vec<ChargedGroup> {
+///
+/// A standard residue's groups come from the pH 7.4 table; every other component
+/// has them perceived from its own definition.
+fn charged_groups(protein: &Protein, bonds: &connectivity::Bonds) -> Vec<ChargedGroup> {
     let mut groups = Vec::new();
     let mut index = 0;
 
@@ -569,34 +572,72 @@ fn charged_groups(protein: &Protein) -> Vec<ChargedGroup> {
         while index < protein.atoms.len() && residue_key(&protein.atoms[index]) == key {
             index += 1;
         }
+        let residue = start..index;
 
-        let Some((sign, names)) = charged_group(protein.atoms[start].residue_name.as_str()) else {
-            continue;
-        };
-        let atoms: Vec<usize> = (start..index)
-            .filter(|&i| names.contains(&protein.atoms[i].name.as_str()))
-            .collect();
-        if atoms.is_empty() {
-            continue;
+        for (sign, names) in residue_charged_groups(protein, bonds, residue.clone()) {
+            let atoms: Vec<usize> = residue
+                .clone()
+                .filter(|&i| names.iter().any(|n| n == protein.atoms[i].name.as_str()))
+                .collect();
+            if atoms.is_empty() {
+                continue;
+            }
+
+            let sum = atoms
+                .iter()
+                .fold(Vec3::ZERO, |acc, &i| acc + protein.atoms[i].position);
+            groups.push(ChargedGroup {
+                sign,
+                centroid: sum / atoms.len() as f32,
+                atoms,
+            });
         }
-
-        let sum = atoms
-            .iter()
-            .fold(Vec3::ZERO, |acc, &i| acc + protein.atoms[i].position);
-        groups.push(ChargedGroup {
-            sign,
-            centroid: sum / atoms.len() as f32,
-            atoms,
-        });
     }
 
     groups
 }
 
+/// The charged groups of a residue, as sign and atom names: the pH 7.4 table for
+/// a standard residue; the component definition for everything else. Nothing for
+/// water.
+fn residue_charged_groups(
+    protein: &Protein,
+    bonds: &connectivity::Bonds,
+    residue: std::ops::Range<usize>,
+) -> Vec<(Charge, Vec<String>)> {
+    let residue_name = protein.atoms[residue.start].residue_name.as_str();
+
+    if super::topology::is_standard_residue(residue_name) {
+        return charged_group(residue_name)
+            .map(|(sign, names)| vec![(sign, names.iter().map(|&n| n.to_string()).collect())])
+            .unwrap_or_default();
+    }
+    if is_water(residue_name) {
+        return Vec::new();
+    }
+
+    let index_of = |name: &str| residue.clone().find(|&i| protein.atoms[i].name == name);
+    let linked = |name: &str| {
+        index_of(name).is_some_and(|centre| bonds.of(centre).iter().any(|&n| !residue.contains(&n)))
+    };
+
+    protein
+        .components
+        .get(residue_name)
+        .map(|component| {
+            super::classify::component_charged_groups(component)
+                .into_iter()
+                .filter(|site| !site.centre.as_deref().is_some_and(&linked))
+                .map(|site| (site.sign, site.atoms))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// Salt bridges between oppositely charged groups, measured centroid to
 /// centroid.
-pub fn salt_bridges(protein: &Protein) -> Vec<Interaction> {
-    let groups = charged_groups(protein);
+pub fn salt_bridges(protein: &Protein, bonds: &connectivity::Bonds) -> Vec<Interaction> {
+    let groups = charged_groups(protein, bonds);
     let (positive, negative): (Vec<&ChargedGroup>, Vec<&ChargedGroup>) = groups
         .iter()
         .partition(|group| group.sign == Charge::Positive);
@@ -609,8 +650,13 @@ pub fn salt_bridges(protein: &Protein) -> Vec<Interaction> {
 
     let mut out = Vec::new();
     for cation in &positive {
+        let cation_residue = residue_key(&protein.atoms[cation.atoms[0]]);
         grid.for_each_within(cation.centroid, SALTBRIDGE_DIST_MAX, |n| {
             let anion = negative[n];
+            if residue_key(&protein.atoms[anion.atoms[0]]) == cation_residue {
+                return; // a component's own groups do not bridge each other
+            }
+
             let distance = (cation.centroid - anion.centroid).length();
             if !(MIN_DIST < distance && distance < SALTBRIDGE_DIST_MAX) {
                 return;
@@ -702,9 +748,9 @@ pub fn pi_stacking(protein: &Protein) -> Vec<Interaction> {
 /// exactly these three residues and, on the protein path, brings in no metals,
 /// so neither does this. A histidine is both a ring and a cation, so the
 /// same-residue guard stops its ring from counting its own charge.
-pub fn pi_cation(protein: &Protein) -> Vec<Interaction> {
+pub fn pi_cation(protein: &Protein, bonds: &connectivity::Bonds) -> Vec<Interaction> {
     let rings = aromatic::rings(protein);
-    let cations: Vec<ChargedGroup> = charged_groups(protein)
+    let cations: Vec<ChargedGroup> = charged_groups(protein, bonds)
         .into_iter()
         .filter(|group| group.sign == Charge::Positive)
         .collect();
@@ -786,6 +832,14 @@ mod tests {
 
     fn halogens(structure: &Protein) -> Vec<Interaction> {
         halogen_bonds(structure, &connectivity::bonds(structure))
+    }
+
+    fn saltbridges(structure: &Protein) -> Vec<Interaction> {
+        salt_bridges(structure, &connectivity::bonds(structure))
+    }
+
+    fn pications(structure: &Protein) -> Vec<Interaction> {
+        pi_cation(structure, &connectivity::bonds(structure))
     }
 
     fn protein(atoms: Vec<Atom>) -> Protein {
@@ -876,12 +930,144 @@ mod tests {
             atom("ARG", 2, "NH1", "N", Vec3::new(4.0, 0.0, 0.0)),
             atom("ARG", 2, "NH2", "N", Vec3::new(4.0, -1.0, 0.0)),
         ]);
-        let found = salt_bridges(&structure);
+        let found = saltbridges(&structure);
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].kind, InteractionKind::SaltBridge);
         assert!((found[0].distance - 4.0).abs() < 1e-4); // centroid separation
         assert_eq!(found[0].atoms_a.len(), 3); // whole guanidinium
         assert_eq!(found[0].atoms_b.len(), 2); // whole carboxylate
+    }
+
+    /// A ligand carrying a carboxylate, defined the way a structure file states
+    /// it, so a ligand anion salt-bridges a protein cation as a residue would.
+    fn ligand_carboxylate(atoms: Vec<Atom>) -> Protein {
+        const LIG: &str = "\
+loop_
+_chem_comp_atom.comp_id
+_chem_comp_atom.atom_id
+_chem_comp_atom.type_symbol
+LIG C1  C
+LIG O1  O
+LIG O2  O
+LIG C2  C
+#
+loop_
+_chem_comp_bond.comp_id
+_chem_comp_bond.atom_id_1
+_chem_comp_bond.atom_id_2
+_chem_comp_bond.value_order
+LIG C1 O1  doub
+LIG C1 O2  sing
+LIG C1 C2  sing
+#
+";
+        let mut structure = protein(atoms);
+        structure.components = crate::components::Dictionary::parse(LIG);
+
+        structure
+    }
+
+    #[test]
+    fn a_ligand_carboxylate_salt_bridges_a_lysine() {
+        let structure = ligand_carboxylate(vec![
+            atom("LIG", 1, "C1", "C", Vec3::new(0.0, 0.0, 0.0)),
+            atom("LIG", 1, "O1", "O", Vec3::new(-0.5, 1.0, 0.0)),
+            atom("LIG", 1, "O2", "O", Vec3::new(-0.5, -1.0, 0.0)),
+            atom("LIG", 1, "C2", "C", Vec3::new(1.5, 0.0, 0.0)),
+            atom("LYS", 2, "NZ", "N", Vec3::new(-4.0, 0.0, 0.0)),
+        ]);
+
+        let found = saltbridges(&structure);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].kind, InteractionKind::SaltBridge);
+        // The anion is the ligand's two carboxylate oxygens.
+        assert_eq!(found[0].atoms_b.len(), 2);
+    }
+
+    /// An unusual amino acid in a chain has a peptide bond onto its backbone
+    /// nitrogen and off its carbonyl carbon. Those bonds neutralise the free
+    /// component's amine and carboxylate, exactly as they do for a standard
+    /// residue, so neither is a charged group.
+    #[test]
+    fn a_polymerised_residues_backbone_is_not_charged() {
+        const MODIFIED: &str = "\
+loop_
+_chem_comp_atom.comp_id
+_chem_comp_atom.atom_id
+_chem_comp_atom.type_symbol
+MLE N   N
+MLE CA  C
+MLE C   C
+MLE O   O
+MLE OXT O
+#
+loop_
+_chem_comp_bond.comp_id
+_chem_comp_bond.atom_id_1
+_chem_comp_bond.atom_id_2
+_chem_comp_bond.value_order
+MLE N  CA  sing
+MLE CA C   sing
+MLE C  O   doub
+MLE C  OXT sing
+#
+";
+        // Two modified residues joined by a peptide bond (C of 1 to N of 2), laid
+        // out so the backbone groups would be close enough to bridge if charged.
+        let mut structure = protein(vec![
+            atom("MLE", 1, "N", "N", Vec3::new(0.0, 0.0, 0.0)),
+            atom("MLE", 1, "CA", "C", Vec3::new(1.5, 0.0, 0.0)),
+            atom("MLE", 1, "C", "C", Vec3::new(2.0, 1.3, 0.0)),
+            atom("MLE", 1, "O", "O", Vec3::new(1.3, 2.3, 0.0)),
+            atom("MLE", 2, "N", "N", Vec3::new(3.3, 1.4, 0.0)),
+            atom("MLE", 2, "CA", "C", Vec3::new(4.0, 2.6, 0.0)),
+            atom("MLE", 2, "C", "C", Vec3::new(5.5, 2.5, 0.0)),
+            atom("MLE", 2, "O", "O", Vec3::new(6.1, 3.5, 0.0)),
+        ]);
+        structure.components = crate::components::Dictionary::parse(MODIFIED);
+
+        assert!(
+            saltbridges(&structure).is_empty(),
+            "a peptide backbone is not a chain of salt bridges"
+        );
+    }
+
+    /// One ligand carrying both an amine and a carboxylate must not salt-bridge
+    /// itself.
+    #[test]
+    fn a_components_own_groups_do_not_bridge_each_other() {
+        const ZWITTERION: &str = "\
+loop_
+_chem_comp_atom.comp_id
+_chem_comp_atom.atom_id
+_chem_comp_atom.type_symbol
+LIG N1  N
+LIG C1  C
+LIG C2  C
+LIG O1  O
+LIG O2  O
+#
+loop_
+_chem_comp_bond.comp_id
+_chem_comp_bond.atom_id_1
+_chem_comp_bond.atom_id_2
+_chem_comp_bond.value_order
+LIG N1 C1  sing
+LIG C1 C2  sing
+LIG C2 O1  doub
+LIG C2 O2  sing
+#
+";
+        let mut structure = protein(vec![
+            atom("LIG", 1, "N1", "N", Vec3::new(0.0, 0.0, 0.0)),
+            atom("LIG", 1, "C1", "C", Vec3::new(1.5, 0.0, 0.0)),
+            atom("LIG", 1, "C2", "C", Vec3::new(2.5, 0.0, 0.0)),
+            atom("LIG", 1, "O1", "O", Vec3::new(3.0, 1.0, 0.0)),
+            atom("LIG", 1, "O2", "O", Vec3::new(3.0, -1.0, 0.0)),
+        ]);
+        structure.components = crate::components::Dictionary::parse(ZWITTERION);
+
+        assert!(saltbridges(&structure).is_empty());
     }
 
     /// Two residues, the first donating its amide hydrogen towards a carbonyl
@@ -1170,14 +1356,14 @@ mod tests {
             atom("ASP", 1, "OD2", "O", Vec3::ZERO),
             atom("LYS", 2, "NZ", "N", Vec3::new(7.0, 0.0, 0.0)),
         ]);
-        assert!(salt_bridges(&far).is_empty());
+        assert!(saltbridges(&far).is_empty());
 
         // Two anions close together must not pair.
         let like = protein(vec![
             atom("ASP", 1, "OD1", "O", Vec3::ZERO),
             atom("GLU", 2, "OE1", "O", Vec3::new(3.0, 0.0, 0.0)),
         ]);
-        assert!(salt_bridges(&like).is_empty());
+        assert!(saltbridges(&like).is_empty());
     }
 
     /// A flat six-membered ring, named as a phenylalanine, centred at `center`
@@ -1287,7 +1473,7 @@ mod tests {
     fn cation_over(ring: Vec<Atom>, nz: Vec3) -> Vec<Interaction> {
         let mut atoms = ring;
         atoms.push(atom("LYS", 9, "NZ", "N", nz));
-        pi_cation(&protein(atoms))
+        pications(&protein(atoms))
     }
 
     #[test]
@@ -1333,7 +1519,7 @@ mod tests {
             atom("HIS", 1, "NE2", "N", Vec3::new(1.9, -1.2, 0.0)),
             atom("HIS", 1, "CD2", "C", Vec3::new(0.5, -1.2, 0.0)),
         ]);
-        assert!(pi_cation(&his).is_empty());
+        assert!(pications(&his).is_empty());
     }
 
     /// A donor residue, an acceptor residue, and a water between them. Residue 1

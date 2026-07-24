@@ -10,6 +10,8 @@
 //! and Arg protonated (+1), His admitted to the cationic set, Cys and Tyr
 //! neutral.
 
+use std::collections::HashMap;
+
 use crate::structure::{Atom, Protein};
 
 use crate::components::{BondOrder, Component};
@@ -88,6 +90,201 @@ pub fn charged_group(residue_name: &str) -> Option<(Charge, &'static [&'static s
 /// True when the atom is a cysteine gamma sulfur, the disulfide partner.
 pub fn is_cysteine_sulfur(atom: &Atom) -> bool {
     atom.residue_name == "CYS" && atom.name == "SG"
+}
+
+/// One charged group of a component: its sign and the atom names whose centroid
+/// is the charge centre.
+pub(super) struct ChargedSite {
+    pub sign: Charge,
+    pub atoms: Vec<String>,
+    /// The atom the group hangs off, when a bond from it to a neighbouring residue
+    /// would neutralise the group. `None` when no such linkage neutralises it.
+    pub centre: Option<String>,
+}
+
+/// The charged groups a component carries at pH 7.4, perceived from its own
+/// definition the way the residue tables fix them for the standard residues.
+///
+/// This is the same protonation model, extended to a ligand or modified residue
+/// from its own connectivity:
+///
+/// - **Negative** are the deprotonated oxyacids: a carboxylate (a carbon bearing
+///   two terminal oxygens), a phosphate or phosphonate (a phosphorus with two or
+///   more), a sulfonate or sulfate (a sulfur with three or more).
+/// - **Positive** are the protonated bases: a guanidinium (a carbon with three
+///   nitrogens, centred on them like an arginine), an amidinium (a carbon with
+///   two nitrogens and no carbonyl, which separates it from a urea), and an
+///   aliphatic amine (an sp3 nitrogen bonded only to carbon, primary through
+///   quaternary).
+///
+/// Note: The exact set OpenBabel would protonate differs at the margins (a weak
+/// base such as an aniline or an imidazole sits near the pH where the call is a
+/// judgement), and those edges are where pixelfold and PLIP are expected to
+/// disagree rather than fault.
+///
+/// A component definition describes the free molecule.
+pub(super) fn component_charged_groups(component: &Component) -> Vec<ChargedSite> {
+    let mut names: Vec<&str> = component.atoms().collect();
+    names.sort_unstable();
+
+    let mut sites = Vec::new();
+    for name in names {
+        let Some(element) = component.element_of(name) else {
+            continue;
+        };
+
+        let site = match element.to_ascii_uppercase().as_str() {
+            "C" => carbon_cation(component, name).or_else(|| carboxylate(component, name)),
+            "P" => oxyanion(component, name, 2),
+            "S" => oxyanion(component, name, 3),
+            "N" => amine(component, name),
+            _ => None,
+        };
+
+        if let Some(site) = site {
+            sites.push(site);
+        }
+    }
+
+    sites
+}
+
+/// A guanidinium or amidinium centred on `carbon`.
+///
+/// The carbon must lie outside any ring. A guanidinium or amidinium is a discrete
+/// group on an sp2 carbon that stands apart from any ring; a ring carbon bearing
+/// several nitrogens is an atom of a neutral heteroaromatic base, such as the C2
+/// of a guanine or the C4 of a cytosine, and is not a cation.
+fn carbon_cation(component: &Component, carbon: &str) -> Option<ChargedSite> {
+    if in_ring(component, carbon) {
+        return None;
+    }
+
+    let nitrogens: Vec<String> = component
+        .neighbours(carbon)
+        .filter(|&n| component.element_of(n).is_some_and(is_nitrogen))
+        .map(String::from)
+        .collect();
+
+    // Three nitrogens is a guanidinium; two with no carbonyl is an amidinium,
+    // the carbonyl being what would make it a neutral urea or carbamate instead.
+    let charged = nitrogens.len() >= 3
+        || (nitrogens.len() == 2
+            && hybridisation(component, carbon) == 2
+            && !has_carbonyl(component, carbon));
+
+    charged.then_some(ChargedSite {
+        sign: Charge::Positive,
+        atoms: nitrogens,
+        centre: None,
+    })
+}
+
+/// A deprotonated oxyacid centred on `atom`, needing at least `minimum` terminal
+/// oxygens: the terminal oxygens themselves.
+///
+/// A phosphate or sulfonate stays charged when it bridges two residues, as a
+/// nucleic-acid phosphodiester does, so it carries no neutralising centre.
+fn oxyanion(component: &Component, atom: &str, minimum: usize) -> Option<ChargedSite> {
+    let oxygens: Vec<String> = terminal_oxygens(component, atom)
+        .map(String::from)
+        .collect();
+
+    (oxygens.len() >= minimum).then_some(ChargedSite {
+        sign: Charge::Negative,
+        atoms: oxygens,
+        centre: None,
+    })
+}
+
+/// A carboxylate centred on `carbon`: its two terminal oxygens, or a
+/// thiocarboxylate's oxygen and sulfur.
+fn carboxylate(component: &Component, carbon: &str) -> Option<ChargedSite> {
+    let oxygens: Vec<String> = terminal_oxygens(component, carbon)
+        .map(String::from)
+        .collect();
+    if oxygens.len() >= 2 {
+        return Some(ChargedSite {
+            sign: Charge::Negative,
+            atoms: oxygens,
+            centre: Some(carbon.to_string()),
+        });
+    }
+
+    (free_oxygens(component, carbon) == 1 && free_sulfurs(component, carbon) == 1).then(|| {
+        let atoms = component
+            .neighbours(carbon)
+            .filter(|&n| {
+                component.neighbours(n).count() == 1
+                    && component
+                        .element_of(n)
+                        .is_some_and(|e| e.eq_ignore_ascii_case("O") || e.eq_ignore_ascii_case("S"))
+            })
+            .map(String::from)
+            .collect();
+
+        ChargedSite {
+            sign: Charge::Negative,
+            atoms,
+            centre: Some(carbon.to_string()),
+        }
+    })
+}
+
+/// A protonated aliphatic amine at `nitrogen`: an sp3 nitrogen where every
+/// heavy neighbour of which is a carbon, from a primary amine to a quaternary
+/// ammonium. The nitrogen is its own charge centre.
+fn amine(component: &Component, nitrogen: &str) -> Option<ChargedSite> {
+    let mut neighbours = component.neighbours(nitrogen).peekable();
+    let all_carbon = neighbours.peek().is_some()
+        && neighbours.all(|n| component.element_of(n).is_some_and(is_carbon));
+
+    (all_carbon && hybridisation(component, nitrogen) == 3).then(|| ChargedSite {
+        sign: Charge::Positive,
+        atoms: vec![nitrogen.to_string()],
+        centre: Some(nitrogen.to_string()),
+    })
+}
+
+/// The terminal oxygens hanging off `atom`, the ones with no other heavy bond.
+fn terminal_oxygens<'a>(component: &'a Component, atom: &'a str) -> impl Iterator<Item = &'a str> {
+    component.neighbours(atom).filter(|&n| {
+        component.neighbours(n).count() == 1
+            && component
+                .element_of(n)
+                .is_some_and(|e| e.eq_ignore_ascii_case("O"))
+    })
+}
+
+fn is_nitrogen(element: &str) -> bool {
+    element.eq_ignore_ascii_case("N")
+}
+
+/// Whether `atom` lies on a ring within its component, found by asking whether
+/// any two of its neighbours stay connected once it is removed.
+fn in_ring(component: &Component, atom: &str) -> bool {
+    let neighbours: Vec<&str> = component.neighbours(atom).collect();
+    if neighbours.len() < 2 {
+        return false;
+    }
+
+    let mut reached: HashMap<&str, usize> = HashMap::new();
+    for (source, &seed) in neighbours.iter().enumerate() {
+        let mut stack = vec![seed];
+        while let Some(current) = stack.pop() {
+            match reached.get(current) {
+                // Already reached from another neighbour: a ring closes here.
+                Some(&other) if other != source => return true,
+                Some(_) => continue,
+                None => {
+                    reached.insert(current, source);
+                    stack.extend(component.neighbours(current).filter(|&n| n != atom));
+                }
+            }
+        }
+    }
+
+    false
 }
 
 /// True when the atom can accept a hydrogen bond.
@@ -714,5 +911,198 @@ LIG C2 O3  sing
 
         // A component with no definition and no residue table has no bonds (apolar).
         assert!(!apolar("STI", &[("C1", "C"), ("C2", "C")], "C1"));
+    }
+
+    /// A component carrying one of every charged group the pH 7.4 model
+    /// recognises, plus the neutral groups it must leave out: a nitro, a urea,
+    /// and a two-nitrogen carbon that is a ring atom of a base.
+    fn charges(atom_name: &str) -> Option<(Charge, Vec<String>)> {
+        const DEFINITION: &str = "\
+loop_
+_chem_comp_atom.comp_id
+_chem_comp_atom.atom_id
+_chem_comp_atom.type_symbol
+_chem_comp_atom.pdbx_aromatic_flag
+LIG CC   C  N
+LIG OC1  O  N
+LIG OC2  O  N
+LIG PP   P  N
+LIG OP1  O  N
+LIG OP2  O  N
+LIG OP3  O  N
+LIG SS   S  N
+LIG OS1  O  N
+LIG OS2  O  N
+LIG OS3  O  N
+LIG CG   C  N
+LIG NG1  N  N
+LIG NG2  N  N
+LIG NG3  N  N
+LIG CM   C  N
+LIG NM1  N  N
+LIG NM2  N  N
+LIG NA   N  N
+LIG CA1  C  N
+LIG CU   C  N
+LIG OU   O  N
+LIG NU   N  N
+LIG NU2  N  N
+LIG CT   C  N
+LIG NT   N  N
+LIG OT1  O  N
+LIG OT2  O  N
+LIG CR1  C  Y
+LIG NR1  N  Y
+LIG CR2  C  Y
+LIG NR2  N  Y
+LIG CR3  C  Y
+#
+loop_
+_chem_comp_bond.comp_id
+_chem_comp_bond.atom_id_1
+_chem_comp_bond.atom_id_2
+_chem_comp_bond.value_order
+LIG CC  OC1  doub
+LIG CC  OC2  sing
+LIG PP  OP1  doub
+LIG PP  OP2  sing
+LIG PP  OP3  sing
+LIG SS  OS1  doub
+LIG SS  OS2  doub
+LIG SS  OS3  sing
+LIG CG  NG1  doub
+LIG CG  NG2  sing
+LIG CG  NG3  sing
+LIG CM  NM1  doub
+LIG CM  NM2  sing
+LIG NA  CA1  sing
+LIG CU  OU   doub
+LIG CU  NU   sing
+LIG CU  NU2  sing
+LIG CT  NT   sing
+LIG NT  OT1  doub
+LIG NT  OT2  doub
+LIG CR1 NR1  arom
+LIG NR1 CR2  arom
+LIG CR2 NR2  arom
+LIG NR2 CR3  arom
+LIG CR3 CR1  arom
+#
+";
+        let dictionary = crate::components::Dictionary::parse(DEFINITION);
+        let component = dictionary.get("LIG").expect("the component");
+
+        component_charged_groups(component)
+            .into_iter()
+            .find(|site| site.atoms.iter().any(|a| a == atom_name))
+            .map(|site| {
+                let mut atoms = site.atoms;
+                atoms.sort();
+                (site.sign, atoms)
+            })
+    }
+
+    #[test]
+    fn the_deprotonated_oxyacids_are_negative() {
+        assert_eq!(
+            charges("OC1"),
+            Some((Charge::Negative, vec!["OC1".into(), "OC2".into()])),
+            "a carboxylate"
+        );
+        assert_eq!(
+            charges("OP1"),
+            Some((
+                Charge::Negative,
+                vec!["OP1".into(), "OP2".into(), "OP3".into()]
+            )),
+            "a phosphate"
+        );
+        assert_eq!(
+            charges("OS1"),
+            Some((
+                Charge::Negative,
+                vec!["OS1".into(), "OS2".into(), "OS3".into()]
+            )),
+            "a sulfonate"
+        );
+    }
+
+    #[test]
+    fn the_protonated_bases_are_positive() {
+        assert_eq!(
+            charges("NG1"),
+            Some((
+                Charge::Positive,
+                vec!["NG1".into(), "NG2".into(), "NG3".into()]
+            )),
+            "a guanidinium"
+        );
+        assert_eq!(
+            charges("NM1"),
+            Some((Charge::Positive, vec!["NM1".into(), "NM2".into()])),
+            "an amidinium"
+        );
+        assert_eq!(
+            charges("NA"),
+            Some((Charge::Positive, vec!["NA".into()])),
+            "an aliphatic amine"
+        );
+    }
+
+    #[test]
+    fn the_neutral_groups_carry_no_charge() {
+        // A urea carbon has two nitrogens but a carbonyl, so it is not an
+        // amidinium.
+        assert_eq!(charges("NU"), None, "a urea nitrogen");
+        // A nitro group is net neutral; its nitrogen and oxygens are left out.
+        assert_eq!(charges("NT"), None, "a nitro nitrogen");
+        assert_eq!(charges("OT1"), None, "a nitro oxygen");
+        // A ring carbon bearing two ring nitrogens is a base, not an amidinium.
+        assert_eq!(charges("NR1"), None, "an aromatic ring nitrogen");
+    }
+
+    /// A ring carbon whose exocyclic substituent is bonded first must still be
+    /// found to be in the ring, so the imidazolinone carbon of a chromophore is
+    /// not mistaken for an amidinium. This is the shape of the GFP chromophore's
+    /// CA1-C1(-N2)(-N3) centre, with the exocyclic CA1 listed first.
+    #[test]
+    fn a_ring_carbon_with_an_exocyclic_first_neighbour_is_still_in_the_ring() {
+        const CHROMOPHORE: &str = "\
+loop_
+_chem_comp_atom.comp_id
+_chem_comp_atom.atom_id
+_chem_comp_atom.type_symbol
+LIG CA1 C
+LIG C1  C
+LIG N2  N
+LIG CA2 C
+LIG C2  C
+LIG N3  N
+LIG O2  O
+#
+loop_
+_chem_comp_bond.comp_id
+_chem_comp_bond.atom_id_1
+_chem_comp_bond.atom_id_2
+_chem_comp_bond.value_order
+LIG CA1 C1  sing
+LIG C1  N2  doub
+LIG N2  CA2 sing
+LIG CA2 C2  sing
+LIG C2  N3  sing
+LIG N3  C1  sing
+LIG C2  O2  doub
+#
+";
+        let dictionary = crate::components::Dictionary::parse(CHROMOPHORE);
+        let component = dictionary.get("LIG").expect("the component");
+
+        // C1 carries N2 and N3 and would read as an amidinium if the ring were
+        // missed. It closes C1-N2-CA2-C2-N3-C1, so it is neutral.
+        assert!(in_ring(component, "C1"));
+        assert!(
+            component_charged_groups(component).is_empty(),
+            "the imidazolinone carbon is not a cation"
+        );
     }
 }
