@@ -9,3 +9,7 @@ repository.workspace = true
 pixelfold-core.workspace = true
 
 glam.workspace = true
+png.workspace = true
+
+[dev-dependencies]
+glam.workspace = true

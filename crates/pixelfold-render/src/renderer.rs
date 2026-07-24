@@ -174,8 +174,25 @@ pub fn calculate_bounds(protein: &Protein) -> (Vec3, Vec3) {
 /// Auto-frame the camera to fit the protein: reset the orientation and pan,
 /// pivot on the center of mass, and zoom to fit with padding.
 pub fn auto_frame_protein(protein: &Protein, camera: &mut Camera, width: f32, height: f32) {
-    let center = calculate_center_of_mass(protein);
-    let (min, max) = calculate_bounds(protein);
+    let positions: Vec<Vec3> = protein.atoms.iter().map(|a| a.position).collect();
+    auto_frame_points(&positions, camera, width, height);
+}
+
+/// Auto-frame the camera to fit an arbitrary set of points: reset orientation
+/// and pan, pivot on their mean, and zoom to fit with padding. This is what
+/// lets `render` frame a selected subset instead of the whole structure.
+pub fn auto_frame_points(positions: &[Vec3], camera: &mut Camera, width: f32, height: f32) {
+    if positions.is_empty() {
+        return;
+    }
+
+    let center = positions.iter().copied().sum::<Vec3>() / positions.len() as f32;
+    let mut min = Vec3::splat(f32::INFINITY);
+    let mut max = Vec3::splat(f32::NEG_INFINITY);
+    for &p in positions {
+        min = min.min(p);
+        max = max.max(p);
+    }
 
     let extent = max - min;
     let max_extent = extent.x.max(extent.y).max(extent.z);
@@ -184,7 +201,7 @@ pub fn auto_frame_protein(protein: &Protein, camera: &mut Camera, width: f32, he
     camera.center = center;
     camera.pan = Vec2::ZERO;
 
-    // 1.4 leaves ~20% space around the protein on each side.
+    // 1.4 leaves ~20% space around the structure on each side.
     let padding_factor = 1.4;
     let viewport_size = width.min(height);
     if max_extent > 0.0 {

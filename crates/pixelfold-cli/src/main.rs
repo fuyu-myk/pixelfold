@@ -8,6 +8,7 @@ use pixelfold_core::InteractionKind;
 mod analyse;
 mod graph;
 mod load;
+mod render;
 mod report;
 mod resolve;
 
@@ -133,6 +134,46 @@ enum Command {
         #[command(flatten)]
         analysis: Analysis,
     },
+    /// Render a structure to a PNG image (headless)
+    Render {
+        /// Path to a .pdb/.cif file, or a 4-character PDB id
+        structure: String,
+
+        /// Write the PNG here
+        #[arg(short, long, value_name = "FILE")]
+        output: PathBuf,
+
+        /// Image width in pixels
+        #[arg(long, default_value_t = 1200)]
+        width: u32,
+
+        /// Image height in pixels
+        #[arg(long, default_value_t = 900)]
+        height: u32,
+
+        /// How to colour atoms
+        #[arg(long, value_enum, default_value_t = ColorArg::Element)]
+        color: ColorArg,
+
+        /// Render the C-alpha backbone only
+        #[arg(long)]
+        backbone: bool,
+
+        /// Restrict rendering to what this selection matches
+        #[arg(short, long, value_name = "QUERY")]
+        select: Option<String>,
+
+        /// Scale every atom radius (1.0 is full space-filling)
+        #[arg(long, default_value_t = 1.0)]
+        radius_scale: f32,
+
+        /// Disable the depth cue (distance fog)
+        #[arg(long)]
+        no_depth_cue: bool,
+
+        #[command(flatten)]
+        common: Common,
+    },
     /// Search RCSB and download structures
     Fetch {
         /// Search terms; omit to open the search interface empty
@@ -169,6 +210,27 @@ impl From<KindArg> for InteractionKind {
             KindArg::WaterBridge => InteractionKind::WaterBridge,
             KindArg::MetalCoordination => InteractionKind::MetalCoordination,
             KindArg::Disulfide => InteractionKind::Disulfide,
+        }
+    }
+}
+
+/// How `render` colours atoms.
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum ColorArg {
+    /// CPK/Jmol colour by element
+    Element,
+    /// Blue to red gradient over the B-factor range
+    Bfactor,
+    /// Secondary-structure palette
+    Ss,
+}
+
+impl From<ColorArg> for pixelfold_render::Coloring {
+    fn from(arg: ColorArg) -> Self {
+        match arg {
+            ColorArg::Element => pixelfold_render::Coloring::Element,
+            ColorArg::Bfactor => pixelfold_render::Coloring::Bfactor,
+            ColorArg::Ss => pixelfold_render::Coloring::SecondaryStructure,
         }
     }
 }
@@ -272,6 +334,41 @@ fn run(command: Command) -> Result<()> {
             let chosen = load::chosen(&protein, analysis.select.as_deref())?;
 
             emit(&analyse::sasa(&protein, &chosen), analysis.format)
+        }
+
+        Command::Render {
+            structure,
+            output,
+            width,
+            height,
+            color,
+            backbone,
+            select,
+            radius_scale,
+            no_depth_cue,
+            common,
+        } => {
+            let protein = loaded(&structure, &common)?;
+
+            let selected = match select {
+                Some(query) => Some(
+                    load::chosen(&protein, Some(&query))?
+                        .iter()
+                        .collect::<Vec<usize>>(),
+                ),
+                None => None,
+            };
+
+            let params = render::RenderParams {
+                width,
+                height,
+                coloring: color.into(),
+                backbone,
+                radius_scale,
+                depth_cue: !no_depth_cue,
+            };
+
+            render::render(&protein, selected.as_deref(), &params, &output)
         }
     }
 }

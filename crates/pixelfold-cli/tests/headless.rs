@@ -256,6 +256,79 @@ fn the_network_can_be_written_to_a_file() {
     std::fs::remove_dir_all(&dir).ok();
 }
 
+/// Parse (width, height) from a PNG's IHDR without decoding the image.
+fn png_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
+    const SIGNATURE: &[u8] = &[137, 80, 78, 71, 13, 10, 26, 10];
+    if bytes.len() < 24 || &bytes[..8] != SIGNATURE || &bytes[12..16] != b"IHDR" {
+        return None;
+    }
+    let width = u32::from_be_bytes(bytes[16..20].try_into().ok()?);
+    let height = u32::from_be_bytes(bytes[20..24].try_into().ok()?);
+
+    Some((width, height))
+}
+
+#[test]
+fn render_writes_a_png_of_the_requested_size() {
+    let Some(structure) = cached("1CRN") else {
+        return;
+    };
+
+    let dir = std::env::temp_dir().join(format!("pixelfold-render-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let out = dir.join("crambin.png");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_pixelfold"))
+        .args(["render", "--width", "200", "--height", "150", "-o"])
+        .arg(&out)
+        .arg(&structure)
+        .output()
+        .expect("the binary runs");
+    assert!(
+        output.status.success(),
+        "render failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let bytes = std::fs::read(&out).expect("the PNG was written");
+    assert_eq!(
+        png_dimensions(&bytes),
+        Some((200, 150)),
+        "output is not a 200x150 PNG"
+    );
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn render_rejects_an_empty_selection() {
+    let Some(structure) = cached("1CRN") else {
+        return;
+    };
+
+    let dir = std::env::temp_dir().join(format!("pixelfold-render-empty-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let out = dir.join("nothing.png");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_pixelfold"))
+        .args(["render", "--select", "resn STI", "-o"])
+        .arg(&out)
+        .arg(&structure)
+        .output()
+        .expect("the binary runs");
+
+    assert!(
+        !output.status.success(),
+        "a selection of nothing should fail"
+    );
+    assert!(
+        !out.exists(),
+        "no PNG should be written for an empty selection"
+    );
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
 /// Reading a file needs no cache, so an unusable cache directory must not stop
 /// it. Only a download touches the cache.
 #[test]

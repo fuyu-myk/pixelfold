@@ -39,6 +39,32 @@ pub fn bfactor_to_color(b_factor: f32, b_min: f32, b_max: f32) -> (u8, u8, u8) {
     (r as u8, g as u8, b as u8)
 }
 
+/// CPK/Jmol colour for an element symbol, keyed on the element column (so a
+/// calcium ion is green, not carbon grey). Values are the Jmol defaults; an
+/// unrecognised element falls back to the Jmol "unknown" pink.
+pub fn element_to_color(element: &str) -> (u8, u8, u8) {
+    match element.to_uppercase().as_str() {
+        "H" => (255, 255, 255),
+        "C" => (144, 144, 144),
+        "N" => (48, 80, 248),
+        "O" => (255, 13, 13),
+        "F" => (144, 224, 80),
+        "P" => (255, 128, 0),
+        "S" => (255, 255, 48),
+        "CL" => (31, 240, 31),
+        "BR" => (166, 41, 41),
+        "I" => (148, 0, 148),
+        "FE" => (224, 102, 51),
+        "ZN" => (125, 128, 176),
+        "MG" => (138, 255, 0),
+        "CA" => (61, 255, 0),
+        "NA" => (171, 92, 242),
+        "K" => (143, 64, 212),
+        "MN" => (156, 122, 199),
+        _ => (255, 192, 203),
+    }
+}
+
 /// Draws a line between two points using Bresenham-like algorithm
 pub fn draw_line(x0: f32, y0: f32, x1: f32, y1: f32) -> Vec<(f64, f64)> {
     let mut points = Vec::new();
