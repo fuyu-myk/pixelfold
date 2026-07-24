@@ -55,6 +55,10 @@ pub struct HBondEdge {
 pub struct InteractionGolden {
     /// The interaction kinds this reference reports, by pixelfold's label.
     pub kinds: Vec<String>,
+    /// Whether the reference only covers interactions that touch a ligand, as
+    /// PLIP does by profiling binding sites.
+    #[serde(default)]
+    pub ligand_scoped: bool,
     #[serde(default)]
     pub interactions: Vec<InteractionEdge>,
 }

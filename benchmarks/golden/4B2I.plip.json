@@ -1,0 +1,145 @@
+{
+ "kinds": [
+  "hydrogen-bond",
+  "salt-bridge",
+  "hydrophobic",
+  "pi-stacking",
+  "pi-cation",
+  "halogen-bond",
+  "water-bridge",
+  "metal-coordination"
+ ],
+ "ligand_scoped": true,
+ "interactions": [
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 141,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 1350,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 142,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 1350,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 143,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 1350,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 145,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 1350,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 146,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 1350,
+    "icode": null
+   }
+  },
+  {
+   "kind": "water-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 144,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 1350,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 217,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 1351,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrophobic",
+   "a": {
+    "chain": "A",
+    "seq": 171,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 1351,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrophobic",
+   "a": {
+    "chain": "A",
+    "seq": 203,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 1351,
+    "icode": null
+   }
+  },
+  {
+   "kind": "water-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 220,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 1351,
+    "icode": null
+   }
+  }
+ ]
+}

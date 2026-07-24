@@ -22,12 +22,12 @@ A terminal-based 3D protein structure viewer using Braille Unicode characters fo
 ## Validation
 
 Pixelfold's analyses are checked against reference implementations across a
-stratified PDB benchmark: secondary structure against **DSSP 4** and
-solvent-accessible surface area against **FreeSASA** (interaction validation
-against PLIP and RING follows the interaction engine).
+stratified PDB benchmark: secondary structure against **DSSP 4**,
+solvent-accessible surface area against **FreeSASA**, and non-covalent
+interactions against **PLIP** across the 60 protein-ligand complexes.
 
 <!-- VALIDATION:START -->
-Validated 205 benchmark entries against DSSP 4 and FreeSASA.
+Validated 205 benchmark entries against DSSP 4, FreeSASA and PLIP.
 
 | Metric | Reference | Entries | Result |
 | --- | --- | --- | --- |
@@ -36,11 +36,35 @@ Validated 205 benchmark entries against DSSP 4 and FreeSASA.
 | SASA mean abs error | FreeSASA | 202 | 4.91 A^2 |
 | SASA median abs error | FreeSASA | 202 | 3.76 A^2 |
 | SASA correlation (Pearson r) | FreeSASA | 202 | 0.99 |
+
+Per-type interaction agreement (precision / recall / F1):
+
+| Interaction type | Reference | Entries | Pred edges | Ref edges | Precision | Recall | F1 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| hydrogen-bond | PLIP | 60 | 787 | 518 | 0.58 | 0.81 | 0.64 |
+| salt-bridge | PLIP | 60 | 140 | 125 | 0.84 | 0.93 | 0.82 |
+| hydrophobic | PLIP | 60 | 479 | 376 | 0.81 | 0.95 | 0.86 |
+| pi-stacking | PLIP | 60 | 23 | 22 | 0.97 | 0.93 | 0.92 |
+| pi-cation | PLIP | 60 | 6 | 17 | 0.97 | 0.88 | 0.84 |
+| halogen-bond | PLIP | 60 | 4 | 5 | 1.00 | 0.98 | 0.98 |
+| water-bridge | PLIP | 60 | 722 | 345 | 0.50 | 0.87 | 0.59 |
+| metal-coordination | PLIP | 60 | 444 | 323 | 0.66 | 0.76 | 0.64 |
 <!-- VALIDATION:END -->
 
-Agreement is high across all three. The residual SASA error reflects the
-modelling-choice difference between pixelfold (Bondi element radii,
-Shrake-Rupley) and FreeSASA (ProtOr radii, Lee-Richards); per-residue correlation is 0.99.
+Agreement is high on secondary structure, surface area, and the shape-driven
+interactions (pi-stacking, halogen, pi-cation, hydrophobic, salt bridge). It is
+lower and directional on hydrogen bonds and water bridges, where pixelfold
+reports every geometrically reachable bond (a rotatable donor placed against each
+acceptor, one bridge per donor) while PLIP commits to one: recall stays high
+(pixelfold finds what PLIP finds) and precision is where the modelling choice
+shows. The residual SASA error is the same kind of difference: pixelfold uses
+Bondi radii with Shrake-Rupley, FreeSASA uses ProtOr radii with Lee-Richards, and
+the per-residue correlation is still 0.99.
+
+PLIP profiles ligand binding sites, so its numbers cover the 60 protein-ligand
+complexes and each edge is scored only where it touches a ligand. RING 4.0 (the
+whole-structure protein-protein reference) is a license-gated binary and is not
+generated here; the harness reads its golden of the same shape once available.
 
 Regenerate this table with `cargo run -p pixelfold-validate` (it prints the
 markdown above). The harness compares against committed golden files under

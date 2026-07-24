@@ -1,0 +1,288 @@
+{
+ "kinds": [
+  "hydrogen-bond",
+  "salt-bridge",
+  "hydrophobic",
+  "pi-stacking",
+  "pi-cation",
+  "halogen-bond",
+  "water-bridge",
+  "metal-coordination"
+ ],
+ "ligand_scoped": true,
+ "interactions": [
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 22,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 23,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 24,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 25,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 26,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 27,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 130,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 129,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 160,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 161,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "salt-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 25,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "salt-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 132,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "water-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 130,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "water-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 70,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "water-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 26,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 484,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 516,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 582,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 603,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 26,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  }
+ ]
+}

@@ -1,0 +1,327 @@
+{
+ "kinds": [
+  "hydrogen-bond",
+  "salt-bridge",
+  "hydrophobic",
+  "pi-stacking",
+  "pi-cation",
+  "halogen-bond",
+  "water-bridge",
+  "metal-coordination"
+ ],
+ "ligand_scoped": true,
+ "interactions": [
+  {
+   "kind": "salt-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 244,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 503,
+    "icode": null
+   }
+  },
+  {
+   "kind": "salt-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 275,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 503,
+    "icode": null
+   }
+  },
+  {
+   "kind": "salt-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 304,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 503,
+    "icode": null
+   }
+  },
+  {
+   "kind": "salt-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 352,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 503,
+    "icode": null
+   }
+  },
+  {
+   "kind": "salt-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 400,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 503,
+    "icode": null
+   }
+  },
+  {
+   "kind": "salt-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 427,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 503,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrophobic",
+   "a": {
+    "chain": "A",
+    "seq": 429,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 503,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrophobic",
+   "a": {
+    "chain": "A",
+    "seq": 446,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 503,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrophobic",
+   "a": {
+    "chain": "A",
+    "seq": 451,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 503,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 503,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 503,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 271,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 503,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 352,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 503,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 427,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 503,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 242,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 503,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 244,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 503,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 308,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 504,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrophobic",
+   "a": {
+    "chain": "A",
+    "seq": 308,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 504,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrophobic",
+   "a": {
+    "chain": "A",
+    "seq": 386,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 504,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrophobic",
+   "a": {
+    "chain": "A",
+    "seq": 402,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 504,
+    "icode": null
+   }
+  },
+  {
+   "kind": "water-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 377,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 504,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrophobic",
+   "a": {
+    "chain": "A",
+    "seq": 254,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 505,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrophobic",
+   "a": {
+    "chain": "A",
+    "seq": 255,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 505,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrophobic",
+   "a": {
+    "chain": "A",
+    "seq": 259,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 505,
+    "icode": null
+   }
+  },
+  {
+   "kind": "water-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 199,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 505,
+    "icode": null
+   }
+  }
+ ]
+}

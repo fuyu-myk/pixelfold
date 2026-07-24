@@ -168,8 +168,13 @@ pub fn render_markdown(entries: &[EntryMetrics]) -> String {
     }
 
     let summary = summarize(entries);
+    let references = if summary.interactions.is_empty() {
+        "DSSP 4 and FreeSASA".to_string()
+    } else {
+        "DSSP 4, FreeSASA and PLIP".to_string()
+    };
     out.push_str(&format!(
-        "Validated {} benchmark entries against DSSP 4 and FreeSASA.\n\n",
+        "Validated {} benchmark entries against {references}.\n\n",
         summary.entries
     ));
     out.push_str("| Metric | Reference | Entries | Result |\n");

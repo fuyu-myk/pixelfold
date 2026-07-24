@@ -15,6 +15,9 @@ pub struct Thresholds {
     pub min_q3: Option<f64>,
     pub min_hbond_f1: Option<f64>,
     pub max_sasa_mae: Option<f64>,
+    /// Minimum mean interaction F1 against PLIP, averaged over the types PLIP
+    /// scores. Enforced only when set and PLIP golden data exists.
+    pub min_plip_f1: Option<f64>,
 }
 
 /// Load thresholds from TOML, or defaults if absent.
@@ -48,8 +51,31 @@ pub fn evaluate(summary: &Summary, thresholds: &Thresholds) -> Vec<String> {
     {
         failures.push(format!("SASA MAE {value:.3} above maximum {max:.3}"));
     }
+    if let (Some(min), Some(value)) = (thresholds.min_plip_f1, plip_mean_f1(summary))
+        && value < min
+    {
+        failures.push(format!(
+            "PLIP interaction F1 {value:.3} below minimum {min:.3}"
+        ));
+    }
 
     failures
+}
+
+/// The mean interaction F1 against PLIP over the types it scores, or `None` when
+/// no PLIP golden was compared.
+fn plip_mean_f1(summary: &Summary) -> Option<f64> {
+    let f1: Vec<f64> = summary
+        .interactions
+        .iter()
+        .filter(|row| row.tool == "PLIP")
+        .map(|row| row.f1)
+        .collect();
+    if f1.is_empty() {
+        None
+    } else {
+        Some(f1.iter().sum::<f64>() / f1.len() as f64)
+    }
 }
 
 #[cfg(test)]
@@ -88,5 +114,58 @@ mod tests {
             ..Default::default()
         };
         assert!(evaluate(&summary(None), &thresholds).is_empty());
+    }
+
+    #[test]
+    fn plip_gate_averages_its_types_and_is_pending_without_golden() {
+        use crate::report::InteractionSummary;
+
+        let row = |kind: &str, f1: f64| InteractionSummary {
+            tool: "PLIP",
+            kind: kind.to_string(),
+            entries: 1,
+            pred_edges: 1,
+            ref_edges: 1,
+            precision: f1,
+            recall: f1,
+            f1,
+        };
+
+        let mut s = summary(None);
+        // Mean over the two PLIP types is 0.8; a 0.9 floor fails, a 0.7 passes.
+        s.interactions = vec![row("hydrogen-bond", 0.7), row("salt-bridge", 0.9)];
+        assert_eq!(
+            evaluate(
+                &s,
+                &Thresholds {
+                    min_plip_f1: Some(0.9),
+                    ..Default::default()
+                }
+            )
+            .len(),
+            1
+        );
+        assert!(
+            evaluate(
+                &s,
+                &Thresholds {
+                    min_plip_f1: Some(0.7),
+                    ..Default::default()
+                }
+            )
+            .is_empty()
+        );
+
+        // No PLIP rows: the gate is pending, not a failure.
+        assert!(
+            evaluate(
+                &summary(None),
+                &Thresholds {
+                    min_plip_f1: Some(0.9),
+                    ..Default::default()
+                }
+            )
+            .is_empty()
+        );
     }
 }

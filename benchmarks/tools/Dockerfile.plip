@@ -1,0 +1,24 @@
+# Pinned PLIP for pixelfold interaction golden generation.
+#
+# Build (from the repo root):
+#   docker build -f benchmarks/tools/Dockerfile.plip -t pixelfold-plip benchmarks/tools
+# Run:
+#   docker run --rm -v "$PWD/benchmarks:/work/benchmarks" pixelfold-plip \
+#       --manifest benchmarks/manifest.toml --golden-dir benchmarks/golden
+#
+# PLIP is the protein-ligand reference: it profiles the interactions of each
+# ligand binding site. Its config.py is the source the interaction thresholds in
+# pixelfold-core were derived from, so this pins the same major version.
+FROM --platform=linux/amd64 mambaorg/micromamba:1.5.8
+
+# OpenBabel (PLIP's chemistry backend) from conda-forge, PLIP itself pinned.
+RUN micromamba install -y -n base -c conda-forge \
+        python=3.11 \
+        openbabel=3.1.1 \
+        plip=3.0.0 \
+    && micromamba clean --all --yes
+
+COPY generate_plip.py /usr/local/bin/generate_plip.py
+
+WORKDIR /work
+ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "python", "/usr/local/bin/generate_plip.py"]

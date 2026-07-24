@@ -1,0 +1,470 @@
+{
+ "kinds": [
+  "hydrogen-bond",
+  "salt-bridge",
+  "hydrophobic",
+  "pi-stacking",
+  "pi-cation",
+  "halogen-bond",
+  "water-bridge",
+  "metal-coordination"
+ ],
+ "ligand_scoped": true,
+ "interactions": [
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 27,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 212,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 269,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 138,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "salt-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 213,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "salt-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 138,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrophobic",
+   "a": {
+    "chain": "A",
+    "seq": 99,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrophobic",
+   "a": {
+    "chain": "A",
+    "seq": 212,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrophobic",
+   "a": {
+    "chain": "A",
+    "seq": 267,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrophobic",
+   "a": {
+    "chain": "A",
+    "seq": 300,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrophobic",
+   "a": {
+    "chain": "A",
+    "seq": 362,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "pi-stacking",
+   "a": {
+    "chain": "A",
+    "seq": 27,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "pi-stacking",
+   "a": {
+    "chain": "A",
+    "seq": 358,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "pi-stacking",
+   "a": {
+    "chain": "A",
+    "seq": 267,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "pi-cation",
+   "a": {
+    "chain": "A",
+    "seq": 99,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "pi-cation",
+   "a": {
+    "chain": "A",
+    "seq": 27,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 202,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 403,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 259,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 403,
+    "icode": null
+   }
+  },
+  {
+   "kind": "water-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 202,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 403,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 51,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 404,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 387,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 404,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 87,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 404,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 70,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 405,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 30,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 405,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 69,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 405,
+    "icode": null
+   }
+  },
+  {
+   "kind": "water-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 59,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 405,
+    "icode": null
+   }
+  },
+  {
+   "kind": "water-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 97,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 405,
+    "icode": null
+   }
+  },
+  {
+   "kind": "water-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 100,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 405,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 295,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 406,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 35,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 406,
+    "icode": null
+   }
+  },
+  {
+   "kind": "water-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 31,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 406,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 213,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 407,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 141,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 407,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 186,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 407,
+    "icode": null
+   }
+  },
+  {
+   "kind": "water-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 213,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 407,
+    "icode": null
+   }
+  }
+ ]
+}

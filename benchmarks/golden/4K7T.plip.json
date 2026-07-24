@@ -1,0 +1,171 @@
+{
+ "kinds": [
+  "hydrogen-bond",
+  "salt-bridge",
+  "hydrophobic",
+  "pi-stacking",
+  "pi-cation",
+  "halogen-bond",
+  "water-bridge",
+  "metal-coordination"
+ ],
+ "ligand_scoped": true,
+ "interactions": [
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 3,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 4,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 4,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 5,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 1,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 4,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 4,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 12,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 4,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 10,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 4,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 6,
+    "icode": null
+   }
+  },
+  {
+   "kind": "salt-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 4,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 6,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrophobic",
+   "a": {
+    "chain": "A",
+    "seq": 4,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 5,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrophobic",
+   "a": {
+    "chain": "A",
+    "seq": 4,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 12,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 4,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 201,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 4,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 4,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrophobic",
+   "a": {
+    "chain": "A",
+    "seq": 8,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 9,
+    "icode": null
+   }
+  }
+ ]
+}

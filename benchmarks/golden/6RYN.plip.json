@@ -1,0 +1,158 @@
+{
+ "kinds": [
+  "hydrogen-bond",
+  "salt-bridge",
+  "hydrophobic",
+  "pi-stacking",
+  "pi-cation",
+  "halogen-bond",
+  "water-bridge",
+  "metal-coordination"
+ ],
+ "ligand_scoped": true,
+ "interactions": [
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 337,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 403,
+    "icode": null
+   }
+  },
+  {
+   "kind": "water-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 317,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 403,
+    "icode": null
+   }
+  },
+  {
+   "kind": "water-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 314,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 403,
+    "icode": null
+   }
+  },
+  {
+   "kind": "water-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 315,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 403,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 315,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 403,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 325,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 403,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 338,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 403,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 402,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 552,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 291,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 402,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 295,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 402,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 325,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 402,
+    "icode": null
+   }
+  }
+ ]
+}

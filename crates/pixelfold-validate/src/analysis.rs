@@ -24,6 +24,9 @@ pub struct Prediction {
     pub sasa: Vec<(ResidueKey, f64)>,
     /// Non-covalent interactions as unordered residue pairs, per type.
     pub interactions: InteractionEdges,
+    /// The residues that are ligands: HETATM, not water. A ligand-scoped
+    /// reference (PLIP) is compared only against edges touching one of these.
+    pub ligands: HashSet<ResidueKey>,
 }
 
 /// Order a residue pair canonically, so an edge and its reverse are one key.
@@ -77,12 +80,25 @@ pub fn predict(protein: &Protein) -> Prediction {
         })
         .collect();
 
+    let ligands = protein
+        .atoms
+        .iter()
+        .filter(|atom| atom.is_hetatm && !is_water(atom.residue_name.as_str()))
+        .map(residue_key)
+        .collect();
+
     Prediction {
         ss,
         hbonds,
         sasa,
         interactions: interaction_edges(protein),
+        ligands,
     }
+}
+
+/// True when a residue name denotes water, which is never a ligand.
+fn is_water(residue_name: &str) -> bool {
+    matches!(residue_name, "HOH" | "WAT" | "H2O" | "DOD" | "TIP")
 }
 
 /// Every detected interaction reduced to an unordered residue pair, grouped by

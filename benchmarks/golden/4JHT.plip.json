@@ -1,0 +1,197 @@
+{
+ "kinds": [
+  "hydrogen-bond",
+  "salt-bridge",
+  "hydrophobic",
+  "pi-stacking",
+  "pi-cation",
+  "halogen-bond",
+  "water-bridge",
+  "metal-coordination"
+ ],
+ "ligand_scoped": true,
+ "interactions": [
+  {
+   "kind": "salt-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 204,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 301,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrophobic",
+   "a": {
+    "chain": "A",
+    "seq": 128,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 301,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrophobic",
+   "a": {
+    "chain": "A",
+    "seq": 154,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 301,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrophobic",
+   "a": {
+    "chain": "A",
+    "seq": 189,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 301,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrophobic",
+   "a": {
+    "chain": "A",
+    "seq": 208,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 301,
+    "icode": null
+   }
+  },
+  {
+   "kind": "water-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 176,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 301,
+    "icode": null
+   }
+  },
+  {
+   "kind": "water-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 210,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 301,
+    "icode": null
+   }
+  },
+  {
+   "kind": "water-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 120,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 301,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 301,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 552,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 301,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 301,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 131,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 301,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 133,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 301,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 187,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 301,
+    "icode": null
+   }
+  },
+  {
+   "kind": "water-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 58,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 303,
+    "icode": null
+   }
+  }
+ ]
+}
