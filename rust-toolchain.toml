@@ -1,0 +1,5 @@
+# Everyone (and CI, which uses dtolnay/rust-toolchain@stable) builds, formats,
+# and lints with the same toolchain, so output cannot diverge by version.
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]

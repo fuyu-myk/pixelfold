@@ -87,7 +87,12 @@ pub fn detect(protein: &Protein) -> Vec<Interaction> {
 }
 
 /// An atom's residue-and-name identity, ignoring its alternate-location label.
-type AtomIdentity = (crate::fixed_str::FixedStr<4>, u32, Option<char>, crate::fixed_str::FixedStr<4>);
+type AtomIdentity = (
+    crate::fixed_str::FixedStr<4>,
+    u32,
+    Option<char>,
+    crate::fixed_str::FixedStr<4>,
+);
 
 /// Collapse interactions that are identical once alternate-location labels are
 /// ignored.
@@ -101,7 +106,12 @@ type AtomIdentity = (crate::fixed_str::FixedStr<4>, u32, Option<char>, crate::fi
 fn dedup_conformers(protein: &Protein, interactions: Vec<Interaction>) -> Vec<Interaction> {
     let identity = |idx: usize| -> AtomIdentity {
         let atom = &protein.atoms[idx];
-        (atom.chain_id, atom.residue_seq, atom.insertion_code, atom.name)
+        (
+            atom.chain_id,
+            atom.residue_seq,
+            atom.insertion_code,
+            atom.name,
+        )
     };
     let group = |atoms: &[usize]| {
         let mut ids: Vec<AtomIdentity> = atoms.iter().map(|&i| identity(i)).collect();
@@ -190,8 +200,16 @@ mod tests {
         );
 
         assert_eq!(deduped.len(), 2);
-        assert_eq!(deduped[0].atoms_a, vec![0], "the first-modelled conformer is kept");
-        assert_eq!(deduped[1].atoms_a, vec![2], "the reciprocal edge is not folded away");
+        assert_eq!(
+            deduped[0].atoms_a,
+            vec![0],
+            "the first-modelled conformer is kept"
+        );
+        assert_eq!(
+            deduped[1].atoms_a,
+            vec![2],
+            "the reciprocal edge is not folded away"
+        );
     }
 
     #[test]
