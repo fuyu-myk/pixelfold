@@ -8,4 +8,4 @@
 min_q3 = 0.95          # observed 0.971 (secondary-structure Q3 vs DSSP 4)
 min_hbond_f1 = 0.95    # observed 0.970 (backbone H-bond edge F1 vs DSSP 4)
 max_sasa_mae = 6.0     # observed 4.91  (per-residue SASA MAE (A^2) vs FreeSASA)
-min_plip_f1 = 0.72     # observed 0.786 (mean interaction F1 vs PLIP over its 8 types, 60 ligand complexes)
+min_plip_f1 = 0.72     # observed 0.811 (mean interaction F1 vs PLIP over its 8 types, 60 ligand complexes)

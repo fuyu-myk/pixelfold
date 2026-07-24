@@ -246,6 +246,19 @@
    }
   },
   {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "H",
+    "seq": 224,
+    "icode": null
+   },
+   "b": {
+    "chain": "H",
+    "seq": 305,
+    "icode": null
+   }
+  },
+  {
    "kind": "water-bridge",
    "a": {
     "chain": "H",

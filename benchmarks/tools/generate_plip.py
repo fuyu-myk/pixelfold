@@ -74,18 +74,6 @@ def residue_key(chain: str, seq: int, icode: str | None = None) -> dict:
     return {"chain": chain, "seq": int(seq), "icode": icode or None}
 
 
-def ligand_key(set_key: str) -> dict:
-    """The ligand residue of a PLIP binding-site key `HETID:CHAIN:POSITION`.
-
-    A position may carry a trailing insertion code (`201A`); split it off.
-    """
-    _hetid, chain, position = set_key.split(":")
-    seq, icode = position, ""
-    if position and not position[-1].isdigit():
-        seq, icode = position[:-1], position[-1]
-    return residue_key(chain, int(seq), icode)
-
-
 def edges_for(pdb_id: str, pdb: Path) -> list[dict]:
     """Every PLIP interaction as `{kind, a, b}`, an unordered residue pair."""
     mol = PDBComplex()
@@ -94,16 +82,17 @@ def edges_for(pdb_id: str, pdb: Path) -> list[dict]:
 
     seen: set[tuple[str, str, str]] = set()
     edges: list[dict] = []
-    for set_key, site in mol.interaction_sets.items():
-        ligand = ligand_key(set_key)
+    for site in mol.interaction_sets.values():
         for kind, lists in PLIP_LISTS.items():
             for attr in lists:
                 for interaction in getattr(site, attr, []) or []:
-                    # PLIP reports the binding-site residue in resnr/restype/
-                    # reschain for every interaction type; the ligand is the set.
-                    # It does not expose the binding-site residue's insertion
-                    # code, so it stays None (rare in a ligand pocket).
+                    # PLIP names both endpoints on every interaction: the binding-
+                    # site residue in reschain/resnr, and the ligand (or, for a
+                    # metal complex, the metal ion) in reschain_l/resnr_l. Take the
+                    # ligand from those fields, not the binding-site key. Neither side
+                    # exposes an insertion code, so it stays None.
                     partner = residue_key(interaction.reschain, interaction.resnr)
+                    ligand = residue_key(interaction.reschain_l, interaction.resnr_l)
                     a, b = sorted(
                         (partner, ligand),
                         key=lambda r: (r["chain"], r["seq"], r["icode"] or ""),

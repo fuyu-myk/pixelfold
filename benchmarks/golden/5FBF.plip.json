@@ -80,7 +80,7 @@
    "kind": "metal-coordination",
    "a": {
     "chain": "A",
-    "seq": 602,
+    "seq": 401,
     "icode": null
    },
    "b": {
@@ -98,7 +98,7 @@
    },
    "b": {
     "chain": "A",
-    "seq": 602,
+    "seq": 401,
     "icode": null
    }
   },
@@ -111,7 +111,7 @@
    },
    "b": {
     "chain": "A",
-    "seq": 602,
+    "seq": 401,
     "icode": null
    }
   },
@@ -120,6 +120,19 @@
    "a": {
     "chain": "A",
     "seq": 139,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 402,
     "icode": null
    },
    "b": {
@@ -137,7 +150,7 @@
    },
    "b": {
     "chain": "A",
-    "seq": 602,
+    "seq": 402,
     "icode": null
    }
   },
@@ -150,7 +163,7 @@
    },
    "b": {
     "chain": "A",
-    "seq": 602,
+    "seq": 402,
     "icode": null
    }
   },
@@ -159,6 +172,32 @@
    "a": {
     "chain": "A",
     "seq": 135,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 402,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 139,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 402,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 403,
     "icode": null
    },
    "b": {
@@ -176,7 +215,7 @@
    },
    "b": {
     "chain": "A",
-    "seq": 602,
+    "seq": 403,
     "icode": null
    }
   },
@@ -189,7 +228,7 @@
    },
    "b": {
     "chain": "A",
-    "seq": 602,
+    "seq": 403,
     "icode": null
    }
   },
@@ -202,7 +241,7 @@
    },
    "b": {
     "chain": "A",
-    "seq": 602,
+    "seq": 403,
     "icode": null
    }
   },

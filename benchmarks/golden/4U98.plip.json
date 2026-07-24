@@ -223,7 +223,7 @@
    "kind": "metal-coordination",
    "a": {
     "chain": "A",
-    "seq": 501,
+    "seq": 502,
     "icode": null
    },
    "b": {
@@ -241,7 +241,7 @@
    },
    "b": {
     "chain": "A",
-    "seq": 501,
+    "seq": 502,
     "icode": null
    }
   },
@@ -254,7 +254,7 @@
    },
    "b": {
     "chain": "A",
-    "seq": 501,
+    "seq": 502,
     "icode": null
    }
   },
@@ -262,7 +262,7 @@
    "kind": "metal-coordination",
    "a": {
     "chain": "A",
-    "seq": 501,
+    "seq": 503,
     "icode": null
    },
    "b": {
@@ -275,7 +275,7 @@
    "kind": "metal-coordination",
    "a": {
     "chain": "A",
-    "seq": 501,
+    "seq": 503,
     "icode": null
    },
    "b": {
@@ -288,12 +288,38 @@
    "kind": "metal-coordination",
    "a": {
     "chain": "A",
-    "seq": 501,
+    "seq": 503,
     "icode": null
    },
    "b": {
     "chain": "A",
     "seq": 941,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 501,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 503,
+    "icode": null
+   }
+  },
+  {
+   "kind": "metal-coordination",
+   "a": {
+    "chain": "A",
+    "seq": 322,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 503,
     "icode": null
    }
   }

@@ -41,18 +41,19 @@ Per-type interaction agreement (precision / recall / F1):
 
 | Interaction type | Reference | Entries | Pred edges | Ref edges | Precision | Recall | F1 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| hydrogen-bond | PLIP | 60 | 787 | 518 | 0.58 | 0.81 | 0.64 |
-| salt-bridge | PLIP | 60 | 140 | 125 | 0.84 | 0.93 | 0.82 |
-| hydrophobic | PLIP | 60 | 479 | 376 | 0.81 | 0.95 | 0.86 |
-| pi-stacking | PLIP | 60 | 23 | 22 | 0.97 | 0.93 | 0.92 |
+| hydrogen-bond | PLIP | 60 | 787 | 519 | 0.58 | 0.82 | 0.65 |
+| salt-bridge | PLIP | 60 | 140 | 127 | 0.85 | 0.93 | 0.83 |
+| hydrophobic | PLIP | 60 | 479 | 377 | 0.82 | 0.96 | 0.87 |
+| pi-stacking | PLIP | 60 | 23 | 22 | 0.97 | 0.95 | 0.92 |
 | pi-cation | PLIP | 60 | 6 | 17 | 0.97 | 0.88 | 0.84 |
 | halogen-bond | PLIP | 60 | 4 | 5 | 1.00 | 0.98 | 0.98 |
 | water-bridge | PLIP | 60 | 722 | 345 | 0.50 | 0.87 | 0.59 |
-| metal-coordination | PLIP | 60 | 444 | 323 | 0.66 | 0.76 | 0.64 |
+| metal-coordination | PLIP | 60 | 444 | 338 | 0.82 | 0.92 | 0.81 |
 <!-- VALIDATION:END -->
 
 Agreement is high on secondary structure, surface area, and the shape-driven
-interactions (pi-stacking, halogen, pi-cation, hydrophobic, salt bridge). It is
+interactions (pi-stacking, halogen, pi-cation, hydrophobic, salt bridge, metal
+coordination). It is
 lower and directional on hydrogen bonds and water bridges, where pixelfold
 reports every geometrically reachable bond (a rotatable donor placed against each
 acceptor, one bridge per donor) while PLIP commits to one: recall stays high
