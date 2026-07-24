@@ -213,7 +213,34 @@ fn compute_hbonds(residues: &[Residue]) -> Vec<HBond> {
         });
     }
 
+    cap_donor_bonds(hbonds)
+}
+
+/// DSSP keeps only a residue's two most favourable bonds in each role, and the
+/// golden lists a donor's two `acceptor` slots, so a donor N-H that reaches three
+/// or more carbonyls contributes only its two lowest-energy bonds. Keep those per
+/// donor and drop the weaker rest, preserving discovery order.
+fn cap_donor_bonds(hbonds: Vec<HBond>) -> Vec<HBond> {
+    let mut by_donor: HashMap<usize, Vec<usize>> = HashMap::new();
+    for (idx, hb) in hbonds.iter().enumerate() {
+        by_donor.entry(hb.donor_residue).or_default().push(idx);
+    }
+
+    let mut keep = vec![true; hbonds.len()];
+    for indices in by_donor.values_mut() {
+        if indices.len() > 2 {
+            indices.sort_by(|&a, &b| hbonds[a].energy.total_cmp(&hbonds[b].energy));
+            for &idx in &indices[2..] {
+                keep[idx] = false;
+            }
+        }
+    }
+
     hbonds
+        .into_iter()
+        .zip(keep)
+        .filter_map(|(hb, keep)| keep.then_some(hb))
+        .collect()
 }
 
 /// Assign secondary structure from the hydrogen bond set using the DSSP pattern
@@ -478,6 +505,29 @@ mod tests {
         assert_eq!(hbonds[0].donor_residue, 3);
         assert_eq!(hbonds[0].acceptor_atom_idx, 10);
         assert_eq!(hbonds[0].donor_atom_idx, 20);
+    }
+
+    #[test]
+    fn a_donor_keeps_only_its_two_lowest_energy_bonds() {
+        // One donor N-H reaches three carbonyls, each further away and so more
+        // weakly bonded than the last. DSSP records at most a residue's two best
+        // donor bonds, so the weakest of the three must be dropped.
+        let mut residues = chain_a(6);
+        residues[5].n = Some(Vec3::new(0.0, 0.0, 0.0));
+        residues[5].h = Some(Vec3::new(1.0, 0.0, 0.0));
+        residues[5].n_atom_idx = Some(50);
+        for (idx, r) in [1.8f32, 2.0, 2.2].into_iter().enumerate() {
+            residues[idx].o = Some(Vec3::new(1.0 + r, 0.0, 0.0));
+            residues[idx].c = Some(Vec3::new(1.0 + r + 1.23, 0.0, 0.0));
+            residues[idx].o_atom_idx = Some(idx);
+        }
+
+        let hbonds = compute_hbonds(&residues);
+
+        assert_eq!(hbonds.len(), 2, "the third, weakest bond is capped");
+        assert!(hbonds.iter().all(|hb| hb.donor_residue == 5));
+        let accepted: HashSet<usize> = hbonds.iter().map(|hb| hb.acceptor_residue).collect();
+        assert_eq!(accepted, HashSet::from([0, 1])); // r = 2.2 is the weakest, dropped
     }
 
     #[test]
