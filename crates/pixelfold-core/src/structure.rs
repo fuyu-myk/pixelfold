@@ -199,45 +199,102 @@ pub fn filter_altlocs(atoms: Vec<Atom>, policy: AltlocPolicy) -> Vec<Atom> {
             .into_iter()
             .filter(|a| a.altloc.is_none() || a.altloc == Some('B'))
             .collect(),
-        AltlocPolicy::Occupancy => {
-            // Keep the best conformer per (chain, residue, insertion, atom name).
-            let mut best: std::collections::HashMap<
-                (FixedStr<4>, u32, Option<char>, FixedStr<4>),
-                usize,
-            > = std::collections::HashMap::new();
-            let mut kept: Vec<Atom> = Vec::new();
+        AltlocPolicy::Occupancy => resolve_occupancy(atoms),
+    }
+}
 
-            for atom in atoms {
-                if atom.altloc.is_none() {
-                    kept.push(atom);
-                    continue;
-                }
+type ResidueKey = (FixedStr<4>, u32, Option<char>);
 
-                let key = (
-                    atom.chain_id,
-                    atom.residue_seq,
-                    atom.insertion_code,
-                    atom.name,
-                );
-                match best.get(&key).copied() {
-                    None => {
-                        best.insert(key, kept.len());
-                        kept.push(atom);
-                    }
-                    Some(idx) => {
-                        let existing = &kept[idx];
-                        // Higher occupancy wins; on a tie the earlier altloc ('A' < 'B') wins.
-                        let replace = atom.occupancy > existing.occupancy
-                            || (atom.occupancy == existing.occupancy
-                                && atom.altloc < existing.altloc);
-                        if replace {
-                            kept[idx] = atom;
-                        }
-                    }
-                }
+fn residue_of(atom: &Atom) -> ResidueKey {
+    (atom.chain_id, atom.residue_seq, atom.insertion_code)
+}
+
+fn is_backbone(name: &FixedStr<4>) -> bool {
+    matches!(name.as_str(), "N" | "CA" | "C" | "O")
+}
+
+/// The label with the greatest summed occupancy, ties preferring the earlier
+/// label. `labels` is never empty at the call sites.
+fn pick_label(labels: &std::collections::HashMap<char, f32>) -> char {
+    labels
+        .iter()
+        .max_by(|(la, oa), (lb, ob)| oa.total_cmp(ob).then_with(|| lb.cmp(la)))
+        .map(|(&label, _)| label)
+        .expect("a residue in the occupancy map has at least one label")
+}
+
+/// Resolve alternate locations to a single conformer per residue.
+///
+/// Choosing a winner independently per atom can leave a residue chimeric (its
+/// atoms drawn from different conformers) which places a sidechain rotor about an
+/// axis that is a bond in neither conformer. Instead one label wins the whole
+/// residue, decided by the backbone, by greatest summed occupancy (ties prefer
+/// the earlier label).
+fn resolve_occupancy(atoms: Vec<Atom>) -> Vec<Atom> {
+    use std::collections::HashMap;
+
+    let mut overall: HashMap<ResidueKey, HashMap<char, f32>> = HashMap::new();
+    let mut backbone: HashMap<ResidueKey, HashMap<char, f32>> = HashMap::new();
+    for atom in &atoms {
+        let Some(label) = atom.altloc else { continue };
+        let residue = residue_of(atom);
+        *overall
+            .entry(residue)
+            .or_default()
+            .entry(label)
+            .or_default() += atom.occupancy;
+        if is_backbone(&atom.name) {
+            *backbone
+                .entry(residue)
+                .or_default()
+                .entry(label)
+                .or_default() += atom.occupancy;
+        }
+    }
+    let chosen: HashMap<ResidueKey, char> = overall
+        .iter()
+        .map(|(residue, all_labels)| {
+            (
+                *residue,
+                pick_label(backbone.get(residue).unwrap_or(all_labels)),
+            )
+        })
+        .collect();
+
+    let mut best: HashMap<(ResidueKey, FixedStr<4>), usize> = HashMap::new();
+    let mut kept: Vec<Atom> = Vec::new();
+    for atom in atoms {
+        if atom.altloc.is_none() {
+            kept.push(atom);
+            continue;
+        }
+
+        let want = chosen.get(&residue_of(&atom)).copied();
+        let key = (residue_of(&atom), atom.name);
+        match best.get(&key).copied() {
+            None => {
+                best.insert(key, kept.len());
+                kept.push(atom);
             }
+            Some(idx) if prefer(&atom, &kept[idx], want) => kept[idx] = atom,
+            Some(_) => {}
+        }
+    }
 
-            kept
+    kept
+}
+
+/// Whether `new` should replace `existing` as a residue's kept copy of an atom.
+/// The chosen conformer always wins; where neither copy is the chosen label (the
+/// atom is only modelled in other conformers) the more-occupied copy wins, ties
+/// preferring the earlier label.
+fn prefer(new: &Atom, existing: &Atom, want: Option<char>) -> bool {
+    match (new.altloc == want, existing.altloc == want) {
+        (true, false) => true,
+        (false, true) => false,
+        _ => {
+            new.occupancy > existing.occupancy
+                || (new.occupancy == existing.occupancy && new.altloc < existing.altloc)
         }
     }
 }
@@ -328,6 +385,71 @@ mod tests {
         );
         assert_eq!(tie.len(), 1);
         assert_eq!(tie[0].altloc, Some('A'));
+    }
+
+    #[test]
+    fn occupancy_keeps_one_consistent_conformer_per_residue() {
+        // CB alone prefers A (0.6 > 0.4) while OG alone prefers C (0.7 > 0.3):
+        // a per-atom winner would keep CB(A) with OG(C), a chimera. The residue's
+        // summed occupancy is A = 0.9 vs C = 1.1, so it resolves wholly to C.
+        let kept = filter_altlocs(
+            vec![
+                altloc_atom("CB", Some('A'), 0.6),
+                altloc_atom("CB", Some('C'), 0.4),
+                altloc_atom("OG", Some('A'), 0.3),
+                altloc_atom("OG", Some('C'), 0.7),
+            ],
+            AltlocPolicy::Occupancy,
+        );
+        assert_eq!(kept.len(), 2);
+        assert!(
+            kept.iter().all(|a| a.altloc == Some('C')),
+            "the whole residue takes one conformer"
+        );
+    }
+
+    #[test]
+    fn occupancy_lets_the_backbone_decide_over_the_sidechain() {
+        // Summed over all atoms, conformer B wins (1.55 vs 1.45); but the
+        // backbone CA favours A (0.55 vs 0.45). The residue must follow the
+        // backbone so a disordered sidechain never shifts the main chain.
+        let kept = filter_altlocs(
+            vec![
+                altloc_atom("CA", Some('A'), 0.55),
+                altloc_atom("CA", Some('B'), 0.45),
+                altloc_atom("CB", Some('A'), 0.45),
+                altloc_atom("CB", Some('B'), 0.55),
+                altloc_atom("CG", Some('A'), 0.45),
+                altloc_atom("CG", Some('B'), 0.55),
+            ],
+            AltlocPolicy::Occupancy,
+        );
+        assert!(
+            kept.iter().all(|a| a.altloc == Some('A')),
+            "the backbone decides the residue conformer"
+        );
+    }
+
+    #[test]
+    fn occupancy_keeps_atoms_absent_from_the_chosen_conformer() {
+        // The residue resolves to conformer A (0.7 > 0.3), but its guanidinium
+        // tip is modelled only in B; that atom must survive rather than vanish.
+        let kept = filter_altlocs(
+            vec![
+                altloc_atom("CB", Some('A'), 0.7),
+                altloc_atom("CB", Some('B'), 0.3),
+                altloc_atom("NH1", Some('B'), 0.3),
+            ],
+            AltlocPolicy::Occupancy,
+        );
+        let cb = kept.iter().find(|a| a.name.as_str() == "CB").unwrap();
+        let nh1 = kept.iter().find(|a| a.name.as_str() == "NH1");
+        assert_eq!(cb.altloc, Some('A'), "CB takes the chosen conformer");
+        assert_eq!(
+            nh1.map(|a| a.altloc),
+            Some(Some('B')),
+            "an atom the chosen conformer omits falls back to its own copy"
+        );
     }
 
     #[test]

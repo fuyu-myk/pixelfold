@@ -33,8 +33,8 @@ Validated 205 benchmark entries against DSSP 4, FreeSASA and PLIP.
 | --- | --- | --- | --- |
 | Secondary structure (Q3) | DSSP 4 | 194 | 97.1% |
 | Backbone H-bond edges (F1) | DSSP 4 | 205 | 0.97 |
-| SASA mean abs error | FreeSASA | 202 | 4.91 A^2 |
-| SASA median abs error | FreeSASA | 202 | 3.76 A^2 |
+| SASA mean abs error | FreeSASA | 202 | 4.93 A^2 |
+| SASA median abs error | FreeSASA | 202 | 3.77 A^2 |
 | SASA correlation (Pearson r) | FreeSASA | 202 | 0.99 |
 
 Per-type interaction agreement (precision / recall / F1):
@@ -60,7 +60,9 @@ acceptor, one bridge per donor) while PLIP commits to one: recall stays high
 (pixelfold finds what PLIP finds) and precision is where the modelling choice
 shows. The residual SASA error is the same kind of difference: pixelfold uses
 Bondi radii with Shrake-Rupley, FreeSASA uses ProtOr radii with Lee-Richards, and
-the per-residue correlation is still 0.99.
+where a residue is modelled in alternate conformers pixelfold keeps one whole
+conformer (so a sidechain is never chimeric) while FreeSASA resolves each atom
+independently. The per-residue correlation is still 0.99.
 
 PLIP profiles ligand binding sites, so its numbers cover the 60 protein-ligand
 complexes and each edge is scored only where it touches a ligand. RING 4.0 (the
