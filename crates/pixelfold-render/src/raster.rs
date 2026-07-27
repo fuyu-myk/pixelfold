@@ -27,6 +27,10 @@ pub struct RenderOptions {
     /// Normalised on use; the default is a headlight, so sphere centres are the
     /// brightest points.
     pub light: Vec3,
+    /// Clipping planes as `(far, near)` fractions of the scene's depth range,
+    /// each in `0.0..=1.0`. Only fragments whose depth falls between the planes
+    /// are drawn. `None` draws the whole depth.
+    pub slab: Option<(f32, f32)>,
 }
 
 impl Default for RenderOptions {
@@ -36,6 +40,7 @@ impl Default for RenderOptions {
             depth_cue: 0.45,
             ambient: 0.15,
             light: Vec3::Z,
+            slab: None,
         }
     }
 }
@@ -47,14 +52,19 @@ pub fn rasterize(scene: &Scene, camera: &Camera, fb: &mut Framebuffer, opts: &Re
     let zoom = camera.zoom;
     let light = opts.light.normalize_or_zero();
     let bg = fb.background();
-    // Skip the depth-range pass entirely when the cue is off.
-    let (zmin, fog_span, fog_on) = if opts.depth_cue > 0.0 {
+    // The depth range scales both the fog and the slab, so compute it once when
+    // either needs it and skip the pass otherwise.
+    let (zmin, span, has_range) = if opts.depth_cue > 0.0 || opts.slab.is_some() {
         let (zmin, zmax) = depth_range(scene, camera, width, height);
         let span = zmax - zmin;
         (zmin, span, span > f32::EPSILON)
     } else {
         (0.0, 0.0, false)
     };
+    let fog_span = span;
+    let fog_on = opts.depth_cue > 0.0 && has_range;
+    // Clipping needs a valid range to normalise against.
+    let slab = opts.slab.filter(|_| has_range);
 
     for i in 0..scene.len() {
         let r_ang = scene.radii[i] * opts.radius_scale;
@@ -77,6 +87,9 @@ pub fn rasterize(scene: &Scene, camera: &Camera, fb: &mut Framebuffer, opts: &Re
         // pixel. Below the threshold, draw the centre directly so tiny atoms
         // never vanish.
         if r_px < FRAC_1_SQRT_2 {
+            if clipped(slab, zc, zmin, span) {
+                continue;
+            }
             if let (Some(px), Some(py)) = (in_bounds(cx, fb.width()), in_bounds(cy, fb.height())) {
                 let shaded = shade(color, 1.0, opts.ambient);
                 let final_color = fog(shaded, bg, zc, zmin, fog_span, fog_on, opts.depth_cue);
@@ -106,6 +119,10 @@ pub fn rasterize(scene: &Scene, camera: &Camera, fb: &mut Framebuffer, opts: &Re
                 let dz_px = (r_px2 - d2).max(0.0).sqrt();
                 let z = zc + dz_px / zoom;
 
+                if clipped(slab, z, zmin, span) {
+                    continue;
+                }
+
                 let n = Vec3::new(dx, dy, dz_px) / r_px;
                 let intensity = n.dot(light).max(0.0);
                 let shaded = shade(color, intensity, opts.ambient);
@@ -113,6 +130,18 @@ pub fn rasterize(scene: &Scene, camera: &Camera, fb: &mut Framebuffer, opts: &Re
 
                 fb.test_and_set(px as u32, py as u32, z, final_color, id);
             }
+        }
+    }
+}
+
+/// Whether a fragment at depth `z` lies outside the slab. `slab` is `(far,
+/// near)` fractions of the depth range `[zmin, zmin + span]`.
+fn clipped(slab: Option<(f32, f32)>, z: f32, zmin: f32, span: f32) -> bool {
+    match slab {
+        None => false,
+        Some((far, near)) => {
+            let t = (z - zmin) / span;
+            t < far || t > near
         }
     }
 }
@@ -199,6 +228,7 @@ mod tests {
             depth_cue: 0.0,
             ambient: 0.0,
             light: Vec3::Z,
+            slab: None,
         }
     }
 
@@ -424,6 +454,7 @@ mod tests {
             depth_cue: 0.6,
             ambient: 0.15,
             light: Vec3::Z,
+            slab: None,
         };
         rasterize(&scene, &cam, &mut fb, &opts);
 
@@ -442,5 +473,58 @@ mod tests {
             near_side > far_side,
             "near atom ({near_side}) should outshine the fogged far atom ({far_side})"
         );
+    }
+
+    #[test]
+    fn clipped_keeps_only_the_band() {
+        // Depth range [0, 100]; the band [0.3, 0.7] keeps z in [30, 70].
+        assert!(
+            clipped(Some((0.3, 0.7)), 20.0, 0.0, 100.0),
+            "t=0.2 is below"
+        );
+        assert!(
+            !clipped(Some((0.3, 0.7)), 50.0, 0.0, 100.0),
+            "t=0.5 is inside"
+        );
+        assert!(
+            clipped(Some((0.3, 0.7)), 80.0, 0.0, 100.0),
+            "t=0.8 is above"
+        );
+        assert!(
+            !clipped(None, 999.0, 0.0, 100.0),
+            "no slab keeps everything"
+        );
+    }
+
+    #[test]
+    fn slab_slices_the_structure_open() {
+        // Three atoms stacked in depth and overlapping on screen: id 0 far
+        // (t=0), id 1 middle (t=0.5), id 2 near (t=1). A middle band keeps only
+        // the middle atom, revealing an interior slice.
+        let cam = centred_camera(10.0);
+        let size = 61u32;
+        let scene = Scene::from_protein(
+            &protein(vec![
+                atom_at("O", Vec3::new(0.0, 0.0, -50.0)),
+                atom_at("N", Vec3::new(0.0, 0.0, 0.0)),
+                atom_at("C", Vec3::new(0.0, 0.0, 50.0)),
+            ]),
+            Coloring::Element,
+            None,
+        );
+
+        let middle = RenderOptions {
+            slab: Some((0.25, 0.75)),
+            ..lit_opts()
+        };
+        let mut fb = Framebuffer::new(size, size, BG);
+        rasterize(&scene, &cam, &mut fb, &middle);
+
+        assert!(
+            fb.ids().contains(&1),
+            "the middle slab keeps the middle atom"
+        );
+        assert!(!fb.ids().contains(&0), "the far atom is clipped away");
+        assert!(!fb.ids().contains(&2), "the near atom is clipped away");
     }
 }

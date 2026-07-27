@@ -43,6 +43,8 @@ pub struct RenderParams {
     pub backbone: bool,
     pub radius_scale: f32,
     pub depth_cue: bool,
+    /// Depth band `(far, near)` in `0..1` to slice the structure, or `None`.
+    pub slab: Option<(f32, f32)>,
 }
 
 /// Where the render goes, resolved once so the framebuffer can be sized for it.
@@ -80,6 +82,7 @@ pub fn render(
     let opts = RenderOptions {
         radius_scale: params.radius_scale,
         depth_cue: if params.depth_cue { FOG_STRENGTH } else { 0.0 },
+        slab: params.slab,
         ..RenderOptions::default()
     };
     rasterize(&scene, &camera, &mut fb, &opts);

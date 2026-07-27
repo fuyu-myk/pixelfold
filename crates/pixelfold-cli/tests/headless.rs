@@ -373,6 +373,44 @@ fn render_protocol_kitty_emits_the_graphics_escape() {
     assert!(out.ends_with(b"\x1b\\\n"), "Kitty escape not terminated");
 }
 
+/// A depth-band slab renders through the same path and yields a valid PNG.
+#[test]
+fn render_slab_produces_a_valid_png() {
+    let Some(out) = render_stdout(&["--slab", "0.4", "0.6", "--width", "60", "--height", "45"])
+    else {
+        return;
+    };
+    assert_eq!(
+        png_dimensions(&out),
+        Some((60, 45)),
+        "sliced output is not a PNG"
+    );
+}
+
+#[test]
+fn render_slab_rejects_an_inverted_range() {
+    let Some(structure) = cached("1CRN") else {
+        return;
+    };
+    let dir = std::env::temp_dir().join(format!("pixelfold-slab-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let out = dir.join("bad.png");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_pixelfold"))
+        .args(["render", "--slab", "0.8", "0.2", "-o"])
+        .arg(&out)
+        .arg(&structure)
+        .output()
+        .expect("the binary runs");
+
+    assert!(!output.status.success(), "FAR >= NEAR should fail");
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("FAR"),
+        "error should explain the slab range"
+    );
+    std::fs::remove_dir_all(&dir).ok();
+}
+
 /// Half-block output is ANSI truecolor text ending each row with a reset.
 #[test]
 fn render_protocol_halfblock_emits_ansi_text() {

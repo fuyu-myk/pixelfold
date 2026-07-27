@@ -173,6 +173,11 @@ enum Command {
         #[arg(long)]
         no_depth_cue: bool,
 
+        /// Slice the structure to a depth band: two fractions FAR NEAR in 0..1
+        /// (0 is the farthest atom, 1 the nearest)
+        #[arg(long, num_args = 2, value_names = ["FAR", "NEAR"])]
+        slab: Option<Vec<f32>>,
+
         /// Terminal graphics protocol for terminal output (ignored with -o)
         #[arg(long, value_enum, default_value_t = ProtocolArg::Auto)]
         protocol: ProtocolArg,
@@ -376,6 +381,7 @@ fn run(command: Command) -> Result<()> {
             select,
             radius_scale,
             no_depth_cue,
+            slab,
             protocol,
             common,
         } => {
@@ -390,6 +396,16 @@ fn run(command: Command) -> Result<()> {
                 None => None,
             };
 
+            let slab = match slab.as_deref() {
+                None => None,
+                Some([far, near]) if (0.0..=1.0).contains(far) && far < near && *near <= 1.0 => {
+                    Some((*far, *near))
+                }
+                Some(_) => {
+                    anyhow::bail!("--slab takes two fractions FAR NEAR with 0 <= FAR < NEAR <= 1")
+                }
+            };
+
             let params = render::RenderParams {
                 width,
                 height,
@@ -397,6 +413,7 @@ fn run(command: Command) -> Result<()> {
                 backbone,
                 radius_scale,
                 depth_cue: !no_depth_cue,
+                slab,
             };
 
             render::render(
