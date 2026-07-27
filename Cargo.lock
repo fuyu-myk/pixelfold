@@ -1464,6 +1464,7 @@ version = "0.6.0"
 dependencies = [
  "anyhow",
  "clap",
+ "crossterm 0.29.0",
  "dirs",
  "pixelfold-core",
  "pixelfold-fetch",

@@ -8,6 +8,10 @@ use std::path::Path;
 
 use crate::framebuffer::Framebuffer;
 
+/// Re-exported so sibling sink modules can name the PNG error without reaching
+/// past the local `png` module to the external crate of the same name.
+pub use png::EncodingError;
+
 /// Encode a framebuffer as an RGBA8 PNG to `writer`.
 pub fn encode<W: Write>(fb: &Framebuffer, writer: W) -> Result<(), png::EncodingError> {
     let mut encoder = png::Encoder::new(writer, fb.width(), fb.height());

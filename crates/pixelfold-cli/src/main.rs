@@ -134,22 +134,24 @@ enum Command {
         #[command(flatten)]
         analysis: Analysis,
     },
-    /// Render a structure to a PNG image (headless)
+    /// Render a structure to a PNG file, or to the terminal when no file is given
     Render {
         /// Path to a .pdb/.cif file, or a 4-character PDB id
         structure: String,
 
-        /// Write the PNG here
+        /// Write a PNG here; without it, render to the terminal (or pipe a PNG)
         #[arg(short, long, value_name = "FILE")]
-        output: PathBuf,
+        output: Option<PathBuf>,
 
-        /// Image width in pixels
-        #[arg(long, default_value_t = 1200)]
-        width: u32,
+        /// Image width in pixels (defaults to 1200 for a file, or the terminal
+        /// width for terminal output)
+        #[arg(long)]
+        width: Option<u32>,
 
-        /// Image height in pixels
-        #[arg(long, default_value_t = 900)]
-        height: u32,
+        /// Image height in pixels (defaults to 900 for a file, or the terminal
+        /// height for terminal output)
+        #[arg(long)]
+        height: Option<u32>,
 
         /// How to colour atoms
         #[arg(long, value_enum, default_value_t = ColorArg::Element)]
@@ -170,6 +172,10 @@ enum Command {
         /// Disable the depth cue (distance fog)
         #[arg(long)]
         no_depth_cue: bool,
+
+        /// Terminal graphics protocol for terminal output (ignored with -o)
+        #[arg(long, value_enum, default_value_t = ProtocolArg::Auto)]
+        protocol: ProtocolArg,
 
         #[command(flatten)]
         common: Common,
@@ -231,6 +237,30 @@ impl From<ColorArg> for pixelfold_render::Coloring {
             ColorArg::Element => pixelfold_render::Coloring::Element,
             ColorArg::Bfactor => pixelfold_render::Coloring::Bfactor,
             ColorArg::Ss => pixelfold_render::Coloring::SecondaryStructure,
+        }
+    }
+}
+
+/// The terminal graphics protocol for `render`'s terminal output.
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum ProtocolArg {
+    /// Detect the terminal from the environment
+    Auto,
+    /// Kitty graphics protocol (also Ghostty, WezTerm)
+    Kitty,
+    /// iTerm2 inline images
+    Iterm2,
+    /// Unicode half-block fallback (any truecolor terminal)
+    HalfBlock,
+}
+
+impl From<ProtocolArg> for render::TerminalTarget {
+    fn from(arg: ProtocolArg) -> Self {
+        match arg {
+            ProtocolArg::Auto => render::TerminalTarget::Auto,
+            ProtocolArg::Kitty => render::TerminalTarget::Kitty,
+            ProtocolArg::Iterm2 => render::TerminalTarget::Iterm2,
+            ProtocolArg::HalfBlock => render::TerminalTarget::HalfBlock,
         }
     }
 }
@@ -346,6 +376,7 @@ fn run(command: Command) -> Result<()> {
             select,
             radius_scale,
             no_depth_cue,
+            protocol,
             common,
         } => {
             let protein = loaded(&structure, &common)?;
@@ -368,7 +399,13 @@ fn run(command: Command) -> Result<()> {
                 depth_cue: !no_depth_cue,
             };
 
-            render::render(&protein, selected.as_deref(), &params, &output)
+            render::render(
+                &protein,
+                selected.as_deref(),
+                &params,
+                output.as_deref(),
+                protocol.into(),
+            )
         }
     }
 }

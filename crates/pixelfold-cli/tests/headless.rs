@@ -329,6 +329,72 @@ fn render_rejects_an_empty_selection() {
     std::fs::remove_dir_all(&dir).ok();
 }
 
+/// Run render with the given extra args and return raw stdout bytes.
+fn render_stdout(args: &[&str]) -> Option<Vec<u8>> {
+    let structure = cached("1CRN")?;
+    let output = Command::new(env!("CARGO_BIN_EXE_pixelfold"))
+        .arg("render")
+        .args(args)
+        .arg(&structure)
+        .output()
+        .expect("the binary runs");
+    assert!(
+        output.status.success(),
+        "render failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    Some(output.stdout)
+}
+
+/// Without a file and with a piped (non-terminal) stdout, render writes a PNG so
+/// it composes in a pipeline.
+#[test]
+fn render_without_output_pipes_a_png() {
+    let Some(out) = render_stdout(&["--width", "80", "--height", "60"]) else {
+        return;
+    };
+    assert_eq!(
+        png_dimensions(&out),
+        Some((80, 60)),
+        "piped output is not a PNG"
+    );
+}
+
+/// An explicit protocol is honored even when piped, so its escape can be
+/// captured. Kitty output is the graphics-protocol APC escape, not a PNG.
+#[test]
+fn render_protocol_kitty_emits_the_graphics_escape() {
+    let Some(out) = render_stdout(&["--protocol", "kitty", "--width", "40", "--height", "30"])
+    else {
+        return;
+    };
+    assert!(out.starts_with(b"\x1b_Ga=T,f=100,"), "not a Kitty escape");
+    assert!(out.ends_with(b"\x1b\\\n"), "Kitty escape not terminated");
+}
+
+/// Half-block output is ANSI truecolor text ending each row with a reset.
+#[test]
+fn render_protocol_halfblock_emits_ansi_text() {
+    let Some(out) = render_stdout(&[
+        "--protocol",
+        "half-block",
+        "--width",
+        "20",
+        "--height",
+        "10",
+    ]) else {
+        return;
+    };
+    assert!(out.starts_with(b"\x1b[38;2;"), "not truecolor foreground");
+    // The upper half block, U+2580, is E2 96 80 in UTF-8.
+    assert!(
+        out.windows(3).any(|w| w == [0xe2, 0x96, 0x80]),
+        "no half-block glyphs emitted"
+    );
+    assert!(out.windows(4).any(|w| w == b"\x1b[0m"), "no row reset");
+}
+
 /// Reading a file needs no cache, so an unusable cache directory must not stop
 /// it. Only a download touches the cache.
 #[test]
