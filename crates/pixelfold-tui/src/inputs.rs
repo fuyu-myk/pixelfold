@@ -1,181 +1,99 @@
 use anyhow::Result;
 use crossterm::event::{self, KeyCode, KeyModifiers};
 
-use pixelfold_core::{DisplayMode, rin, sasa};
+use pixelfold_core::DisplayMode;
 use pixelfold_render::renderer;
 
 use crate::App;
+
+const SLAB_DEFAULT: (f32, f32) = (0.3, 0.7);
+const SLAB_STEP: f32 = 0.05;
+/// Smallest half-width of the slab, so narrowing never inverts the band.
+const SLAB_MIN_HALF: f32 = 0.025;
 
 pub(crate) fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers) -> Result<()> {
     let rotation_speed = 0.1;
     let zoom_speed = 0.1;
     let pan_speed = 5.0;
 
-    // Input, rendering, and mouse picking share one coordinate system.
-    let width = app.last_canvas_width;
-    let height = app.last_canvas_height;
-
     match key {
         KeyCode::Char('q') => {}
 
-        // Rotation controls (WASD)
-        KeyCode::Char('w') => {
-            app.redraw_needed = true;
-            app.projected_atom_cache = None;
-            app.camera.rotate(rotation_speed, 0.0, 0.0);
-        }
-        KeyCode::Char('s') => {
-            app.redraw_needed = true;
-            app.projected_atom_cache = None;
-            app.camera.rotate(-rotation_speed, 0.0, 0.0);
-        }
-        KeyCode::Char('a') => {
-            app.redraw_needed = true;
-            app.projected_atom_cache = None;
-            app.camera.rotate(0.0, rotation_speed, 0.0);
-        }
-        KeyCode::Char('d') => {
-            app.redraw_needed = true;
-            app.projected_atom_cache = None;
-            app.camera.rotate(0.0, -rotation_speed, 0.0);
-        }
-        KeyCode::Char('z') => {
-            app.redraw_needed = true;
-            app.projected_atom_cache = None;
-            app.camera.rotate(0.0, 0.0, rotation_speed);
-        }
-        KeyCode::Char('x') => {
-            app.redraw_needed = true;
-            app.projected_atom_cache = None;
-            app.camera.rotate(0.0, 0.0, -rotation_speed);
-        }
+        // Rotation (WASD + z/x for roll)
+        KeyCode::Char('w') => rotate(app, rotation_speed, 0.0, 0.0),
+        KeyCode::Char('s') => rotate(app, -rotation_speed, 0.0, 0.0),
+        KeyCode::Char('a') => rotate(app, 0.0, rotation_speed, 0.0),
+        KeyCode::Char('d') => rotate(app, 0.0, -rotation_speed, 0.0),
+        KeyCode::Char('z') => rotate(app, 0.0, 0.0, rotation_speed),
+        KeyCode::Char('x') => rotate(app, 0.0, 0.0, -rotation_speed),
 
-        // Zoom controls
+        // Zoom
         KeyCode::Char('+') | KeyCode::Char('=') => {
-            app.redraw_needed = true;
-            app.projected_atom_cache = None;
             app.camera.adjust_zoom(zoom_speed);
+            app.redraw_needed = true;
         }
         KeyCode::Char('-') | KeyCode::Char('_') => {
-            app.redraw_needed = true;
-            app.projected_atom_cache = None;
             app.camera.adjust_zoom(-zoom_speed);
+            app.redraw_needed = true;
         }
 
-        // Pan controls (Arrow keys)
-        // Cycle through candidates in inspect mode (up and down)
-        // Adjust surface density (up and down)
-        // Adjust H-bond energy threshold (up and down when H-bonds visible)
+        // Up/Down adjust the hydrogen-bond energy threshold when bonds are shown,
+        // otherwise they pan vertically.
         KeyCode::Up => {
-            if app.show_hydrogen_bonds && !app.show_surface && !app.inspect_mode {
-                // More negative = stronger bonds only
+            if app.show_hydrogen_bonds && !app.inspect_mode {
                 app.hbond_energy_threshold = (app.hbond_energy_threshold - 0.5).max(-10.0);
-                app.redraw_needed = true;
-
-                // Recompute network analysis if network mode is active
-                if app.show_hbond_network
-                    && let Some(ref graph) = app.hbond_graph
-                {
-                    let filtered = graph.filter_by_energy(app.hbond_energy_threshold);
-                    app.network_analysis = Some(filtered.analyze());
-                }
-            } else if app.show_surface {
-                app.surface_point_density = (app.surface_point_density + 25).min(500);
-                app.redraw_needed = true;
-                if let Some(ref mut protein) = app.protein {
-                    let surface_calculator =
-                        sasa::SurfaceCalculator::new(1.4, app.surface_point_density);
-                    protein.surface_points = surface_calculator.calculate_surface(&protein.atoms);
-                }
-            } else if app.inspect_mode && !app.candidate_atoms.is_empty() {
-                if app.candidate_selection_idx == 0 {
-                    app.candidate_selection_idx = app.candidate_atoms.len() - 1;
-                } else {
-                    app.candidate_selection_idx -= 1;
-                }
-                app.selected_atom_idx = Some(app.candidate_atoms[app.candidate_selection_idx].0);
-                app.redraw_needed = true;
-                crate::update_highlighted_atoms(app, width, height);
             } else {
-                app.redraw_needed = true;
-                app.projected_atom_cache = None;
                 app.camera.pan_camera(0.0, pan_speed);
             }
+            app.redraw_needed = true;
         }
         KeyCode::Down => {
-            if app.show_hydrogen_bonds && !app.show_surface && !app.inspect_mode {
-                // Less negative = more bonds shown
+            if app.show_hydrogen_bonds && !app.inspect_mode {
                 app.hbond_energy_threshold = (app.hbond_energy_threshold + 0.5).min(-0.1);
-                app.redraw_needed = true;
-
-                // Recompute network analysis if network mode is active
-                if app.show_hbond_network
-                    && let Some(ref graph) = app.hbond_graph
-                {
-                    let filtered = graph.filter_by_energy(app.hbond_energy_threshold);
-                    app.network_analysis = Some(filtered.analyze());
-                }
-            } else if app.show_surface {
-                app.surface_point_density = (app.surface_point_density.saturating_sub(25)).max(100);
-                app.redraw_needed = true;
-                if let Some(ref mut protein) = app.protein {
-                    let surface_calculator =
-                        sasa::SurfaceCalculator::new(1.4, app.surface_point_density);
-                    protein.surface_points = surface_calculator.calculate_surface(&protein.atoms);
-                }
-            } else if app.inspect_mode && !app.candidate_atoms.is_empty() {
-                app.candidate_selection_idx =
-                    (app.candidate_selection_idx + 1) % app.candidate_atoms.len();
-                app.selected_atom_idx = Some(app.candidate_atoms[app.candidate_selection_idx].0);
-                app.redraw_needed = true;
-                crate::update_highlighted_atoms(app, width, height);
             } else {
-                app.redraw_needed = true;
-                app.projected_atom_cache = None;
                 app.camera.pan_camera(0.0, -pan_speed);
             }
+            app.redraw_needed = true;
         }
         KeyCode::Left => {
-            app.redraw_needed = true;
-            app.projected_atom_cache = None;
             app.camera.pan_camera(-pan_speed, 0.0);
+            app.redraw_needed = true;
         }
         KeyCode::Right => {
-            app.redraw_needed = true;
-            app.projected_atom_cache = None;
             app.camera.pan_camera(pan_speed, 0.0);
+            app.redraw_needed = true;
         }
 
-        // Inspect mode
+        // Inspect mode (click to pick atoms)
         KeyCode::Char('i') => {
             app.inspect_mode = !app.inspect_mode;
             app.redraw_needed = true;
-
             if !app.inspect_mode {
                 app.selected_atom_idx = None;
-                app.candidate_atoms.clear();
-                app.candidate_selection_idx = 0;
                 app.residue_highlight = false;
-                app.projected_atom_cache = None;
+                app.highlighted_atom_indices.clear();
             }
         }
         KeyCode::Char('r') => {
-            if app.inspect_mode {
+            if app.inspect_mode && app.selected_atom_idx.is_some() {
                 app.residue_highlight = !app.residue_highlight;
                 app.redraw_needed = true;
             }
         }
 
-        // Reset view
+        // Reset the view to fit the structure.
         KeyCode::Char('f') => {
-            if let Some(ref protein) = app.protein {
+            let dims = app
+                .last_frame
+                .as_ref()
+                .map(|frame| (frame.fb.width() as f32, frame.fb.height() as f32));
+            if let (Some((width, height)), Some(protein)) = (dims, app.protein.as_ref()) {
                 renderer::auto_frame_protein(protein, &mut app.camera, width, height);
                 app.redraw_needed = true;
-                app.projected_atom_cache = None;
             }
         }
 
-        // Display mode controls
+        // Display mode
         KeyCode::Char('1') => {
             app.display_mode = DisplayMode::AllAtoms;
             app.redraw_needed = true;
@@ -185,72 +103,62 @@ pub(crate) fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers
             app.redraw_needed = true;
         }
 
-        // Toggle backbone connections
         KeyCode::Char('c') => {
             app.show_connections = !app.show_connections;
             app.redraw_needed = true;
         }
-
-        // Toggle B-factor coloring
         KeyCode::Char('b') => {
             app.use_bfactor_colors = !app.use_bfactor_colors;
             app.redraw_needed = true;
         }
-
-        // Toggle surface visualization
-        KeyCode::Char('v') => {
-            app.show_surface = !app.show_surface;
-            app.redraw_needed = true;
-
-            // Compute surface on-demand if not already computed
-            if app.show_surface
-                && let Some(ref mut protein) = app.protein
-                && protein.surface_points.is_empty()
-            {
-                let surface_calculator =
-                    sasa::SurfaceCalculator::new(1.4, app.surface_point_density);
-                protein.surface_points = surface_calculator.calculate_surface(&protein.atoms);
-            }
-        }
-
-        // Toggle Hydrogen bond display
         KeyCode::Char('h') => {
             app.show_hydrogen_bonds = !app.show_hydrogen_bonds;
             app.redraw_needed = true;
-
-            // Build H-bond graph on first activation
-            if app.show_hydrogen_bonds
-                && app.hbond_graph.is_none()
-                && let Some(ref protein) = app.protein
-            {
-                app.hbond_graph = Some(rin::HBondGraph::build(protein));
-            }
         }
 
-        // Toggle H-bond network visualization overlay
-        KeyCode::Char('n') => {
-            app.show_hbond_network = !app.show_hbond_network;
+        // Slab (clipping planes): k toggles, [ ] move the band in depth, , . resize it.
+        KeyCode::Char('k') => {
+            app.slab = match app.slab {
+                None => Some(SLAB_DEFAULT),
+                Some(_) => None,
+            };
             app.redraw_needed = true;
-
-            // Compute network analysis on first activation
-            if app.show_hbond_network {
-                if app.hbond_graph.is_none()
-                    && let Some(ref protein) = app.protein
-                {
-                    app.hbond_graph = Some(rin::HBondGraph::build(protein));
-                }
-
-                if let Some(ref graph) = app.hbond_graph {
-                    let filtered = graph.filter_by_energy(app.hbond_energy_threshold);
-                    app.network_analysis = Some(filtered.analyze());
-                }
-            }
         }
+        KeyCode::Char('[') => adjust_slab(app, |s| shift_slab(s, -SLAB_STEP)),
+        KeyCode::Char(']') => adjust_slab(app, |s| shift_slab(s, SLAB_STEP)),
+        KeyCode::Char(',') => adjust_slab(app, |s| resize_slab(s, -SLAB_STEP)),
+        KeyCode::Char('.') => adjust_slab(app, |s| resize_slab(s, SLAB_STEP)),
 
         _ => {}
     }
 
     Ok(())
+}
+
+fn rotate(app: &mut App, pitch: f32, yaw: f32, roll: f32) {
+    app.camera.rotate(pitch, yaw, roll);
+    app.redraw_needed = true;
+}
+
+fn adjust_slab(app: &mut App, f: impl Fn((f32, f32)) -> (f32, f32)) {
+    if let Some(slab) = app.slab {
+        app.slab = Some(f(slab));
+        app.redraw_needed = true;
+    }
+}
+
+/// Move the band nearer or farther, keeping its width and staying in `0..1`.
+fn shift_slab((far, near): (f32, f32), delta: f32) -> (f32, f32) {
+    let width = near - far;
+    let new_far = (far + delta).clamp(0.0, 1.0 - width);
+    (new_far, new_far + width)
+}
+
+/// Widen (delta > 0) or narrow (delta < 0) the band about its centre.
+fn resize_slab((far, near): (f32, f32), delta: f32) -> (f32, f32) {
+    let center = (far + near) / 2.0;
+    let half = ((near - far) / 2.0 + delta).clamp(SLAB_MIN_HALF, 0.5);
+    ((center - half).max(0.0), (center + half).min(1.0))
 }
 
 pub(crate) fn handle_mouse(app: &mut App, mouse: event::MouseEvent) -> Result<()> {
@@ -261,44 +169,48 @@ pub(crate) fn handle_mouse(app: &mut App, mouse: event::MouseEvent) -> Result<()
     }
 
     if let MouseEventKind::Down(event::MouseButton::Left) = mouse.kind {
-        app.redraw_needed = true;
-        app.projected_atom_cache = None;
-
-        // Use the canvas dimensions from the last render
-        let canvas_width = app.last_canvas_width;
-        let canvas_height = app.last_canvas_height;
-
-        if canvas_width == 0.0 || canvas_height == 0.0 {
-            return Ok(()); // Not yet rendered
-        }
-
-        // Convert terminal coordinates to canvas coordinates
-        let click_x = mouse.column as f32 * 2.0;
-        let click_y = canvas_height - (mouse.row as f32 * 4.0);
-
-        if let Some(ref protein) = app.protein {
-            let candidates = crate::pick_atoms_along_ray(
-                protein,
-                &app.camera,
-                click_x,
-                click_y,
-                canvas_width,
-                canvas_height,
-            );
-
-            if !candidates.is_empty() {
-                app.candidate_atoms = candidates.into_iter().take(5).collect(); // Top 5 candidates
-                app.candidate_selection_idx = 0;
-                app.selected_atom_idx = Some(app.candidate_atoms[0].0);
-                crate::update_highlighted_atoms(app, canvas_width, canvas_height);
-            } else {
+        match crate::pick_at(app, mouse.column, mouse.row) {
+            Some(idx) => {
+                app.selected_atom_idx = Some(idx);
+                crate::update_highlighted_atoms(app);
+            }
+            None => {
                 app.selected_atom_idx = None;
-                app.candidate_atoms.clear();
-                app.candidate_selection_idx = 0;
                 app.highlighted_atom_indices.clear();
             }
         }
+        app.redraw_needed = true;
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn close(a: (f32, f32), b: (f32, f32)) {
+        assert!(
+            (a.0 - b.0).abs() < 1e-4 && (a.1 - b.1).abs() < 1e-4,
+            "{a:?} != {b:?}"
+        );
+    }
+
+    #[test]
+    fn shift_keeps_width_and_stays_in_range() {
+        close(shift_slab((0.3, 0.7), 0.05), (0.35, 0.75));
+        // Clamped at the near edge without inverting the band.
+        close(shift_slab((0.3, 0.7), 1.0), (0.6, 1.0));
+        close(shift_slab((0.3, 0.7), -1.0), (0.0, 0.4));
+    }
+
+    #[test]
+    fn resize_never_inverts_the_band() {
+        let (far, near) = resize_slab((0.45, 0.55), -1.0);
+        assert!(
+            near - far >= 2.0 * SLAB_MIN_HALF - f32::EPSILON,
+            "band collapsed"
+        );
+        assert!(far >= 0.0 && near <= 1.0);
+    }
 }

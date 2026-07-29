@@ -1,45 +1,55 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use anyhow::{Context, Result};
 use pixelfold_core::{
     AltlocPolicy, DisplayMode, Protein, SecondaryStructure, get_calpha_connections,
 };
+use pixelfold_render::Framebuffer;
 use pixelfold_render::renderer::{self, Camera};
+use ratatui::layout::Rect;
+use ratatui_image::picker::Picker;
 
 pub mod search;
 
 mod app;
 mod inputs;
+mod iterm2;
+mod render;
 mod ui;
+
+/// The framebuffer of the last drawn frame, kept so a mouse click can be mapped
+/// straight to the atom under it through the id buffer. `area` and `font` record
+/// where the image was placed and the cell-to-pixel scale used to draw it.
+pub struct RenderedFrame {
+    pub fb: Framebuffer,
+    pub area: Rect,
+    pub font: (u16, u16),
+}
 
 pub struct App {
     pub protein: Option<Protein>,
     pub camera: Camera,
     pub redraw_needed: bool,
-    pub projected_atom_cache: Option<Vec<renderer::ProjectedAtom>>,
     pub ca_indices: Vec<usize>,
     pub backbone_connections: Vec<(usize, usize)>,
-    pub residue_colors: std::collections::HashMap<u32, SecondaryStructure>,
+    pub residue_colors: HashMap<u32, SecondaryStructure>,
     pub inspect_mode: bool,
     pub residue_highlight: bool,
     pub selected_atom_idx: Option<usize>,
-    pub candidate_atoms: Vec<(usize, f32)>, // (atom_idx, distance_along_ray)
-    pub candidate_selection_idx: usize,     // Index into candidate_atoms
-    pub last_canvas_width: f32,
-    pub last_canvas_height: f32,
-    pub highlighted_atom_indices: HashSet<usize>, // Precomputed set of atoms to highlight
-    pub residue_highlight_distance_threshold: f32, // Screen-space distance in pixels
+    /// Every atom sharing the selected atom's chain and residue number.
+    pub highlighted_atom_indices: HashSet<usize>,
     pub display_mode: DisplayMode,
     pub show_connections: bool,
     pub use_bfactor_colors: bool,
-    pub show_surface: bool,
-    pub surface_point_density: usize, // Points per atom for surface calculation
     pub show_hydrogen_bonds: bool,
-    pub show_hbond_network: bool,
-    pub hbond_energy_threshold: f32, // kcal/mol, default -0.5
-    pub hbond_graph: Option<pixelfold_core::rin::HBondGraph>,
-    pub network_analysis: Option<pixelfold_core::rin::NetworkAnalysis>,
+    pub hbond_energy_threshold: f32,
+    /// Multiplies van der Waals radii; 1.0 is full space-filling.
+    pub radius_scale: f32,
+    pub show_depth_cue: bool,
+    /// Depth-band clip `(far, near)` in `0..1`, or `None` for the whole depth.
+    pub slab: Option<(f32, f32)>,
+    pub last_frame: Option<RenderedFrame>,
 }
 
 impl Default for App {
@@ -54,29 +64,22 @@ impl App {
             protein: None,
             camera: Camera::new(),
             redraw_needed: true,
-            projected_atom_cache: None,
             ca_indices: Vec::new(),
             backbone_connections: Vec::new(),
-            residue_colors: std::collections::HashMap::new(),
+            residue_colors: HashMap::new(),
             inspect_mode: false,
             residue_highlight: false,
             selected_atom_idx: None,
-            candidate_atoms: Vec::new(),
-            candidate_selection_idx: 0,
-            last_canvas_width: 0.0,
-            last_canvas_height: 0.0,
             highlighted_atom_indices: HashSet::new(),
-            residue_highlight_distance_threshold: 50.0, // 50 pixels default
             display_mode: DisplayMode::AllAtoms,
             show_connections: true,
             use_bfactor_colors: false,
-            show_surface: false,
-            surface_point_density: 100, // Default 100 points per atom
             show_hydrogen_bonds: false,
-            show_hbond_network: false,
-            hbond_energy_threshold: -0.5, // Default DSSP threshold
-            hbond_graph: None,
-            network_analysis: None,
+            hbond_energy_threshold: -0.5,
+            radius_scale: 1.0,
+            show_depth_cue: true,
+            slab: None,
+            last_frame: None,
         }
     }
 
@@ -94,20 +97,17 @@ impl App {
             altloc,
         )?);
 
-        // Auto-frame the protein when loaded
         if let Some(ref protein) = self.protein {
             renderer::auto_frame_protein(protein, &mut self.camera, width, height);
-
             self.compute_static_geometry();
         }
 
         Ok(())
     }
 
-    /// Pre-computes static geometry that doesn't change during rotation
+    /// Pre-compute geometry that does not change as the camera moves.
     pub fn compute_static_geometry(&mut self) {
         if let Some(ref protein) = self.protein {
-            // Compute CA indices
             self.ca_indices = protein
                 .atoms
                 .iter()
@@ -116,10 +116,8 @@ impl App {
                 .map(|(idx, _)| idx)
                 .collect();
 
-            // Compute backbone connections
             self.backbone_connections = get_calpha_connections(protein, &self.ca_indices);
 
-            // Compute residue colors
             self.residue_colors.clear();
             for atom in &protein.atoms {
                 self.residue_colors
@@ -132,15 +130,38 @@ impl App {
 
 /// Load a structure and run the interactive viewer.
 pub fn view(path: &Path, skip_surface: bool, altloc: AltlocPolicy) -> Result<()> {
+    let mut terminal = ratatui::init();
+
+    // Query the terminal for its graphics protocol and font.
+    let picker = Picker::from_query_stdio().unwrap_or_else(|_| Picker::halfblocks());
+
+    let result = run_view(&mut terminal, &picker, path, skip_surface, altloc);
+
+    let _ = crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture);
+    ratatui::restore();
+
+    result
+}
+
+fn run_view(
+    terminal: &mut ratatui::DefaultTerminal,
+    picker: &Picker,
+    path: &Path,
+    skip_surface: bool,
+    altloc: AltlocPolicy,
+) -> Result<()> {
+    crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture)?;
+
     let (cols, rows) =
         crossterm::terminal::size().context("failed to query terminal size (not a terminal?)")?;
-    let width = cols as f32 * 2.0;
-    let height = rows as f32 * 4.0;
+    let (font_w, font_h) = picker.font_size();
+    let width = (cols as u32 * font_w as u32).max(1) as f32;
+    let height = (rows as u32 * font_h as u32).max(1) as f32;
 
     let mut app = App::new();
     app.load_protein(path, width, height, skip_surface, altloc)?;
 
-    with_terminal(|terminal| crate::app::run_app(terminal, &mut app))
+    crate::app::run_app(terminal, &mut app, picker)
 }
 
 /// Run the RCSB search-and-fetch interface, caching downloads to `cache_dir`.
@@ -163,93 +184,50 @@ where
     result
 }
 
-/// Update the set of highlighted atom indices based on screen-space proximity
-/// to the selected atom. Only highlights atoms in the same residue that are
-/// within the distance threshold in screen-space pixels.
-pub fn update_highlighted_atoms(app: &mut App, width: f32, height: f32) {
+/// Recompute the highlighted set as every atom in the selected atom's residue
+/// (same chain and residue number). Cleared when nothing is selected.
+pub fn update_highlighted_atoms(app: &mut App) {
     app.highlighted_atom_indices.clear();
 
-    let protein = match &app.protein {
-        Some(p) => p,
-        None => return,
-    };
-
-    let selected_idx = match app.selected_atom_idx {
-        Some(idx) => idx,
-        None => return,
-    };
-
-    if width == 0.0 || height == 0.0 {
+    let (Some(protein), Some(selected)) = (&app.protein, app.selected_atom_idx) else {
         return;
-    }
+    };
 
-    let selected_atom = &protein.atoms[selected_idx];
-    let selected_residue_seq = selected_atom.residue_seq;
-    let selected_chain_id = &selected_atom.chain_id;
-    let selected_position = selected_atom.position;
+    let selected_atom = &protein.atoms[selected];
+    let chain = selected_atom.chain_id;
+    let residue_seq = selected_atom.residue_seq;
 
-    let projected = renderer::project_protein(protein, &app.camera, width, height);
-
-    // Get selected atom's screen position
-    let selected_screen = &projected[selected_idx];
-    let selected_screen_x = selected_screen.x;
-    let selected_screen_y = selected_screen.y;
-
-    // Find all atoms in the same residue (same chain and residue_seq) within distance thresholds
     for (idx, atom) in protein.atoms.iter().enumerate() {
-        // Residue matches both chain_id and residue_seq
-        if atom.chain_id == *selected_chain_id && atom.residue_seq == selected_residue_seq {
-            // 3D distance check
-            let distance_3d = (atom.position - selected_position).length();
-            if distance_3d <= 15.0 {
-                // 15Å threshold
-                let proj = &projected[idx];
-                let dx = proj.x - selected_screen_x;
-                let dy = proj.y - selected_screen_y;
-                let screen_distance = (dx * dx + dy * dy).sqrt();
-
-                if screen_distance <= app.residue_highlight_distance_threshold {
-                    app.highlighted_atom_indices.insert(idx);
-                }
-            }
+        if atom.chain_id == chain && atom.residue_seq == residue_seq {
+            app.highlighted_atom_indices.insert(idx);
         }
     }
 }
 
-/// Pick atoms near the click position using screen-space distance
-/// Returns a sorted list of (atom_idx, distance_in_pixels) pairs
-pub fn pick_atoms_along_ray(
-    protein: &Protein,
-    camera: &Camera,
-    click_x: f32,
-    click_y: f32,
-    width: f32,
-    height: f32,
-) -> Vec<(usize, f32)> {
-    let projected = renderer::project_protein(protein, camera, width, height);
-
-    let click_radius = 10.0; // Base radius in pixels
-
-    let mut candidates: Vec<(usize, f32, f32)> = Vec::new(); // (idx, screen_distance, depth)
-
-    // Find atoms within click radius in screen space
-    for (i, proj_atom) in projected.iter().enumerate() {
-        let dx = proj_atom.x - click_x;
-        let dy = proj_atom.y - click_y;
-        let screen_distance = (dx * dx + dy * dy).sqrt();
-
-        if screen_distance <= click_radius {
-            candidates.push((i, screen_distance, proj_atom.depth));
-        }
+/// The atom under a terminal cell, via the id buffer of the last drawn frame.
+/// Returns `None` for a click outside the image or on background.
+pub fn pick_at(app: &App, column: u16, row: u16) -> Option<usize> {
+    let frame = app.last_frame.as_ref()?;
+    let area = frame.area;
+    if column < area.x || row < area.y {
+        return None;
     }
 
-    // Sort by screen distance first, then by depth. Larger depth is nearer the
-    // viewer (drawn on top by the painter's algorithm), so it wins ties.
-    candidates.sort_by(|a, b| a.1.total_cmp(&b.1).then(b.2.total_cmp(&a.2)));
+    let local_col = (column - area.x) as u32;
+    let local_row = (row - area.y) as u32;
+    if local_col >= area.width as u32 || local_row >= area.height as u32 {
+        return None;
+    }
 
-    // Return (atom_idx, screen_distance) pairs
-    candidates
-        .into_iter()
-        .map(|(idx, dist, _depth)| (idx, dist))
-        .collect()
+    let (font_w, font_h) = (frame.font.0 as u32, frame.font.1 as u32);
+    let px = local_col * font_w + font_w / 2;
+    let py = local_row * font_h + font_h / 2;
+    if px >= frame.fb.width() || py >= frame.fb.height() {
+        return None;
+    }
+
+    match frame.fb.id_at(px, py) {
+        pixelfold_render::NO_ID => None,
+        id => Some(id as usize),
+    }
 }
