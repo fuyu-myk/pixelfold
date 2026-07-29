@@ -231,6 +231,24 @@ fn the_network_exports_as_valid_graphml() {
     }
 }
 
+/// `--analyze` reports the network's structure instead of exporting the graph.
+#[test]
+fn the_analysis_report_summarises_the_network_structure() {
+    // Crambin's three disulfides are three isolated residue pairs: three
+    // components, no residue bridges another, and (leaves never disconnect a
+    // graph) no cut residues.
+    let run = run!("1CRN", &["rin", "--type", "disulfide", "--analyze"]);
+    assert!(run.ok, "command failed: {}", run.stderr);
+
+    assert!(
+        run.stdout.contains("6 residues, 3 edges, 3 components"),
+        "summary line missing: {}",
+        run.stdout
+    );
+    assert!(run.stdout.contains("Top hubs by betweenness centrality:"));
+    assert!(run.stdout.contains("Articulation points (0 cut residues):"));
+}
+
 /// `-o` writes the network to a file rather than standard output.
 #[test]
 fn the_network_can_be_written_to_a_file() {

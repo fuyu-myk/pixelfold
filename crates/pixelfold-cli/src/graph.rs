@@ -9,8 +9,13 @@ use std::io::Write;
 use anyhow::Result;
 use clap::ValueEnum;
 use pixelfold_core::Network;
-use pixelfold_core::rin::{Edge, Node};
+use pixelfold_core::rin::{Edge, Node, RinAnalysis};
 use serde::Serialize;
+
+/// How many hub residues the analysis report lists.
+const TOP_HUBS: usize = 10;
+/// How many connected components the analysis report lists before summarising.
+const TOP_COMPONENTS: usize = 10;
 
 /// How to write a network.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, ValueEnum)]
@@ -31,6 +36,76 @@ pub fn write<W: Write + ?Sized>(out: &mut W, network: &Network, format: GraphFor
         GraphFormat::Graphml => write_graphml(out, network),
         GraphFormat::Tsv => write_tsv(out, network),
     }
+}
+
+/// Write a structural analysis of `network`: its connected components,
+/// the residues that bridge it (highest betweenness), and the cut residues
+/// whose removal would split it.
+pub fn write_analysis<W: Write + ?Sized>(
+    out: &mut W,
+    network: &Network,
+    analysis: &RinAnalysis,
+) -> Result<()> {
+    writeln!(
+        out,
+        "Residue interaction network: {} residues, {} edges, {} components",
+        network.nodes.len(),
+        network.edges.len(),
+        analysis.components.len()
+    )?;
+
+    writeln!(out, "\nConnected components (largest first):")?;
+    if analysis.components.is_empty() {
+        writeln!(out, "  (none)")?;
+    } else {
+        for (rank, component) in analysis.components.iter().take(TOP_COMPONENTS).enumerate() {
+            writeln!(out, "  {}. {} residues", rank + 1, component.len())?;
+        }
+
+        let extra = analysis.components.len().saturating_sub(TOP_COMPONENTS);
+        if extra > 0 {
+            writeln!(out, "  ... and {extra} more")?;
+        }
+    }
+
+    writeln!(out, "\nTop hubs by betweenness centrality:")?;
+    let mut ranked: Vec<usize> = (0..network.nodes.len()).collect();
+    ranked.sort_by(|&a, &b| {
+        analysis.betweenness[b]
+            .total_cmp(&analysis.betweenness[a])
+            .then(network.nodes[b].degree.cmp(&network.nodes[a].degree))
+    });
+    writeln!(
+        out,
+        "  {:<10} {:<5} {:<3} {:>6} {:>12}",
+        "residue", "resn", "ss", "degree", "between"
+    )?;
+    for &i in ranked.iter().take(TOP_HUBS) {
+        let node = &network.nodes[i];
+        writeln!(
+            out,
+            "  {:<10} {:<5} {:<3} {:>6} {:>12.2}",
+            node.id, node.resn, node.ss, node.degree, analysis.betweenness[i]
+        )?;
+    }
+
+    writeln!(
+        out,
+        "\nArticulation points ({} cut residues):",
+        analysis.articulation_points.len()
+    )?;
+    if analysis.articulation_points.is_empty() {
+        writeln!(out, "  (none)")?;
+    } else {
+        let residues: Vec<String> = analysis
+            .articulation_points
+            .iter()
+            .map(|&i| format!("{} {}", network.nodes[i].id, network.nodes[i].resn))
+            .collect();
+        writeln!(out, "  {}", residues.join(", "))?;
+    }
+
+    Ok(())
 }
 
 /// A distance rounded to the precision the coordinates carry.

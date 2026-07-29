@@ -117,6 +117,11 @@ enum Command {
         #[arg(long, value_enum, default_value_t = GraphFormat::Json)]
         format: GraphFormat,
 
+        /// Print a structural analysis report (components, hub residues by
+        /// betweenness, cut residues) instead of exporting the graph
+        #[arg(long)]
+        analyze: bool,
+
         /// Write to this file instead of standard output
         #[arg(short, long, value_name = "FILE")]
         output: Option<PathBuf>,
@@ -344,6 +349,7 @@ fn run(command: Command) -> Result<()> {
             select,
             types,
             format,
+            analyze,
             output,
             common,
         } => {
@@ -354,7 +360,14 @@ fn run(command: Command) -> Result<()> {
             let interactions = analyse::selected(&protein, &chosen, &kinds);
             let network = pixelfold_core::rin::build(&protein, &interactions);
 
-            emit_to(output.as_deref(), |out| graph::write(out, &network, format))
+            if analyze {
+                let report = pixelfold_core::rin::analyze(&network);
+                emit_to(output.as_deref(), |out| {
+                    graph::write_analysis(out, &network, &report)
+                })
+            } else {
+                emit_to(output.as_deref(), |out| graph::write(out, &network, format))
+            }
         }
 
         Command::Ss { analysis } => {

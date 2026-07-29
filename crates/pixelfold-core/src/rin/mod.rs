@@ -5,8 +5,10 @@
 //! interaction network proper: one node per residue, one edge per typed
 //! non-covalent interaction, built over the whole [`crate::interactions`] engine.
 
+mod analysis;
 mod hbond;
 mod network;
 
+pub use analysis::{RinAnalysis, analyze};
 pub use hbond::{BondType, HBondEdge, HBondGraph, HBondMotifs, NetworkAnalysis, ResidueNode};
 pub use network::{Edge, Network, Node, build};
