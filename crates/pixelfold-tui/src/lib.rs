@@ -15,6 +15,7 @@ pub mod search;
 mod app;
 mod inputs;
 mod iterm2;
+mod network;
 mod render;
 mod ui;
 
@@ -50,6 +51,11 @@ pub struct App {
     /// Depth-band clip `(far, near)` in `0..1`, or `None` for the whole depth.
     pub slab: Option<(f32, f32)>,
     pub last_frame: Option<RenderedFrame>,
+    /// The linked network pane: shown beside the structure, built on first open.
+    pub show_network: bool,
+    pub(crate) network_view: Option<network::NetworkView>,
+    /// Where the network pane last drew, for routing clicks to it.
+    pub network_area: Option<Rect>,
 }
 
 impl Default for App {
@@ -80,6 +86,9 @@ impl App {
             show_depth_cue: true,
             slab: None,
             last_frame: None,
+            show_network: false,
+            network_view: None,
+            network_area: None,
         }
     }
 

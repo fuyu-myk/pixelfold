@@ -116,6 +116,15 @@ pub(crate) fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers
             app.redraw_needed = true;
         }
 
+        // Toggle the linked network pane, building it on first open.
+        KeyCode::Char('g') => {
+            app.show_network = !app.show_network;
+            if app.show_network && app.network_view.is_none() {
+                app.network_view = app.protein.as_ref().map(crate::network::NetworkView::build);
+            }
+            app.redraw_needed = true;
+        }
+
         // Slab (clipping planes): k toggles, [ ] move the band in depth, , . resize it.
         KeyCode::Char('k') => {
             app.slab = match app.slab {
@@ -164,25 +173,51 @@ fn resize_slab((far, near): (f32, f32), delta: f32) -> (f32, f32) {
 pub(crate) fn handle_mouse(app: &mut App, mouse: event::MouseEvent) -> Result<()> {
     use event::MouseEventKind;
 
-    if !app.inspect_mode {
+    if !matches!(mouse.kind, MouseEventKind::Down(event::MouseButton::Left)) {
         return Ok(());
     }
 
-    if let MouseEventKind::Down(event::MouseButton::Left) = mouse.kind {
-        match crate::pick_at(app, mouse.column, mouse.row) {
-            Some(idx) => {
-                app.selected_atom_idx = Some(idx);
-                crate::update_highlighted_atoms(app);
-            }
-            None => {
-                app.selected_atom_idx = None;
-                app.highlighted_atom_indices.clear();
-            }
+    // A click inside the network pane selects a residue there, which the
+    // structure view then highlights.
+    if let Some(area) = app.network_area
+        && within(area, mouse.column, mouse.row)
+    {
+        if let Some(node) = app
+            .network_view
+            .as_ref()
+            .and_then(|view| view.pick(mouse.column, mouse.row))
+        {
+            let atom = app.network_view.as_ref().unwrap().atom_of_node(node);
+            app.selected_atom_idx = Some(atom);
+            crate::update_highlighted_atoms(app);
+            app.redraw_needed = true;
         }
-        app.redraw_needed = true;
+
+        return Ok(());
     }
 
+    // Otherwise a click in the 3D view picks an atom, in inspect mode only.
+    if !app.inspect_mode {
+        return Ok(());
+    }
+    match crate::pick_at(app, mouse.column, mouse.row) {
+        Some(idx) => {
+            app.selected_atom_idx = Some(idx);
+            crate::update_highlighted_atoms(app);
+        }
+        None => {
+            app.selected_atom_idx = None;
+            app.highlighted_atom_indices.clear();
+        }
+    }
+    app.redraw_needed = true;
+
     Ok(())
+}
+
+/// Whether a terminal cell falls inside `area`.
+fn within(area: ratatui::layout::Rect, column: u16, row: u16) -> bool {
+    column >= area.x && column < area.x + area.width && row >= area.y && row < area.y + area.height
 }
 
 #[cfg(test)]

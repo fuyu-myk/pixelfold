@@ -19,6 +19,9 @@ const BG: Color = Color::Rgb(
     render::BACKGROUND[2],
 );
 
+/// Rows reserved under the network graph for the selected residue's summary.
+const SUMMARY_HEIGHT: u16 = 7;
+
 pub(crate) fn ui(frame: &mut Frame, app: &mut App, picker: &Picker) {
     let area = frame.area();
 
@@ -53,8 +56,15 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App, picker: &Picker) {
     let content_area = vertical_chunks[1];
     let footer_area = vertical_chunks[2];
 
-    // The inspect panel takes a quarter of the width when an atom is selected.
-    let (main_area, panel_area) = if app.selected_atom_idx.is_some() {
+    // The right slot holds the network pane (wider) when it is open, otherwise
+    // the atom inspect panel when a residue is selected.
+    let (main_area, right_area) = if app.show_network {
+        let chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(55), Constraint::Percentage(45)])
+            .split(content_area);
+        (chunks[0], Some(chunks[1]))
+    } else if app.selected_atom_idx.is_some() {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(75), Constraint::Percentage(25)])
@@ -105,13 +115,39 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App, picker: &Picker) {
         );
     }
 
-    if let (Some(panel_area), Some(atom_idx)) = (panel_area, app.selected_atom_idx) {
-        render_inspect_panel(frame, app, atom_idx, panel_area);
+    if app.show_network {
+        let selected_node = app.selected_atom_idx.and_then(|atom| {
+            app.network_view
+                .as_ref()
+                .and_then(|view| view.node_of_atom(atom))
+        });
+        let (net_area, summary_area) = match right_area {
+            Some(right) if app.selected_atom_idx.is_some() => {
+                let chunks = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([Constraint::Min(0), Constraint::Length(SUMMARY_HEIGHT)])
+                    .split(right);
+                (Some(chunks[0]), Some(chunks[1]))
+            }
+            other => (other, None),
+        };
+        if let (Some(area), Some(view)) = (net_area, app.network_view.as_mut()) {
+            view.render(frame, area, selected_node);
+        }
+        app.network_area = net_area;
+        if let (Some(area), Some(atom_idx)) = (summary_area, app.selected_atom_idx) {
+            render_residue_summary(frame, app, atom_idx, area);
+        }
+    } else {
+        app.network_area = None;
+        if let (Some(right), Some(atom_idx)) = (right_area, app.selected_atom_idx) {
+            render_inspect_panel(frame, app, atom_idx, right);
+        }
     }
 
     frame.render_widget(
         Paragraph::new(
-            "WASD rotate  ·  +/- zoom  ·  arrows pan  ·  i inspect  ·  1/2 atoms/Cα  ·  c b h toggles  ·  k [ ] , . slab  ·  f reset  ·  q quit",
+            "WASD rotate  ·  +/- zoom  ·  arrows pan  ·  i inspect  ·  g network  ·  1/2 atoms/Cα  ·  c b h  ·  k [ ] , . slab  ·  f reset  ·  q quit",
         )
         .alignment(Alignment::Center)
         .style(Style::default().fg(Color::DarkGray)),
@@ -216,12 +252,7 @@ fn render_inspect_panel(frame: &mut Frame, app: &App, atom_idx: usize, area: Rec
     };
     let atom = &protein.atoms[atom_idx];
 
-    let ss_name = match atom.secondary_structure {
-        SecondaryStructure::Helix => "α-Helix",
-        SecondaryStructure::Sheet => "β-Sheet",
-        SecondaryStructure::Turn => "Turn",
-        SecondaryStructure::Coil => "Coil",
-    };
+    let ss_name = ss_name(atom.secondary_structure);
     let (r, g, b) = atom.secondary_structure.color_rgb();
     let ss_color = Color::Rgb(r, g, b);
 
@@ -313,6 +344,62 @@ fn render_inspect_panel(frame: &mut Frame, app: &App, atom_idx: usize, area: Rec
                     .borders(Borders::ALL)
                     .border_style(Style::default().fg(Color::Yellow)),
             ),
+        area,
+    );
+}
+
+fn ss_name(ss: SecondaryStructure) -> &'static str {
+    match ss {
+        SecondaryStructure::Helix => "α-Helix",
+        SecondaryStructure::Sheet => "β-Sheet",
+        SecondaryStructure::Turn => "Turn",
+        SecondaryStructure::Coil => "Coil",
+    }
+}
+
+/// The compact residue block shown under the network graph: the identity and
+/// secondary structure of the selected residue, at the residue scale the network
+/// is read at.
+fn render_residue_summary(frame: &mut Frame, app: &App, atom_idx: usize, area: Rect) {
+    let Some(protein) = app.protein.as_ref() else {
+        return;
+    };
+
+    let atom = &protein.atoms[atom_idx];
+    let (r, g, b) = atom.secondary_structure.color_rgb();
+
+    let label = Style::default().fg(Color::Gray);
+    let lines = vec![
+        Line::from(vec![
+            Span::styled(
+                format!("{}/{}", atom.chain_id, atom.residue_seq),
+                Style::default().fg(Color::Cyan).bold(),
+            ),
+            Span::styled(
+                format!("  {}", atom.residue_name),
+                Style::default().fg(Color::White).bold(),
+            ),
+        ]),
+        Line::from(Span::styled(
+            ss_name(atom.secondary_structure),
+            Style::default().fg(Color::Rgb(r, g, b)).bold(),
+        )),
+        Line::from(vec![
+            Span::styled("B-factor ", label),
+            Span::styled(
+                format!("{:.2}", atom.b_factor),
+                Style::default().fg(Color::White),
+            ),
+        ]),
+    ];
+
+    frame.render_widget(
+        Paragraph::new(lines).style(Style::default().bg(BG)).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::DarkGray))
+                .title(" Residue "),
+        ),
         area,
     );
 }
