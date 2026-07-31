@@ -227,9 +227,75 @@ pub fn hydrophobicity_to_color(hydrophobicity: f32) -> (u8, u8, u8) {
     (r, g, b)
 }
 
+/// Theoretical maximum solvent-accessible surface area (Å²) of each standard
+/// residue, from Tien et al. 2013 (Gly-X-Gly tripeptides, all conformations
+/// enumerated). Relative solvent accessibility is a residue's SASA over this.
+///
+/// Source: Tien MZ, Meyer AG, Sydykova DK, Spielman SJ, Wilke CO (2013),
+/// "Maximum allowed solvent accessibilities of residues in proteins",
+/// PLoS ONE 8(11): e80635, theoretical column.
+pub fn max_asa(residue_name: &str) -> Option<f32> {
+    let max = match residue_name {
+        "ALA" => 129.0,
+        "ARG" => 274.0,
+        "ASN" => 195.0,
+        "ASP" => 193.0,
+        "CYS" => 167.0,
+        "GLN" => 225.0,
+        "GLU" => 223.0,
+        "GLY" => 104.0,
+        "HIS" => 224.0,
+        "ILE" => 197.0,
+        "LEU" => 201.0,
+        "LYS" => 236.0,
+        "MET" => 224.0,
+        "PHE" => 240.0,
+        "PRO" => 159.0,
+        "SER" => 155.0,
+        "THR" => 172.0,
+        "TRP" => 285.0,
+        "TYR" => 263.0,
+        "VAL" => 174.0,
+        _ => return None,
+    };
+    Some(max)
+}
+
+/// Relative solvent accessibility: absolute SASA over the residue's theoretical
+/// maximum. `None` for residues with no reference (ligands, modified or
+/// non-standard residues). Not clamped: a residue more exposed than the
+/// reference tripeptide can read above 1.
+pub fn relative_sasa(absolute: f32, residue_name: &str) -> Option<f32> {
+    max_asa(residue_name).map(|max| absolute / max)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn max_asa_covers_the_twenty_standard_residues() {
+        for residue in [
+            "ALA", "ARG", "ASN", "ASP", "CYS", "GLN", "GLU", "GLY", "HIS", "ILE", "LEU", "LYS",
+            "MET", "PHE", "PRO", "SER", "THR", "TRP", "TYR", "VAL",
+        ] {
+            assert!(
+                max_asa(residue).is_some(),
+                "{residue} missing from the table"
+            );
+        }
+        assert_eq!(max_asa("TRP"), Some(285.0));
+        assert_eq!(max_asa("GLY"), Some(104.0));
+        assert_eq!(max_asa("STI"), None, "a ligand has no reference maximum");
+    }
+
+    #[test]
+    fn relative_sasa_normalises_against_the_maximum() {
+        // A fully exposed alanine (max 129 Å²) is 1.0; half that is 0.5.
+        assert!((relative_sasa(129.0, "ALA").unwrap() - 1.0).abs() < 1e-6);
+        assert!((relative_sasa(64.5, "ALA").unwrap() - 0.5).abs() < 1e-6);
+        assert!(relative_sasa(50.0, "STI").is_none());
+    }
 
     #[test]
     fn test_fibonacci_sphere_generation() {

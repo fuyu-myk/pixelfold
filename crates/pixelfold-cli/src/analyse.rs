@@ -6,7 +6,7 @@
 //! write.
 
 use pixelfold_core::interactions::{Interaction, InteractionKind, detect};
-use pixelfold_core::sasa::SurfaceCalculator;
+use pixelfold_core::sasa::{SurfaceCalculator, relative_sasa};
 use pixelfold_core::{Atom, AtomSet, Protein};
 use serde::Serialize;
 
@@ -204,7 +204,7 @@ pub fn secondary(protein: &Protein, chosen: &AtomSet) -> Vec<SecondaryRecord> {
         .collect()
 }
 
-/// One residue's solvent-accessible surface area.
+/// One residue's solvent-accessible surface area, absolute and relative.
 #[derive(Serialize)]
 pub struct SasaRecord {
     pub chain: String,
@@ -212,11 +212,14 @@ pub struct SasaRecord {
     pub icode: Option<char>,
     pub resn: String,
     pub sasa: f32,
+    /// SASA over the residue's theoretical maximum; `None` for non-standard
+    /// residues with no reference (ligands, modified residues).
+    pub rsa: Option<f32>,
 }
 
 impl Row for SasaRecord {
     fn columns() -> &'static [&'static str] {
-        &["chain", "resi", "icode", "resn", "sasa"]
+        &["chain", "resi", "icode", "resn", "sasa", "rsa"]
     }
 
     fn cells(&self) -> Vec<String> {
@@ -226,6 +229,7 @@ impl Row for SasaRecord {
             code(self.icode),
             self.resn.clone(),
             format!("{:.2}", self.sasa),
+            self.rsa.map_or(String::new(), |rsa| format!("{rsa:.3}")),
         ]
     }
 }
@@ -255,12 +259,19 @@ pub fn sasa(protein: &Protein, chosen: &AtomSet) -> Vec<SasaRecord> {
 
     residues(protein, chosen)
         .filter(|(range, _)| has_surface(range))
-        .map(|(range, first)| SasaRecord {
-            chain: first.chain_id.as_str().to_string(),
-            resi: first.residue_seq,
-            icode: first.insertion_code,
-            resn: first.residue_name.as_str().to_string(),
-            sasa: rounded(range.map(|i| areas.get(i).copied().unwrap_or(0.0)).sum(), 2),
+        .map(|(range, first)| {
+            let resn = first.residue_name.as_str().to_string();
+            let absolute: f32 = range.map(|i| areas.get(i).copied().unwrap_or(0.0)).sum();
+            let rsa = relative_sasa(absolute, &resn).map(|value| rounded(value, 3));
+
+            SasaRecord {
+                chain: first.chain_id.as_str().to_string(),
+                resi: first.residue_seq,
+                icode: first.insertion_code,
+                resn,
+                sasa: rounded(absolute, 2),
+                rsa,
+            }
         })
         .collect()
 }
