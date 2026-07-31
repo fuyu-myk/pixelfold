@@ -11,6 +11,7 @@ use clap::ValueEnum;
 use pixelfold_core::Network;
 use pixelfold_core::rin::{Edge, Node, RinAnalysis};
 use serde::Serialize;
+use serde_json::{Value, json};
 
 /// How many hub residues the analysis report lists.
 const TOP_HUBS: usize = 10;
@@ -137,6 +138,68 @@ pub fn write_path<W: Write + ?Sized>(
     }
 
     Ok(())
+}
+
+/// Write a MolViewSpec (.mvsj) scene: the structure loaded from `url`, its
+/// polymer drawn as a grey cartoon, and the network's residues picked out in
+/// ball-and-stick. Mol* opens the file and reproduces the scene, so the network
+/// selection becomes a shareable, diffable 3D view. `format` is the parse format
+/// of the structure at `url` (`mmcif` or `pdb`).
+pub fn write_mvsj<W: Write + ?Sized>(
+    out: &mut W,
+    network: &Network,
+    url: &str,
+    format: &str,
+    title: &str,
+) -> Result<()> {
+    let residues: Vec<Value> = network
+        .nodes
+        .iter()
+        .map(|node| {
+            let mut expr = serde_json::Map::new();
+            expr.insert("auth_asym_id".to_string(), json!(node.chain));
+            expr.insert("auth_seq_id".to_string(), json!(node.resi));
+            if let Some(icode) = node.icode {
+                expr.insert("pdbx_PDB_ins_code".to_string(), json!(icode.to_string()));
+            }
+            Value::Object(expr)
+        })
+        .collect();
+
+    let mut components = vec![component(json!("polymer"), "cartoon", "#8a8a99")];
+    if !residues.is_empty() {
+        components.push(component(json!(residues), "ball_and_stick", "#ffb454"));
+    }
+
+    let scene = json!({
+        "metadata": { "version": "1", "title": title },
+        "root": { "kind": "root", "children": [
+            { "kind": "download", "params": { "url": url }, "children": [
+                { "kind": "parse", "params": { "format": format }, "children": [
+                    { "kind": "structure", "params": { "type": "model" }, "children": components }
+                ]}
+            ]}
+        ]}
+    });
+
+    serde_json::to_writer_pretty(&mut *out, &scene)?;
+    writeln!(out)?;
+
+    Ok(())
+}
+
+/// A `component` node over `selector` (a preset string or an array of residue
+/// expressions), drawn with one representation in one colour.
+fn component(selector: Value, representation: &str, color: &str) -> Value {
+    json!({
+        "kind": "component",
+        "params": { "selector": selector },
+        "children": [{
+            "kind": "representation",
+            "params": { "type": representation },
+            "children": [{ "kind": "color", "params": { "color": color } }]
+        }]
+    })
 }
 
 /// A distance rounded to the precision the coordinates carry.

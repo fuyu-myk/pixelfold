@@ -127,6 +127,11 @@ enum Command {
         #[arg(long, num_args = 2, value_names = ["FROM", "TO"])]
         path: Option<Vec<String>>,
 
+        /// Emit a MolViewSpec (.mvsj) scene for Mol*: the structure with the
+        /// network's residues highlighted (scoped by --select)
+        #[arg(long)]
+        mvsj: bool,
+
         /// Write to this file instead of standard output
         #[arg(short, long, value_name = "FILE")]
         output: Option<PathBuf>,
@@ -356,6 +361,7 @@ fn run(command: Command) -> Result<()> {
             format,
             analyze,
             path,
+            mvsj,
             output,
             common,
         } => {
@@ -388,6 +394,12 @@ fn run(command: Command) -> Result<()> {
                         &endpoints[1],
                         route.as_deref(),
                     )
+                })
+            } else if mvsj {
+                let (url, parse_format) = mvsj_source(&structure)?;
+                let title = format!("PixelFold — {structure} interaction network");
+                emit_to(output.as_deref(), |out| {
+                    graph::write_mvsj(out, &network, &url, parse_format, &title)
                 })
             } else if analyze {
                 let report = pixelfold_core::rin::analyze(&network);
@@ -487,6 +499,34 @@ fn loaded(structure: &str, common: &Common) -> Result<pixelfold_core::Protein> {
     let dir = cache_dir(common)?;
 
     load::analysis_structure(structure, &dir, common.altloc.into())
+}
+
+/// The URL and parse format a MolViewSpec scene should load the structure from.
+///
+/// A 4-character PDB id resolves to its canonical RCSB mmCIF URL, which any Mol*
+/// can fetch. A local path becomes a `file://` URL, which a desktop or
+/// locally-served Mol* can read.
+fn mvsj_source(structure: &str) -> Result<(String, &'static str)> {
+    let is_pdb_id = structure.len() == 4 && structure.chars().all(|c| c.is_ascii_alphanumeric());
+    if is_pdb_id {
+        return Ok((
+            format!(
+                "https://files.rcsb.org/download/{}.cif",
+                structure.to_uppercase()
+            ),
+            "mmcif",
+        ));
+    }
+
+    let path = Path::new(structure)
+        .canonicalize()
+        .with_context(|| format!("cannot resolve {structure} for the scene URL"))?;
+    let format = match path.extension().and_then(|ext| ext.to_str()) {
+        Some("pdb" | "ent") => "pdb",
+        _ => "mmcif",
+    };
+
+    Ok((format!("file://{}", path.display()), format))
 }
 
 /// Write records to standard output.

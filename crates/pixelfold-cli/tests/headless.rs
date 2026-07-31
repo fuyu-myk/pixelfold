@@ -249,6 +249,36 @@ fn the_analysis_report_summarises_the_network_structure() {
     assert!(run.stdout.contains("Articulation points (0 cut residues):"));
 }
 
+/// `--mvsj` emits a MolViewSpec scene tree that Mol* can load.
+#[test]
+fn mvsj_export_is_a_valid_molviewspec_scene() {
+    let run = run!("1CRN", &["rin", "--mvsj"]);
+    assert!(run.ok, "command failed: {}", run.stderr);
+
+    let scene: serde_json::Value = serde_json::from_str(&run.stdout).expect("valid json");
+    assert_eq!(scene["metadata"]["version"], "1");
+
+    let download = &scene["root"]["children"][0];
+    assert_eq!(download["kind"], "download");
+    assert!(
+        download["params"]["url"]
+            .as_str()
+            .unwrap()
+            .starts_with("file://"),
+        "a local structure becomes a file URL"
+    );
+
+    let structure = &download["children"][0]["children"][0];
+    assert_eq!(structure["params"]["type"], "model");
+
+    let components = structure["children"].as_array().expect("components");
+    assert_eq!(components[0]["params"]["selector"], "polymer");
+    assert!(
+        components[1]["params"]["selector"].is_array(),
+        "the network's residues are a selector array"
+    );
+}
+
 /// `--path` reports the shortest chain of interactions between two residues.
 #[test]
 fn shortest_path_reports_a_route_between_residues() {
