@@ -12,6 +12,7 @@ use ratatui::prelude::*;
 use ratatui::widgets::canvas::{Canvas, Circle, Line as CanvasLine, Points};
 use ratatui::widgets::{Block, Borders};
 
+use pixelfold_core::interactions::InteractionKind;
 use pixelfold_core::rin::{self, Network};
 use pixelfold_core::{Protein, interactions};
 
@@ -20,15 +21,21 @@ const LAYOUT_ITERATIONS: usize = 300;
 /// A click within this many cells of a node selects it.
 const PICK_RADIUS_CELLS: i32 = 3;
 
-const EDGE_COLOR: Color = Color::Rgb(64, 64, 78);
 const SELECTED_COLOR: Color = Color::Rgb(0, 255, 255);
+/// Radius of a hub's halo at the highest centrality; leaves get none.
+const HUB_MAX_RADIUS: f64 = 0.035;
+/// Normalised centrality below which a node draws as a bare point, no halo.
+const HUB_THRESHOLD: f32 = 0.15;
 
 pub struct NetworkView {
     network: Network,
     /// Layout position of each node in the unit square, y up.
     positions: Vec<(f32, f32)>,
-    /// The two node indices of each edge.
-    edges: Vec<(usize, usize)>,
+    /// Each edge as its two node indices and its interaction kind, for colouring.
+    edges: Vec<(usize, usize, InteractionKind)>,
+    /// Normalised betweenness centrality per node (`sqrt` scaled to `0..1`), for
+    /// hub sizing.
+    hub: Vec<f32>,
     /// A representative atom for each node, for selecting into the 3D view.
     repr_atom: Vec<usize>,
     /// The node each interacting atom belongs to, for reading the selection back.
@@ -70,10 +77,26 @@ impl NetworkView {
                     Some((
                         *index.get(edge.source.as_str())?,
                         *index.get(edge.target.as_str())?,
+                        edge.kind,
                     ))
                 })
                 .collect()
         };
+
+        // Size hubs by betweenness centrality; the square root lifts the many
+        // mid-ranked residues out of the shadow of the few very high ones.
+        let betweenness = rin::analyze(&network).betweenness;
+        let max = betweenness.iter().copied().fold(0.0f64, f64::max);
+        let hub: Vec<f32> = betweenness
+            .iter()
+            .map(|&b| {
+                if max > 0.0 {
+                    (b / max).sqrt() as f32
+                } else {
+                    0.0
+                }
+            })
+            .collect();
 
         let key_index: HashMap<(String, u32, Option<char>), usize> = network
             .nodes
@@ -104,6 +127,7 @@ impl NetworkView {
             network,
             positions,
             edges,
+            hub,
             repr_atom,
             node_of_atom,
             node_cell: Vec::new(),
@@ -165,36 +189,54 @@ impl NetworkView {
             ),
         };
 
+        let legend = legend(&self.edges);
+
         let network = &self.network;
         let positions = &self.positions;
         let edges = &self.edges;
+        let hub = &self.hub;
 
         let canvas = Canvas::default()
             .block(
                 Block::default()
                     .borders(Borders::ALL)
                     .border_style(Style::default().fg(Color::DarkGray))
-                    .title(title),
+                    .title(title)
+                    .title_bottom(legend),
             )
             .marker(symbols::Marker::Braille)
             .x_bounds([0.0, 1.0])
             .y_bounds([0.0, 1.0])
             .paint(move |ctx| {
-                for &(u, v) in edges {
+                for &(u, v, kind) in edges {
                     let (ux, uy) = positions[u];
                     let (vx, vy) = positions[v];
                     ctx.draw(&CanvasLine::new(
-                        ux as f64, uy as f64, vx as f64, vy as f64, EDGE_COLOR,
+                        ux as f64,
+                        uy as f64,
+                        vx as f64,
+                        vy as f64,
+                        edge_color(kind),
                     ));
                 }
                 ctx.layer();
 
                 for (i, &(x, y)) in positions.iter().enumerate() {
                     let coords = [(x as f64, y as f64)];
+                    let color = node_color(network.nodes[i].ss);
                     ctx.draw(&Points {
                         coords: &coords,
-                        color: node_color(network.nodes[i].ss),
+                        color,
                     });
+                    // Betweenness hubs get a halo whose radius grows with rank.
+                    if hub[i] > HUB_THRESHOLD {
+                        ctx.draw(&Circle {
+                            x: x as f64,
+                            y: y as f64,
+                            radius: hub[i] as f64 * HUB_MAX_RADIUS,
+                            color,
+                        });
+                    }
                 }
 
                 if let Some(node) = selected {
@@ -220,6 +262,68 @@ fn node_color(ss: char) -> Color {
         'T' | 'S' => Color::Rgb(255, 200, 100),
         _ => Color::Gray,
     }
+}
+
+/// The edge palette, one colour per interaction kind.
+/// Exhaustive on purpose: a new interaction type must choose a colour.
+fn edge_color(kind: InteractionKind) -> Color {
+    match kind {
+        InteractionKind::HydrogenBond => Color::Rgb(90, 160, 230),
+        InteractionKind::SaltBridge => Color::Rgb(240, 150, 60),
+        InteractionKind::Hydrophobic => Color::Rgb(130, 140, 90),
+        InteractionKind::PiStacking => Color::Rgb(180, 120, 240),
+        InteractionKind::PiCation => Color::Rgb(230, 100, 190),
+        InteractionKind::HalogenBond => Color::Rgb(80, 210, 190),
+        InteractionKind::WaterBridge => Color::Rgb(110, 150, 200),
+        InteractionKind::MetalCoordination => Color::Rgb(210, 190, 80),
+        InteractionKind::Disulfide => Color::Rgb(230, 220, 90),
+    }
+}
+
+/// A short legend label for each interaction kind.
+fn kind_short(kind: InteractionKind) -> &'static str {
+    match kind {
+        InteractionKind::HydrogenBond => "H-bond",
+        InteractionKind::SaltBridge => "salt",
+        InteractionKind::Hydrophobic => "phobic",
+        InteractionKind::PiStacking => "π-stack",
+        InteractionKind::PiCation => "π-cation",
+        InteractionKind::HalogenBond => "halogen",
+        InteractionKind::WaterBridge => "water",
+        InteractionKind::MetalCoordination => "metal",
+        InteractionKind::Disulfide => "S-S",
+    }
+}
+
+/// The interaction kinds in a fixed display order.
+const KIND_ORDER: [InteractionKind; 9] = [
+    InteractionKind::HydrogenBond,
+    InteractionKind::SaltBridge,
+    InteractionKind::Hydrophobic,
+    InteractionKind::PiStacking,
+    InteractionKind::PiCation,
+    InteractionKind::HalogenBond,
+    InteractionKind::WaterBridge,
+    InteractionKind::MetalCoordination,
+    InteractionKind::Disulfide,
+];
+
+/// A one-line legend of the interaction kinds present, each a coloured swatch and
+/// its label, in the fixed order.
+fn legend(edges: &[(usize, usize, InteractionKind)]) -> Line<'static> {
+    let present: std::collections::BTreeSet<InteractionKind> =
+        edges.iter().map(|&(_, _, kind)| kind).collect();
+
+    let mut spans = Vec::new();
+    for kind in KIND_ORDER.into_iter().filter(|k| present.contains(k)) {
+        spans.push(Span::styled(" ● ", Style::default().fg(edge_color(kind))));
+        spans.push(Span::styled(
+            kind_short(kind),
+            Style::default().fg(Color::Gray),
+        ));
+    }
+
+    Line::from(spans)
 }
 
 #[cfg(test)]

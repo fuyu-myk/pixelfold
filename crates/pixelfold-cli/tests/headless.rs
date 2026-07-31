@@ -249,6 +249,23 @@ fn the_analysis_report_summarises_the_network_structure() {
     assert!(run.stdout.contains("Articulation points (0 cut residues):"));
 }
 
+/// `sasa` reports relative accessibility beside the absolute area.
+#[test]
+fn sasa_reports_relative_accessibility() {
+    let run = run!("1CRN", &["sasa", "--format", "tsv"]);
+    assert!(run.ok, "command failed: {}", run.stderr);
+
+    assert_eq!(
+        run.stdout.lines().next(),
+        Some("chain\tresi\ticode\tresn\tsasa\trsa"),
+    );
+    // Crambin is all standard residues, so every row carries a numeric RSA.
+    for row in run.stdout.lines().skip(1) {
+        let rsa = row.split('\t').nth(5).expect("an rsa column");
+        assert!(rsa.parse::<f32>().is_ok(), "rsa not numeric in {row:?}");
+    }
+}
+
 /// `-o` writes the network to a file rather than standard output.
 #[test]
 fn the_network_can_be_written_to_a_file() {
