@@ -132,7 +132,7 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App, picker: &Picker) {
             other => (other, None),
         };
         if let (Some(area), Some(view)) = (net_area, app.network_view.as_mut()) {
-            view.render(frame, area, selected_node);
+            view.render(frame, area, selected_node, &app.camera);
         }
         app.network_area = net_area;
         if let (Some(area), Some(atom_idx)) = (summary_area, app.selected_atom_idx) {
@@ -147,7 +147,7 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App, picker: &Picker) {
 
     frame.render_widget(
         Paragraph::new(
-            "WASD rotate  ·  +/- zoom  ·  arrows pan  ·  i inspect  ·  g network  ·  1/2 atoms/Cα  ·  c b h  ·  k [ ] , . slab  ·  f reset  ·  q quit",
+            "WASD rotate  ·  +/- zoom  ·  arrows pan  ·  i inspect  ·  g network  ·  l layout  ·  1/2 atoms/Cα  ·  c b h  ·  k [ ] , . slab  ·  f reset  ·  q quit",
         )
         .alignment(Alignment::Center)
         .style(Style::default().fg(Color::DarkGray)),

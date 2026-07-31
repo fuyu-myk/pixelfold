@@ -8,6 +8,7 @@
 
 use std::collections::HashMap;
 
+use glam::Vec3;
 use ratatui::prelude::*;
 use ratatui::widgets::canvas::{Canvas, Circle, Line as CanvasLine, Points};
 use ratatui::widgets::{Block, Borders};
@@ -15,6 +16,19 @@ use ratatui::widgets::{Block, Borders};
 use pixelfold_core::interactions::InteractionKind;
 use pixelfold_core::rin::{self, Network};
 use pixelfold_core::{Protein, interactions};
+use pixelfold_render::renderer::Camera;
+
+/// How the network's nodes are placed.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum LayoutMode {
+    /// Force-directed: positions from the graph's topology, independent of the
+    /// structure's orientation.
+    #[default]
+    Force,
+    /// Spatial: each residue at its 3D position projected through the camera, so
+    /// the graph rotates with the structure.
+    Spatial,
+}
 
 /// Fruchterman-Reingold steps run once when the pane is opened.
 const LAYOUT_ITERATIONS: usize = 300;
@@ -29,8 +43,12 @@ const HUB_THRESHOLD: f32 = 0.15;
 
 pub struct NetworkView {
     network: Network,
-    /// Layout position of each node in the unit square, y up.
+    mode: LayoutMode,
+    /// Force-directed layout position of each node in the unit square, y up.
     positions: Vec<(f32, f32)>,
+    /// The 3D position of each node's representative atom, projected through the
+    /// camera in spatial mode.
+    node_pos3: Vec<Vec3>,
     /// Each edge as its two node indices and its interaction kind, for colouring.
     edges: Vec<(usize, usize, InteractionKind)>,
     /// Normalised betweenness centrality per node (`sqrt` scaled to `0..1`), for
@@ -123,14 +141,48 @@ impl NetworkView {
             }
         }
 
+        let node_pos3 = repr_atom
+            .iter()
+            .map(|&atom| protein.atoms[atom].position)
+            .collect();
+
         Self {
             network,
+            mode: LayoutMode::default(),
             positions,
+            node_pos3,
             edges,
             hub,
             repr_atom,
             node_of_atom,
             node_cell: Vec::new(),
+        }
+    }
+
+    /// Switch between the force-directed and spatial layouts.
+    pub fn toggle_mode(&mut self) {
+        self.mode = match self.mode {
+            LayoutMode::Force => LayoutMode::Spatial,
+            LayoutMode::Spatial => LayoutMode::Force,
+        };
+    }
+
+    /// The node positions to draw: the fixed force-directed layout, or each
+    /// residue projected through `camera` so the graph tracks the structure.
+    fn display_positions(&self, camera: &Camera) -> Vec<(f32, f32)> {
+        match self.mode {
+            LayoutMode::Force => self.positions.clone(),
+            LayoutMode::Spatial => {
+                let raw = self
+                    .node_pos3
+                    .iter()
+                    .map(|&pos| {
+                        let (x, y, _) = camera.project_point_with_depth(pos, 1.0, 1.0);
+                        (x, y)
+                    })
+                    .collect();
+                normalize_positions(raw)
+            }
         }
     }
 
@@ -160,14 +212,22 @@ impl NetworkView {
     }
 
     /// Render into `area`, emphasising `selected` when it is a node in this view.
-    pub fn render(&mut self, frame: &mut Frame, area: Rect, selected: Option<usize>) {
+    /// `camera` is used to place the nodes in spatial mode.
+    pub fn render(
+        &mut self,
+        frame: &mut Frame,
+        area: Rect,
+        selected: Option<usize>,
+        camera: &Camera,
+    ) {
+        let display = self.display_positions(camera);
+
         // The drawable region inside the one-cell border. Node cell positions are
         // recorded against it so a click maps back to the nearest node.
         let inner_w = area.width.saturating_sub(2).max(1);
         let inner_h = area.height.saturating_sub(2).max(1);
         let (ox, oy) = (area.x + 1, area.y + 1);
-        self.node_cell = self
-            .positions
+        self.node_cell = display
             .iter()
             .map(|&(x, y)| {
                 let col = ox + (x.clamp(0.0, 1.0) * (inner_w - 1) as f32).round() as u16;
@@ -177,13 +237,17 @@ impl NetworkView {
             })
             .collect();
 
+        let mode = match self.mode {
+            LayoutMode::Force => "force",
+            LayoutMode::Spatial => "spatial",
+        };
         let title = match selected {
             Some(node) => format!(
-                " Interaction Network — {} {} ",
+                " Interaction Network [{mode}] — {} {} ",
                 self.network.nodes[node].id, self.network.nodes[node].resn
             ),
             None => format!(
-                " Interaction Network — {} residues, {} edges ",
+                " Interaction Network [{mode}] — {} residues, {} edges ",
                 self.network.nodes.len(),
                 self.network.edges.len()
             ),
@@ -192,7 +256,7 @@ impl NetworkView {
         let legend = legend(&self.edges);
 
         let network = &self.network;
-        let positions = &self.positions;
+        let positions = &display;
         let edges = &self.edges;
         let hub = &self.hub;
 
@@ -252,6 +316,32 @@ impl NetworkView {
 
         frame.render_widget(canvas, area);
     }
+}
+
+/// Rescale positions to fill the unit square, preserving aspect. Used to fit the
+/// spatial projection into the same `[0, 1]` frame the force layout uses.
+fn normalize_positions(mut raw: Vec<(f32, f32)>) -> Vec<(f32, f32)> {
+    if raw.is_empty() {
+        return raw;
+    }
+
+    let (mut min_x, mut min_y) = (f32::INFINITY, f32::INFINITY);
+    let (mut max_x, mut max_y) = (f32::NEG_INFINITY, f32::NEG_INFINITY);
+    for &(x, y) in &raw {
+        min_x = min_x.min(x);
+        min_y = min_y.min(y);
+        max_x = max_x.max(x);
+        max_y = max_y.max(y);
+    }
+
+    let extent = (max_x - min_x).max(max_y - min_y).max(1e-4);
+    let (center_x, center_y) = ((min_x + max_x) * 0.5, (min_y + max_y) * 0.5);
+    for p in &mut raw {
+        p.0 = 0.5 + (p.0 - center_x) / extent;
+        p.1 = 0.5 + (p.1 - center_y) / extent;
+    }
+
+    raw
 }
 
 /// The secondary-structure palette, keyed by the DSSP letter carried on a node.
@@ -361,6 +451,22 @@ mod tests {
             angle: None,
             bridge: None,
         }
+    }
+
+    #[test]
+    fn normalize_fits_positions_into_the_unit_square() {
+        assert!(normalize_positions(vec![]).is_empty());
+        assert_eq!(normalize_positions(vec![(5.0, 5.0)]), vec![(0.5, 0.5)]);
+
+        // Aspect-preserving: the larger (y) axis spans the frame, both centred.
+        let out = normalize_positions(vec![(2.0, 2.0), (4.0, 6.0)]);
+        for &(x, y) in &out {
+            assert!(
+                (0.0..=1.0).contains(&x) && (0.0..=1.0).contains(&y),
+                "{x},{y}"
+            );
+        }
+        assert!((out[0].1 - 0.0).abs() < 1e-6 && (out[1].1 - 1.0).abs() < 1e-6);
     }
 
     #[test]

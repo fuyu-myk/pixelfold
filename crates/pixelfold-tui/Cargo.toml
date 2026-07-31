@@ -13,11 +13,9 @@ pixelfold-fetch.workspace = true
 anyhow.workspace = true
 crossterm.workspace = true
 futures.workspace = true
+glam.workspace = true
 image.workspace = true
 ratatui.workspace = true
 ratatui-image.workspace = true
 serde.workspace = true
 tokio.workspace = true
-
-[dev-dependencies]
-glam.workspace = true

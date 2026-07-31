@@ -125,6 +125,16 @@ pub(crate) fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers
             app.redraw_needed = true;
         }
 
+        // Switch the network layout between force-directed and spatial.
+        KeyCode::Char('l') => {
+            if app.show_network
+                && let Some(view) = app.network_view.as_mut()
+            {
+                view.toggle_mode();
+                app.redraw_needed = true;
+            }
+        }
+
         // Slab (clipping planes): k toggles, [ ] move the band in depth, , . resize it.
         KeyCode::Char('k') => {
             app.slab = match app.slab {
