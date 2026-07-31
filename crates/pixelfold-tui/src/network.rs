@@ -15,6 +15,7 @@ use ratatui::widgets::{Block, Borders};
 
 use pixelfold_core::interactions::InteractionKind;
 use pixelfold_core::rin::{self, Network};
+use pixelfold_core::sasa::{SurfaceCalculator, relative_sasa};
 use pixelfold_core::{Protein, interactions};
 use pixelfold_render::renderer::Camera;
 
@@ -28,6 +29,16 @@ pub enum LayoutMode {
     /// Spatial: each residue at its 3D position projected through the camera, so
     /// the graph rotates with the structure.
     Spatial,
+}
+
+/// How the network's nodes are coloured.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum NodeColorMode {
+    /// By DSSP secondary structure, the same palette the 3D view uses.
+    #[default]
+    Structure,
+    /// By burial, or relative solvent accessibility.
+    Burial,
 }
 
 /// Fruchterman-Reingold steps run once when the pane is opened.
@@ -44,6 +55,7 @@ const HUB_THRESHOLD: f32 = 0.15;
 pub struct NetworkView {
     network: Network,
     mode: LayoutMode,
+    color_mode: NodeColorMode,
     /// Force-directed layout position of each node in the unit square, y up.
     positions: Vec<(f32, f32)>,
     /// The 3D position of each node's representative atom, projected through the
@@ -54,6 +66,9 @@ pub struct NetworkView {
     /// Normalised betweenness centrality per node (`sqrt` scaled to `0..1`), for
     /// hub sizing.
     hub: Vec<f32>,
+    /// Relative solvent accessibility per node, `None` for residues with no
+    /// reference maximum (ligands, non-standard). Drives the burial colour mode.
+    rsa: Vec<Option<f32>>,
     /// A representative atom for each node, for selecting into the 3D view.
     repr_atom: Vec<usize>,
     /// The node each interacting atom belongs to, for reading the selection back.
@@ -146,13 +161,27 @@ impl NetworkView {
             .map(|&atom| protein.atoms[atom].position)
             .collect();
 
+        let atom_sasa = SurfaceCalculator::default().calculate_atom_sasa(&protein.atoms);
+        let mut node_sasa = vec![0.0f32; network.nodes.len()];
+        for (&atom_idx, &node) in &node_of_atom {
+            node_sasa[node] += atom_sasa[atom_idx];
+        }
+        let rsa: Vec<Option<f32>> = network
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(i, node)| relative_sasa(node_sasa[i], &node.resn))
+            .collect();
+
         Self {
             network,
             mode: LayoutMode::default(),
+            color_mode: NodeColorMode::default(),
             positions,
             node_pos3,
             edges,
             hub,
+            rsa,
             repr_atom,
             node_of_atom,
             node_cell: Vec::new(),
@@ -164,6 +193,14 @@ impl NetworkView {
         self.mode = match self.mode {
             LayoutMode::Force => LayoutMode::Spatial,
             LayoutMode::Spatial => LayoutMode::Force,
+        };
+    }
+
+    /// Switch node colouring between secondary structure and burial.
+    pub fn toggle_color(&mut self) {
+        self.color_mode = match self.color_mode {
+            NodeColorMode::Structure => NodeColorMode::Burial,
+            NodeColorMode::Burial => NodeColorMode::Structure,
         };
     }
 
@@ -241,13 +278,17 @@ impl NetworkView {
             LayoutMode::Force => "force",
             LayoutMode::Spatial => "spatial",
         };
+        let scheme = match self.color_mode {
+            NodeColorMode::Structure => "struct",
+            NodeColorMode::Burial => "burial",
+        };
         let title = match selected {
             Some(node) => format!(
-                " Interaction Network [{mode}] — {} {} ",
+                " Interaction Network [{mode} · {scheme}] — {} {} ",
                 self.network.nodes[node].id, self.network.nodes[node].resn
             ),
             None => format!(
-                " Interaction Network [{mode}] — {} residues, {} edges ",
+                " Interaction Network [{mode} · {scheme}] — {} residues, {} edges ",
                 self.network.nodes.len(),
                 self.network.edges.len()
             ),
@@ -259,6 +300,8 @@ impl NetworkView {
         let positions = &display;
         let edges = &self.edges;
         let hub = &self.hub;
+        let rsa = &self.rsa;
+        let color_mode = self.color_mode;
 
         let canvas = Canvas::default()
             .block(
@@ -287,7 +330,10 @@ impl NetworkView {
 
                 for (i, &(x, y)) in positions.iter().enumerate() {
                     let coords = [(x as f64, y as f64)];
-                    let color = node_color(network.nodes[i].ss);
+                    let color = match color_mode {
+                        NodeColorMode::Structure => node_color(network.nodes[i].ss),
+                        NodeColorMode::Burial => burial_color(rsa[i]),
+                    };
                     ctx.draw(&Points {
                         coords: &coords,
                         color,
@@ -351,6 +397,22 @@ fn node_color(ss: char) -> Color {
         'E' | 'B' => Color::Rgb(100, 100, 255),
         'T' | 'S' => Color::Rgb(255, 200, 100),
         _ => Color::Gray,
+    }
+}
+
+/// The burial palette, keyed by a node's relative solvent accessibility. Buried
+/// residues (low RSA, the structural core) read warm; solvent-facing residues
+/// (high RSA) read cool. Residues with no reference maximum (ligands,
+/// non-standard) are drawn neutral. RSA above 1 is clamped: a residue more
+/// exposed than the reference tripeptide still reads fully solvent-facing.
+fn burial_color(rsa: Option<f32>) -> Color {
+    match rsa {
+        None => Color::DarkGray,
+        Some(r) => {
+            let exposed = r.clamp(0.0, 1.0);
+            let lerp = |buried: f32, solvent: f32| (buried + (solvent - buried) * exposed) as u8;
+            Color::Rgb(lerp(230.0, 70.0), lerp(140.0, 150.0), lerp(55.0, 235.0))
+        }
     }
 }
 
@@ -507,5 +569,46 @@ mod tests {
 
         // One laid-out position per node.
         assert_eq!(view.positions.len(), view.network.nodes.len());
+        // And one burial value per node.
+        assert_eq!(view.rsa.len(), view.network.nodes.len());
+    }
+
+    #[test]
+    fn toggle_color_switches_the_node_scheme() {
+        let protein = Protein {
+            atoms: vec![atom("A", 1, "N", "LYS"), atom("A", 2, "O", "GLU")],
+            title: String::new(),
+            surface_points: Vec::new(),
+            hbonds: Vec::new(),
+            assembly: None,
+            components: Default::default(),
+        };
+        let network = rin::build(&protein, &[hbond(0, 1)]);
+        let mut view = NetworkView::from_network(&protein, network);
+
+        assert_eq!(view.color_mode, NodeColorMode::Structure);
+        view.toggle_color();
+        assert_eq!(view.color_mode, NodeColorMode::Burial);
+        view.toggle_color();
+        assert_eq!(view.color_mode, NodeColorMode::Structure);
+    }
+
+    #[test]
+    fn burial_color_separates_buried_from_exposed() {
+        // Buried reads warm (red over blue), exposed reads cool (blue over red).
+        let Color::Rgb(br, _, bb) = burial_color(Some(0.0)) else {
+            panic!("expected an rgb colour");
+        };
+        assert!(br > bb, "a buried residue should read warm");
+
+        let Color::Rgb(er, _, eb) = burial_color(Some(1.0)) else {
+            panic!("expected an rgb colour");
+        };
+        assert!(eb > er, "an exposed residue should read cool");
+
+        // Above the reference maximum still reads fully exposed, not past it.
+        assert_eq!(burial_color(Some(2.0)), burial_color(Some(1.0)));
+        // A residue with no reference maximum is neutral.
+        assert_eq!(burial_color(None), Color::DarkGray);
     }
 }

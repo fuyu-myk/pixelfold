@@ -135,6 +135,16 @@ pub(crate) fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers
             }
         }
 
+        // Switch the network's node colouring between secondary structure and burial.
+        KeyCode::Char('e') => {
+            if app.show_network
+                && let Some(view) = app.network_view.as_mut()
+            {
+                view.toggle_color();
+                app.redraw_needed = true;
+            }
+        }
+
         // Slab (clipping planes): k toggles, [ ] move the band in depth, , . resize it.
         KeyCode::Char('k') => {
             app.slab = match app.slab {
