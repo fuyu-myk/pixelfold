@@ -17,4 +17,4 @@ pub use framebuffer::{Framebuffer, NO_ID};
 pub use overlay::draw_segment;
 pub use raster::{RenderOptions, rasterize};
 pub use scene::{Coloring, Scene};
-pub use sink::{decode_rgba, to_png_bytes, write_png};
+pub use sink::{decode_rgba, to_png_bytes, to_png_bytes_fast, write_png};

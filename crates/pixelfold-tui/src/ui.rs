@@ -74,9 +74,9 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App, picker: &Picker) {
         (content_area, None)
     };
 
-    let (font_w, font_h) = picker.font_size();
-    let fb_w = (main_area.width as u32 * font_w as u32).clamp(1, MAX_FB_DIMENSION);
-    let fb_h = (main_area.height as u32 * font_h as u32).clamp(1, MAX_FB_DIMENSION);
+    // While the camera is moving, render at a lower resolution; once input settles
+    // the frame is redrawn at full resolution.
+    let (fb_w, fb_h) = framebuffer_dims(main_area, picker.font_size(), MAX_FB_DIMENSION);
 
     // The scene is rasterised into an owned framebuffer, so the immutable borrow
     // of `app` ends before the frame is stashed back into it for picking.
@@ -91,7 +91,7 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App, picker: &Picker) {
         } else if let Some(dyn_img) = framebuffer_to_image(&fb) {
             let mut protocol = picker.new_resize_protocol(dyn_img);
             frame.render_stateful_widget(
-                StatefulImage::default().resize(Resize::Fit(None)),
+                StatefulImage::default().resize(Resize::Scale(None)),
                 main_area,
                 &mut protocol,
             );
@@ -101,7 +101,6 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App, picker: &Picker) {
     app.last_frame = Some(RenderedFrame {
         fb,
         area: main_area,
-        font: (font_w, font_h),
     });
 
     render_info_bar(frame, app, info_bar_area);
@@ -174,6 +173,23 @@ fn assembly_note(app: &App) -> Option<String> {
 fn framebuffer_to_image(fb: &Framebuffer) -> Option<DynamicImage> {
     let buf: Vec<u8> = fb.color().iter().flatten().copied().collect();
     RgbaImage::from_raw(fb.width(), fb.height(), buf).map(DynamicImage::ImageRgba8)
+}
+
+/// The framebuffer dimensions for `area`: the cell grid times the font size,
+/// scaled down so the larger side does not exceed `max_dim`.
+fn framebuffer_dims(area: Rect, font: (u16, u16), max_dim: u32) -> (u32, u32) {
+    let native_w = (area.width as u32 * font.0 as u32).max(1);
+    let native_h = (area.height as u32 * font.1 as u32).max(1);
+    let biggest = native_w.max(native_h);
+    if biggest <= max_dim {
+        return (native_w, native_h);
+    }
+
+    let scale = max_dim as f32 / biggest as f32;
+    (
+        ((native_w as f32 * scale) as u32).max(1),
+        ((native_h as f32 * scale) as u32).max(1),
+    )
 }
 
 fn render_info_bar(frame: &mut Frame, app: &App, area: Rect) {
@@ -421,4 +437,25 @@ fn render_help(frame: &mut Frame, area: Rect) {
             .style(Style::default().fg(Color::Gray)),
         area,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn area(width: u16, height: u16) -> Rect {
+        Rect::new(0, 0, width, height)
+    }
+
+    #[test]
+    fn framebuffer_dims_keeps_native_size_under_the_cap() {
+        // 80x24 cells at an 8x16 font is 640x384, below the cap.
+        assert_eq!(framebuffer_dims(area(80, 24), (8, 16), 700), (640, 384));
+    }
+
+    #[test]
+    fn framebuffer_dims_scales_down_preserving_aspect() {
+        // 200x50 cells at 8x16 is 1600x800 (2:1); capped to 700 wide keeps 2:1.
+        assert_eq!(framebuffer_dims(area(200, 50), (8, 16), 700), (700, 350));
+    }
 }

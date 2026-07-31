@@ -9,7 +9,7 @@ pub mod kitty;
 pub mod png;
 
 pub use detect::{Protocol, detect, is_ssh};
-pub use png::{decode_rgba, encode, to_png_bytes, write_png};
+pub use png::{decode_rgba, encode, to_png_bytes, to_png_bytes_fast, write_png};
 
 use crate::framebuffer::Framebuffer;
 

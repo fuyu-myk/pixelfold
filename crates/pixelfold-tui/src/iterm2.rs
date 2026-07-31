@@ -18,7 +18,7 @@ use pixelfold_render::sink::base64;
 /// The inline-image escape for `fb`, scaled to exactly `cols` x `rows` cells,
 /// opaque, and leaving the cursor in place so it composes inside a ratatui frame.
 pub(crate) fn escape(fb: &Framebuffer, cols: u16, rows: u16) -> Option<String> {
-    let png = pixelfold_render::to_png_bytes(fb).ok()?;
+    let png = pixelfold_render::to_png_bytes_fast(fb).ok()?;
     let payload = base64::encode(&png);
 
     let mut out = String::with_capacity(payload.len() + 96);

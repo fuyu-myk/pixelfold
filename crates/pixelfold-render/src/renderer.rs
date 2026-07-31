@@ -2,6 +2,7 @@ use glam::{Quat, Vec2, Vec3};
 
 use pixelfold_core::{FixedStr, Protein, SecondaryStructure};
 
+#[derive(Clone, Copy)]
 pub struct Camera {
     /// Accumulated orientation as a unit quaternion.
     pub orientation: Quat,

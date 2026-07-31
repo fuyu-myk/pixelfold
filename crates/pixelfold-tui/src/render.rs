@@ -4,6 +4,7 @@
 //! rasteriser fills is what mouse picking reads back.
 
 use pixelfold_core::{DisplayMode, Protein, calculate_bfactor_range};
+use pixelfold_render::renderer::Camera;
 use pixelfold_render::{
     Coloring, Framebuffer, NO_ID, RenderOptions, Scene, bfactor_to_color, draw_segment,
     hbond_energy_to_color, rasterize,
@@ -53,7 +54,7 @@ pub(crate) fn render_scene(app: &App, width: u32, height: u32) -> Framebuffer {
     };
     rasterize(&scene, &app.camera, &mut fb, &opts);
 
-    draw_overlays(app, protein, &mut fb);
+    draw_overlays(app, protein, &app.camera, &mut fb);
     fb
 }
 
@@ -76,7 +77,7 @@ fn recolor_selection(app: &App, scene: &mut Scene) {
     }
 }
 
-fn draw_overlays(app: &App, protein: &Protein, fb: &mut Framebuffer) {
+fn draw_overlays(app: &App, protein: &Protein, camera: &Camera, fb: &mut Framebuffer) {
     let highlight = app.residue_highlight && app.selected_atom_idx.is_some();
 
     if app.show_connections && !highlight && app.display_mode == DisplayMode::Backbone {
@@ -106,7 +107,7 @@ fn draw_overlays(app: &App, protein: &Protein, fb: &mut Framebuffer) {
             };
             draw_segment(
                 fb,
-                &app.camera,
+                camera,
                 protein.atoms[i].position,
                 protein.atoms[j].position,
                 color,
@@ -129,7 +130,7 @@ fn draw_overlays(app: &App, protein: &Protein, fb: &mut Framebuffer) {
             let (r, g, b) = hbond_energy_to_color(hbond.energy);
             draw_segment(
                 fb,
-                &app.camera,
+                camera,
                 protein.atoms[donor].position,
                 protein.atoms[acceptor].position,
                 [r, g, b],

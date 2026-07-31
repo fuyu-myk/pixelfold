@@ -20,12 +20,12 @@ mod render;
 mod ui;
 
 /// The framebuffer of the last drawn frame, kept so a mouse click can be mapped
-/// straight to the atom under it through the id buffer. `area` and `font` record
-/// where the image was placed and the cell-to-pixel scale used to draw it.
+/// straight to the atom under it through the id buffer. `area` is where the image
+/// was placed; the framebuffer may be a lower resolution that the terminal scaled
+/// to fill it, so picking maps proportionally rather than by a fixed cell size.
 pub struct RenderedFrame {
     pub fb: Framebuffer,
     pub area: Rect,
-    pub font: (u16, u16),
 }
 
 pub struct App {
@@ -214,11 +214,13 @@ pub fn update_highlighted_atoms(app: &mut App) {
 }
 
 /// The atom under a terminal cell, via the id buffer of the last drawn frame.
-/// Returns `None` for a click outside the image or on background.
+/// Returns `None` for a click outside the image or on background. The click's
+/// position within the image area is mapped proportionally onto the framebuffer,
+/// so it is correct whatever resolution that frame was drawn at.
 pub fn pick_at(app: &App, column: u16, row: u16) -> Option<usize> {
     let frame = app.last_frame.as_ref()?;
     let area = frame.area;
-    if column < area.x || row < area.y {
+    if column < area.x || row < area.y || area.width == 0 || area.height == 0 {
         return None;
     }
 
@@ -228,12 +230,10 @@ pub fn pick_at(app: &App, column: u16, row: u16) -> Option<usize> {
         return None;
     }
 
-    let (font_w, font_h) = (frame.font.0 as u32, frame.font.1 as u32);
-    let px = local_col * font_w + font_w / 2;
-    let py = local_row * font_h + font_h / 2;
-    if px >= frame.fb.width() || py >= frame.fb.height() {
-        return None;
-    }
+    let fx = (local_col as f32 + 0.5) / area.width as f32;
+    let fy = (local_row as f32 + 0.5) / area.height as f32;
+    let px = ((fx * frame.fb.width() as f32) as u32).min(frame.fb.width().saturating_sub(1));
+    let py = ((fy * frame.fb.height() as f32) as u32).min(frame.fb.height().saturating_sub(1));
 
     match frame.fb.id_at(px, py) {
         pixelfold_render::NO_ID => None,

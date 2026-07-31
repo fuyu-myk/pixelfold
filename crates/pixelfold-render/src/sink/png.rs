@@ -12,11 +12,23 @@ use crate::framebuffer::Framebuffer;
 /// past the local `png` module to the external crate of the same name.
 pub use png::EncodingError;
 
-/// Encode a framebuffer as an RGBA8 PNG to `writer`.
+/// Encode a framebuffer as an RGBA8 PNG to `writer`, at the default compression.
 pub fn encode<W: Write>(fb: &Framebuffer, writer: W) -> Result<(), png::EncodingError> {
+    encode_with(fb, writer, false)
+}
+
+fn encode_with<W: Write>(
+    fb: &Framebuffer,
+    writer: W,
+    fast: bool,
+) -> Result<(), png::EncodingError> {
     let mut encoder = png::Encoder::new(writer, fb.width(), fb.height());
     encoder.set_color(png::ColorType::Rgba);
     encoder.set_depth(png::BitDepth::Eight);
+
+    if fast {
+        encoder.set_compression(png::Compression::Fast);
+    }
 
     let mut writer = encoder.write_header()?;
     writer.write_image_data(fb.color().as_flattened())?;
@@ -24,10 +36,17 @@ pub fn encode<W: Write>(fb: &Framebuffer, writer: W) -> Result<(), png::Encoding
     Ok(())
 }
 
-/// Encode a framebuffer as a PNG byte buffer.
+/// Encode a framebuffer as a PNG byte buffer at the default compression.
 pub fn to_png_bytes(fb: &Framebuffer) -> Result<Vec<u8>, png::EncodingError> {
     let mut bytes = Vec::new();
     encode(fb, &mut bytes)?;
+    Ok(bytes)
+}
+
+/// Encode a framebuffer as a PNG byte buffer at the fastest compression.
+pub fn to_png_bytes_fast(fb: &Framebuffer) -> Result<Vec<u8>, png::EncodingError> {
+    let mut bytes = Vec::new();
+    encode_with(fb, &mut bytes, true)?;
     Ok(bytes)
 }
 
