@@ -122,6 +122,11 @@ enum Command {
         #[arg(long)]
         analyze: bool,
 
+        /// Print the shortest chain of interactions between two residues, each
+        /// given as CHAIN/RESI (e.g. --path A/10 B/20)
+        #[arg(long, num_args = 2, value_names = ["FROM", "TO"])]
+        path: Option<Vec<String>>,
+
         /// Write to this file instead of standard output
         #[arg(short, long, value_name = "FILE")]
         output: Option<PathBuf>,
@@ -350,6 +355,7 @@ fn run(command: Command) -> Result<()> {
             types,
             format,
             analyze,
+            path,
             output,
             common,
         } => {
@@ -360,7 +366,30 @@ fn run(command: Command) -> Result<()> {
             let interactions = analyse::selected(&protein, &chosen, &kinds);
             let network = pixelfold_core::rin::build(&protein, &interactions);
 
-            if analyze {
+            if let Some(endpoints) = path {
+                let node_of = |id: &str| {
+                    network
+                        .nodes
+                        .iter()
+                        .position(|node| node.id == id)
+                        .with_context(|| {
+                            format!("residue {id} is not in the network (does it interact?)")
+                        })
+                };
+                let from = node_of(&endpoints[0])?;
+                let to = node_of(&endpoints[1])?;
+                let route = pixelfold_core::rin::shortest_path(&network, from, to);
+
+                emit_to(output.as_deref(), |out| {
+                    graph::write_path(
+                        out,
+                        &network,
+                        &endpoints[0],
+                        &endpoints[1],
+                        route.as_deref(),
+                    )
+                })
+            } else if analyze {
                 let report = pixelfold_core::rin::analyze(&network);
                 emit_to(output.as_deref(), |out| {
                     graph::write_analysis(out, &network, &report)

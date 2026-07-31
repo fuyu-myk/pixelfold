@@ -64,6 +64,56 @@ fn adjacency(network: &Network) -> Vec<Vec<usize>> {
         .collect()
 }
 
+/// The shortest chain of interactions between two residues, as node indices from
+/// `from` to `to` inclusive, or `None` when they lie in different components.
+/// Edges are unweighted, so this is the fewest interactions apart; `from == to`
+/// is a single-node path.
+pub fn shortest_path(network: &Network, from: usize, to: usize) -> Option<Vec<usize>> {
+    shortest_path_adj(&adjacency(network), from, to)
+}
+
+/// Breadth-first shortest path over an adjacency list, tracking predecessors to
+/// reconstruct the route once the target is reached.
+fn shortest_path_adj(adj: &[Vec<usize>], from: usize, to: usize) -> Option<Vec<usize>> {
+    if from >= adj.len() || to >= adj.len() {
+        return None;
+    }
+    if from == to {
+        return Some(vec![from]);
+    }
+
+    let mut previous = vec![usize::MAX; adj.len()];
+    let mut seen = vec![false; adj.len()];
+    let mut queue = VecDeque::from([from]);
+    seen[from] = true;
+
+    while let Some(v) = queue.pop_front() {
+        for &w in &adj[v] {
+            if seen[w] {
+                continue;
+            }
+
+            seen[w] = true;
+            previous[w] = v;
+            if w == to {
+                let mut path = vec![to];
+                let mut node = to;
+                while node != from {
+                    node = previous[node];
+                    path.push(node);
+                }
+
+                path.reverse();
+                return Some(path);
+            }
+
+            queue.push_back(w);
+        }
+    }
+
+    None
+}
+
 /// Label each node with its connected component through breadth-first search.
 fn connected_components(adj: &[Vec<usize>]) -> Vec<Vec<usize>> {
     let n = adj.len();
@@ -266,6 +316,23 @@ mod tests {
     fn a_cycle_has_no_cut_vertices() {
         let g = graph(4, &[(0, 1), (1, 2), (2, 3), (3, 0)]);
         assert!(articulation_points(&g).is_empty());
+    }
+
+    #[test]
+    fn shortest_path_follows_the_fewest_edges() {
+        let path = graph(4, &[(0, 1), (1, 2), (2, 3)]);
+        assert_eq!(shortest_path_adj(&path, 0, 3), Some(vec![0, 1, 2, 3]));
+        assert_eq!(shortest_path_adj(&path, 2, 2), Some(vec![2]));
+
+        // A shortcut edge 0-2 makes the route to 3 one step shorter.
+        let shortcut = graph(4, &[(0, 1), (1, 2), (2, 3), (0, 2)]);
+        assert_eq!(shortest_path_adj(&shortcut, 0, 3), Some(vec![0, 2, 3]));
+    }
+
+    #[test]
+    fn shortest_path_is_none_across_components() {
+        let split = graph(4, &[(0, 1), (2, 3)]);
+        assert_eq!(shortest_path_adj(&split, 0, 3), None);
     }
 
     #[test]

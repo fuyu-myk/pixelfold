@@ -108,6 +108,37 @@ pub fn write_analysis<W: Write + ?Sized>(
     Ok(())
 }
 
+/// Write the shortest chain of interactions between two residues, one residue
+/// per line, or a note when they are not connected.
+pub fn write_path<W: Write + ?Sized>(
+    out: &mut W,
+    network: &Network,
+    from_id: &str,
+    to_id: &str,
+    route: Option<&[usize]>,
+) -> Result<()> {
+    match route {
+        None => writeln!(
+            out,
+            "No path between {from_id} and {to_id}: they are in different components"
+        )?,
+        Some(path) => {
+            writeln!(
+                out,
+                "Shortest path {from_id} \u{2192} {to_id}: {} steps, {} residues",
+                path.len().saturating_sub(1),
+                path.len()
+            )?;
+            for &node in path {
+                let node = &network.nodes[node];
+                writeln!(out, "  {} {} [{}]", node.id, node.resn, node.ss)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// A distance rounded to the precision the coordinates carry.
 fn distance(value: f32) -> f32 {
     (value * 100.0).round() / 100.0

@@ -249,6 +249,36 @@ fn the_analysis_report_summarises_the_network_structure() {
     assert!(run.stdout.contains("Articulation points (0 cut residues):"));
 }
 
+/// `--path` reports the shortest chain of interactions between two residues.
+#[test]
+fn shortest_path_reports_a_route_between_residues() {
+    // Path a residue that is certainly in the network (the first node) to itself:
+    // a zero-length route that always exists.
+    let json = run!("1CRN", &["rin", "--format", "json"]);
+    let parsed: serde_json::Value = serde_json::from_str(&json.stdout).expect("valid json");
+    let id = parsed["nodes"][0]["id"]
+        .as_str()
+        .expect("a node id")
+        .to_owned();
+
+    let run = run!("1CRN", &["rin", "--path", id.as_str(), id.as_str()]);
+    assert!(run.ok, "command failed: {}", run.stderr);
+    assert!(run.stdout.contains("Shortest path"), "{}", run.stdout);
+    assert!(
+        run.stdout.contains("1 residues"),
+        "a self-path is one residue: {}",
+        run.stdout
+    );
+}
+
+/// `--path` errors when a named residue is not in the network.
+#[test]
+fn shortest_path_errors_for_an_absent_residue() {
+    let run = run!("1CRN", &["rin", "--path", "Z/999", "A/1"]);
+    assert!(!run.ok, "should fail for a residue not in the network");
+    assert!(run.stderr.contains("not in the network"), "{}", run.stderr);
+}
+
 /// `sasa` reports relative accessibility beside the absolute area.
 #[test]
 fn sasa_reports_relative_accessibility() {
