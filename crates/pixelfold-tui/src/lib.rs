@@ -54,6 +54,9 @@ pub struct App {
     /// The linked network pane: shown beside the structure, built on first open.
     pub show_network: bool,
     pub(crate) network_view: Option<network::NetworkView>,
+    /// A network build running on a worker thread, delivering its result here.
+    /// Set while the pane is computing to prevent blocking of the event loop.
+    pub(crate) network_build: Option<std::sync::mpsc::Receiver<network::NetworkView>>,
     /// Where the network pane last drew, for routing clicks to it.
     pub network_area: Option<Rect>,
 }
@@ -88,6 +91,7 @@ impl App {
             last_frame: None,
             show_network: false,
             network_view: None,
+            network_build: None,
             network_area: None,
         }
     }

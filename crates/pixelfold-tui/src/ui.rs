@@ -130,8 +130,12 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App, picker: &Picker) {
             }
             other => (other, None),
         };
-        if let (Some(area), Some(view)) = (net_area, app.network_view.as_mut()) {
-            view.render(frame, area, selected_node, &app.camera);
+        if let Some(area) = net_area {
+            if let Some(view) = app.network_view.as_mut() {
+                view.render(frame, area, selected_node, &app.camera);
+            } else if app.network_build.is_some() {
+                render_network_building(frame, area);
+            }
         }
         app.network_area = net_area;
         if let (Some(area), Some(atom_idx)) = (summary_area, app.selected_atom_idx) {
@@ -152,6 +156,27 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App, picker: &Picker) {
         .style(Style::default().fg(Color::DarkGray)),
         footer_area,
     );
+}
+
+/// The network pane's placeholder while the graph is built on a worker thread.
+fn render_network_building(frame: &mut Frame, area: Rect) {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::DarkGray))
+        .title(" Interaction Network ");
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    if inner.height > 0 {
+        let row = inner.y + inner.height / 2;
+        let line = Rect::new(inner.x, row, inner.width, 1);
+        frame.render_widget(
+            Paragraph::new("Computing interaction network...")
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(Color::Gray)),
+            line,
+        );
+    }
 }
 
 /// A header line for a structure whose biological assembly differs from the

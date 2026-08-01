@@ -116,11 +116,24 @@ pub(crate) fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers
             app.redraw_needed = true;
         }
 
-        // Toggle the linked network pane, building it on first open.
+        // Toggle the linked network pane. On first open the network is built on a
+        // worker thread, so a large structure's detection, layout, and accessibility
+        // pass never freeze the event loop; the pane shows a placeholder until the
+        // result arrives (see `run_app`).
         KeyCode::Char('g') => {
             app.show_network = !app.show_network;
-            if app.show_network && app.network_view.is_none() {
-                app.network_view = app.protein.as_ref().map(crate::network::NetworkView::build);
+            if app.show_network
+                && app.network_view.is_none()
+                && app.network_build.is_none()
+                && let Some(protein) = app.protein.clone()
+            {
+                let (tx, rx) = std::sync::mpsc::channel();
+                std::thread::spawn(move || {
+                    let view = crate::network::NetworkView::build(&protein);
+                    tx.send(view).ok();
+                });
+
+                app.network_build = Some(rx);
             }
             app.redraw_needed = true;
         }

@@ -69,6 +69,7 @@ impl SecondaryStructure {
     }
 }
 
+#[derive(Clone)]
 pub struct Protein {
     pub atoms: Vec<Atom>,
     pub title: String,
