@@ -146,7 +146,7 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App, picker: &Picker) {
 
     frame.render_widget(
         Paragraph::new(
-            "WASD rotate  ·  +/- zoom  ·  arrows pan  ·  i inspect  ·  g network  ·  l layout  ·  e color  ·  1/2 atoms/Cα  ·  c b h  ·  k [ ] , . slab  ·  f reset  ·  q quit",
+            "WASD rotate  ·  +/- zoom  ·  arrows pan  ·  i inspect  ·  g network  ·  l layout  ·  e color  ·  t/y filter  ·  1/2 atoms/Cα  ·  c b h  ·  k [ ] , . slab  ·  f reset  ·  q quit",
         )
         .alignment(Alignment::Center)
         .style(Style::default().fg(Color::DarkGray)),

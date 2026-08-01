@@ -145,6 +145,26 @@ pub(crate) fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers
             }
         }
 
+        // Cycle the network's interaction-kind filter (all kinds, then each in turn).
+        KeyCode::Char('t') => {
+            if app.show_network
+                && let Some(view) = app.network_view.as_mut()
+            {
+                view.cycle_kind_filter();
+                app.redraw_needed = true;
+            }
+        }
+
+        // Cycle the network's chain filter (all, intra-chain, inter-chain interface).
+        KeyCode::Char('y') => {
+            if app.show_network
+                && let Some(view) = app.network_view.as_mut()
+            {
+                view.cycle_chain_filter();
+                app.redraw_needed = true;
+            }
+        }
+
         // Slab (clipping planes): k toggles, [ ] move the band in depth, , . resize it.
         KeyCode::Char('k') => {
             app.slab = match app.slab {

@@ -53,12 +53,26 @@ const HUB_MAX_RADIUS: f64 = 0.035;
 const HUB_THRESHOLD: f32 = 0.15;
 
 /// One edge as the pane draws it: its two node indices, kind (which sets the
-/// hue) and summed energy (which sets the brightness).
+/// hue), summed energy (which sets the brightness), and whether it crosses
+/// chains (for the chain filter).
 struct EdgeVis {
     u: usize,
     v: usize,
     kind: InteractionKind,
     energy: f32,
+    interchain: bool,
+}
+
+/// Which edges the chain filter keeps.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum ChainFilter {
+    /// Every edge.
+    #[default]
+    All,
+    /// Only edges within a single chain.
+    IntraOnly,
+    /// Only edges between different chains, the inter-chain interface.
+    InterOnly,
 }
 
 pub struct NetworkView {
@@ -72,6 +86,13 @@ pub struct NetworkView {
     node_pos3: Vec<Vec3>,
     /// Each edge for drawing: node indices, kind (hue), and energy (brightness).
     edges: Vec<EdgeVis>,
+    /// The interaction kinds actually present, in display order, for cycling the
+    /// kind filter over only the kinds this network has.
+    present_kinds: Vec<InteractionKind>,
+    /// Show only this interaction kind's edges, or every kind when `None`.
+    kind_filter: Option<InteractionKind>,
+    /// Which edges the chain filter keeps.
+    chain_filter: ChainFilter,
     /// Normalised betweenness centrality per node (`sqrt` scaled to `0..1`), for
     /// hub sizing.
     hub: Vec<f32>,
@@ -105,7 +126,7 @@ impl NetworkView {
             .map(|p| (p.x, p.y))
             .collect();
 
-        let edges = {
+        let edges: Vec<EdgeVis> = {
             let index: HashMap<&str, usize> = network
                 .nodes
                 .iter()
@@ -121,10 +142,19 @@ impl NetworkView {
                         v: *index.get(edge.target.as_str())?,
                         kind: edge.kind,
                         energy: edge.energy,
+                        interchain: edge.interchain,
                     })
                 })
                 .collect()
         };
+
+        // The kinds actually present, in the legend's fixed order.
+        let present: std::collections::BTreeSet<InteractionKind> =
+            edges.iter().map(|e| e.kind).collect();
+        let present_kinds: Vec<InteractionKind> = KIND_ORDER
+            .into_iter()
+            .filter(|k| present.contains(k))
+            .collect();
 
         // Size hubs by betweenness centrality; the square root lifts the many
         // mid-ranked residues out of the shadow of the few very high ones.
@@ -190,6 +220,9 @@ impl NetworkView {
             positions,
             node_pos3,
             edges,
+            present_kinds,
+            kind_filter: None,
+            chain_filter: ChainFilter::default(),
             hub,
             rsa,
             repr_atom,
@@ -211,6 +244,28 @@ impl NetworkView {
         self.color_mode = match self.color_mode {
             NodeColorMode::Structure => NodeColorMode::Burial,
             NodeColorMode::Burial => NodeColorMode::Structure,
+        };
+    }
+
+    /// Step the kind filter: every kind, then each present kind in turn, and
+    /// back to every kind.
+    pub fn cycle_kind_filter(&mut self) {
+        self.kind_filter = match self.kind_filter {
+            None => self.present_kinds.first().copied(),
+            Some(current) => match self.present_kinds.iter().position(|&k| k == current) {
+                Some(i) => self.present_kinds.get(i + 1).copied(),
+                None => None,
+            },
+        };
+    }
+
+    /// Step the chain filter: all edges, then intra-chain only, then the
+    /// inter-chain interface only, and back.
+    pub fn cycle_chain_filter(&mut self) {
+        self.chain_filter = match self.chain_filter {
+            ChainFilter::All => ChainFilter::IntraOnly,
+            ChainFilter::IntraOnly => ChainFilter::InterOnly,
+            ChainFilter::InterOnly => ChainFilter::All,
         };
     }
 
@@ -284,23 +339,40 @@ impl NetworkView {
             })
             .collect();
 
-        let mode = match self.mode {
-            LayoutMode::Force => "force",
-            LayoutMode::Spatial => "spatial",
-        };
-        let scheme = match self.color_mode {
-            NodeColorMode::Structure => "struct",
-            NodeColorMode::Burial => "burial",
-        };
+        // The bracket tags the layout, colour scheme, and any active filter.
+        let mut tags = vec![
+            match self.mode {
+                LayoutMode::Force => "force",
+                LayoutMode::Spatial => "spatial",
+            },
+            match self.color_mode {
+                NodeColorMode::Structure => "struct",
+                NodeColorMode::Burial => "burial",
+            },
+        ];
+        if let Some(kind) = self.kind_filter {
+            tags.push(kind_short(kind));
+        }
+        match self.chain_filter {
+            ChainFilter::All => {}
+            ChainFilter::IntraOnly => tags.push("intra"),
+            ChainFilter::InterOnly => tags.push("inter"),
+        }
+        let tag = tags.join(" · ");
+
+        let visible_edges = self
+            .edges
+            .iter()
+            .filter(|e| edge_passes(e, self.kind_filter, self.chain_filter))
+            .count();
         let title = match selected {
             Some(node) => format!(
-                " Interaction Network [{mode} · {scheme}] — {} {} ",
+                " Interaction Network [{tag}] — {} {} ",
                 self.network.nodes[node].id, self.network.nodes[node].resn
             ),
             None => format!(
-                " Interaction Network [{mode} · {scheme}] — {} residues, {} edges ",
+                " Interaction Network [{tag}] — {} residues, {visible_edges} edges ",
                 self.network.nodes.len(),
-                self.network.edges.len()
             ),
         };
 
@@ -312,8 +384,15 @@ impl NetworkView {
         let hub = &self.hub;
         let rsa = &self.rsa;
         let color_mode = self.color_mode;
-        // Brightest edge sets the top of the (log) intensity scale.
-        let max_energy = edges.iter().map(|e| e.energy).fold(0.0f32, f32::max);
+        let kind_filter = self.kind_filter;
+        let chain_filter = self.chain_filter;
+        // Brightest visible edge sets the top of the (log) intensity scale, so a
+        // filtered view rescales to the edges it actually shows.
+        let max_energy = edges
+            .iter()
+            .filter(|e| edge_passes(e, kind_filter, chain_filter))
+            .map(|e| e.energy)
+            .fold(0.0f32, f32::max);
 
         let canvas = Canvas::default()
             .block(
@@ -328,6 +407,9 @@ impl NetworkView {
             .y_bounds([0.0, 1.0])
             .paint(move |ctx| {
                 for e in edges {
+                    if !edge_passes(e, kind_filter, chain_filter) {
+                        continue;
+                    }
                     let (ux, uy) = positions[e.u];
                     let (vx, vy) = positions[e.v];
                     let color =
@@ -424,6 +506,22 @@ fn burial_color(rsa: Option<f32>) -> Color {
             Color::Rgb(lerp(230.0, 70.0), lerp(140.0, 150.0), lerp(55.0, 235.0))
         }
     }
+}
+
+/// Whether an edge passes both the kind and chain filters and should be drawn.
+fn edge_passes(
+    edge: &EdgeVis,
+    kind_filter: Option<InteractionKind>,
+    chain_filter: ChainFilter,
+) -> bool {
+    let kind_ok = kind_filter.is_none_or(|k| k == edge.kind);
+    let chain_ok = match chain_filter {
+        ChainFilter::All => true,
+        ChainFilter::IntraOnly => !edge.interchain,
+        ChainFilter::InterOnly => edge.interchain,
+    };
+
+    kind_ok && chain_ok
 }
 
 /// Perceptual brightness for an edge of a given summed energy, relative to the
@@ -685,5 +783,104 @@ mod tests {
         );
         // A non-rgb colour is left untouched.
         assert_eq!(scale_color(Color::Gray, 0.5), Color::Gray);
+    }
+
+    #[test]
+    fn edge_passes_honours_kind_and_chain_filters() {
+        let intra_hbond = EdgeVis {
+            u: 0,
+            v: 1,
+            kind: InteractionKind::HydrogenBond,
+            energy: 20.0,
+            interchain: false,
+        };
+        let inter_salt = EdgeVis {
+            u: 0,
+            v: 2,
+            kind: InteractionKind::SaltBridge,
+            energy: 17.0,
+            interchain: true,
+        };
+
+        // No filter: everything passes.
+        assert!(edge_passes(&intra_hbond, None, ChainFilter::All));
+        assert!(edge_passes(&inter_salt, None, ChainFilter::All));
+
+        // Kind filter keeps only the chosen kind.
+        let only_hbond = Some(InteractionKind::HydrogenBond);
+        assert!(edge_passes(&intra_hbond, only_hbond, ChainFilter::All));
+        assert!(!edge_passes(&inter_salt, only_hbond, ChainFilter::All));
+
+        // Chain filter splits intra from inter.
+        assert!(edge_passes(&intra_hbond, None, ChainFilter::IntraOnly));
+        assert!(!edge_passes(&intra_hbond, None, ChainFilter::InterOnly));
+        assert!(edge_passes(&inter_salt, None, ChainFilter::InterOnly));
+        assert!(!edge_passes(&inter_salt, None, ChainFilter::IntraOnly));
+    }
+
+    #[test]
+    fn cycle_chain_filter_rotates_all_intra_inter() {
+        let protein = Protein {
+            atoms: vec![atom("A", 1, "N", "LYS"), atom("A", 2, "O", "GLU")],
+            title: String::new(),
+            surface_points: Vec::new(),
+            hbonds: Vec::new(),
+            assembly: None,
+            components: Default::default(),
+        };
+        let network = rin::build(&protein, &[hbond(0, 1)]);
+        let mut view = NetworkView::from_network(&protein, network);
+
+        assert_eq!(view.chain_filter, ChainFilter::All);
+        view.cycle_chain_filter();
+        assert_eq!(view.chain_filter, ChainFilter::IntraOnly);
+        view.cycle_chain_filter();
+        assert_eq!(view.chain_filter, ChainFilter::InterOnly);
+        view.cycle_chain_filter();
+        assert_eq!(view.chain_filter, ChainFilter::All);
+    }
+
+    #[test]
+    fn cycle_kind_filter_walks_present_kinds_then_clears() {
+        // One residue pair joined by both a hydrogen bond and a salt bridge, so
+        // two kinds are present.
+        let protein = Protein {
+            atoms: vec![
+                atom("A", 1, "N", "LYS"),
+                atom("A", 1, "NZ", "LYS"),
+                atom("A", 2, "O", "GLU"),
+                atom("A", 2, "OE1", "GLU"),
+            ],
+            title: String::new(),
+            surface_points: Vec::new(),
+            hbonds: Vec::new(),
+            assembly: None,
+            components: Default::default(),
+        };
+        let salt = Interaction {
+            kind: InteractionKind::SaltBridge,
+            atoms_a: vec![1],
+            atoms_b: vec![3],
+            distance: 3.5,
+            angle: None,
+            bridge: None,
+        };
+        let network = rin::build(&protein, &[hbond(0, 2), salt]);
+        let mut view = NetworkView::from_network(&protein, network);
+
+        assert_eq!(
+            view.present_kinds,
+            vec![InteractionKind::HydrogenBond, InteractionKind::SaltBridge]
+        );
+        assert_eq!(view.kind_filter, None);
+        view.cycle_kind_filter();
+        assert_eq!(view.kind_filter, Some(InteractionKind::HydrogenBond));
+        view.cycle_kind_filter();
+        assert_eq!(view.kind_filter, Some(InteractionKind::SaltBridge));
+        view.cycle_kind_filter();
+        assert_eq!(
+            view.kind_filter, None,
+            "past the last kind clears the filter"
+        );
     }
 }
