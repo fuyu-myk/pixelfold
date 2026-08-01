@@ -3,6 +3,12 @@
 //! Three shapes: node-link JSON that a browser or a script parses directly,
 //! GraphML that Cytoscape and Gephi import, and a flat edge list for a
 //! dataframe.
+//!
+//! Every edge carries its summed interaction energy (kJ/mol) as a raw additive
+//! magnitude. A covalent disulfide (~251 kJ/mol) is an order of magnitude above
+//! any non-covalent contact, so a node-strength sum in a downstream tool will be
+//! dominated by any disulfide it touches; log-scale or cap the weight there if
+//! that is not wanted. The value is the honest energy, not pre-scaled.
 
 use std::io::Write;
 
@@ -202,9 +208,12 @@ fn component(selector: Value, representation: &str, color: &str) -> Value {
     })
 }
 
-/// A distance rounded to the precision the coordinates carry.
-fn distance(value: f32) -> f32 {
-    (value * 100.0).round() / 100.0
+/// Round to two decimals, the precision the coordinates carry and is enough to keep
+/// the JSON free of float noise. The intermediate is f64 so scaling by 100 cannot
+/// overflow f32's integer mantissa. Every export path also rounds the same way, so
+/// the JSON, TSV, and GraphML never disagree on a value.
+fn round_2dp(value: f32) -> f32 {
+    ((value as f64 * 100.0).round() / 100.0) as f32
 }
 
 #[derive(Serialize)]
@@ -232,6 +241,8 @@ struct JsonEdge<'a> {
     count: usize,
     min_distance: f32,
     interchain: bool,
+    /// Summed interaction energy (kJ/mol).
+    energy: f32,
 }
 
 fn json_node(node: &Node) -> JsonNode<'_> {
@@ -252,8 +263,9 @@ fn json_edge(edge: &Edge) -> JsonEdge<'_> {
         target: &edge.target,
         kind: edge.kind.label(),
         count: edge.count,
-        min_distance: distance(edge.min_distance),
+        min_distance: round_2dp(edge.min_distance),
         interchain: edge.interchain,
+        energy: round_2dp(edge.energy),
     }
 }
 
@@ -272,17 +284,21 @@ fn write_json<W: Write + ?Sized>(out: &mut W, network: &Network) -> Result<()> {
 /// flat table, so this carries the edges alone; JSON or GraphML carry the whole
 /// graph.
 fn write_tsv<W: Write + ?Sized>(out: &mut W, network: &Network) -> Result<()> {
-    writeln!(out, "source\ttarget\tkind\tcount\tmin_distance\tinterchain")?;
+    writeln!(
+        out,
+        "source\ttarget\tkind\tcount\tmin_distance\tinterchain\tenergy"
+    )?;
     for edge in &network.edges {
         writeln!(
             out,
-            "{}\t{}\t{}\t{}\t{:.2}\t{}",
+            "{}\t{}\t{}\t{}\t{:.2}\t{}\t{:.2}",
             edge.source,
             edge.target,
             edge.kind.label(),
             edge.count,
-            distance(edge.min_distance),
+            round_2dp(edge.min_distance),
             edge.interchain,
+            round_2dp(edge.energy),
         )?;
     }
 
@@ -310,6 +326,8 @@ const KEYS: &str = concat!(
     r#"  <key id="e_distance" for="edge" attr.name="min_distance" attr.type="double"/>"#,
     "\n",
     r#"  <key id="e_interchain" for="edge" attr.name="interchain" attr.type="boolean"/>"#,
+    "\n",
+    r#"  <key id="e_energy" for="edge" attr.name="energy" attr.type="double"/>"#,
 );
 
 fn write_graphml<W: Write + ?Sized>(out: &mut W, network: &Network) -> Result<()> {
@@ -346,9 +364,10 @@ fn write_graphml<W: Write + ?Sized>(out: &mut W, network: &Network) -> Result<()
         data(
             out,
             "e_distance",
-            &format!("{:.2}", distance(edge.min_distance)),
+            &format!("{:.2}", round_2dp(edge.min_distance)),
         )?;
         data(out, "e_interchain", &edge.interchain.to_string())?;
+        data(out, "e_energy", &format!("{:.2}", round_2dp(edge.energy)))?;
         writeln!(out, "    </edge>")?;
     }
 
@@ -417,6 +436,7 @@ mod tests {
                 count: 1,
                 min_distance: 3.456,
                 interchain: false,
+                energy: InteractionKind::SaltBridge.contact_energy_kj(),
             }],
         }
     }
@@ -437,6 +457,10 @@ mod tests {
         assert_eq!(parsed["edges"][0]["kind"], "salt-bridge");
         assert_eq!(parsed["edges"][0]["min_distance"], 3.46);
         assert_eq!(parsed["edges"][0]["interchain"], false);
+        assert_eq!(
+            parsed["edges"][0]["energy"],
+            InteractionKind::SaltBridge.contact_energy_kj()
+        );
     }
 
     #[test]
@@ -446,9 +470,9 @@ mod tests {
 
         assert_eq!(
             lines[0],
-            "source\ttarget\tkind\tcount\tmin_distance\tinterchain"
+            "source\ttarget\tkind\tcount\tmin_distance\tinterchain\tenergy"
         );
-        assert_eq!(lines[1], "A/1\tA/2\tsalt-bridge\t1\t3.46\tfalse");
+        assert_eq!(lines[1], "A/1\tA/2\tsalt-bridge\t1\t3.46\tfalse\t17.00");
     }
 
     #[test]
@@ -462,6 +486,12 @@ mod tests {
         assert!(text.contains(r#"<node id="A/1">"#));
         assert!(text.contains(r#"<edge source="A/1" target="A/2">"#));
         assert!(text.contains("<data key=\"e_kind\">salt-bridge</data>"));
+        assert!(
+            text.contains(
+                r#"<key id="e_energy" for="edge" attr.name="energy" attr.type="double"/>"#
+            )
+        );
+        assert!(text.contains("<data key=\"e_energy\">17.00</data>"));
         // The insertion code reaches the node.
         assert!(text.contains("<data key=\"v_icode\">B</data>"));
         // Every open tag is closed.

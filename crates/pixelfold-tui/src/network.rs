@@ -52,6 +52,15 @@ const HUB_MAX_RADIUS: f64 = 0.035;
 /// Normalised centrality below which a node draws as a bare point, no halo.
 const HUB_THRESHOLD: f32 = 0.15;
 
+/// One edge as the pane draws it: its two node indices, kind (which sets the
+/// hue) and summed energy (which sets the brightness).
+struct EdgeVis {
+    u: usize,
+    v: usize,
+    kind: InteractionKind,
+    energy: f32,
+}
+
 pub struct NetworkView {
     network: Network,
     mode: LayoutMode,
@@ -61,8 +70,8 @@ pub struct NetworkView {
     /// The 3D position of each node's representative atom, projected through the
     /// camera in spatial mode.
     node_pos3: Vec<Vec3>,
-    /// Each edge as its two node indices and its interaction kind, for colouring.
-    edges: Vec<(usize, usize, InteractionKind)>,
+    /// Each edge for drawing: node indices, kind (hue), and energy (brightness).
+    edges: Vec<EdgeVis>,
     /// Normalised betweenness centrality per node (`sqrt` scaled to `0..1`), for
     /// hub sizing.
     hub: Vec<f32>,
@@ -107,11 +116,12 @@ impl NetworkView {
                 .edges
                 .iter()
                 .filter_map(|edge| {
-                    Some((
-                        *index.get(edge.source.as_str())?,
-                        *index.get(edge.target.as_str())?,
-                        edge.kind,
-                    ))
+                    Some(EdgeVis {
+                        u: *index.get(edge.source.as_str())?,
+                        v: *index.get(edge.target.as_str())?,
+                        kind: edge.kind,
+                        energy: edge.energy,
+                    })
                 })
                 .collect()
         };
@@ -302,6 +312,8 @@ impl NetworkView {
         let hub = &self.hub;
         let rsa = &self.rsa;
         let color_mode = self.color_mode;
+        // Brightest edge sets the top of the (log) intensity scale.
+        let max_energy = edges.iter().map(|e| e.energy).fold(0.0f32, f32::max);
 
         let canvas = Canvas::default()
             .block(
@@ -315,15 +327,13 @@ impl NetworkView {
             .x_bounds([0.0, 1.0])
             .y_bounds([0.0, 1.0])
             .paint(move |ctx| {
-                for &(u, v, kind) in edges {
-                    let (ux, uy) = positions[u];
-                    let (vx, vy) = positions[v];
+                for e in edges {
+                    let (ux, uy) = positions[e.u];
+                    let (vx, vy) = positions[e.v];
+                    let color =
+                        scale_color(edge_color(e.kind), edge_intensity(e.energy, max_energy));
                     ctx.draw(&CanvasLine::new(
-                        ux as f64,
-                        uy as f64,
-                        vx as f64,
-                        vy as f64,
-                        edge_color(kind),
+                        ux as f64, uy as f64, vx as f64, vy as f64, color,
                     ));
                 }
                 ctx.layer();
@@ -416,6 +426,37 @@ fn burial_color(rsa: Option<f32>) -> Color {
     }
 }
 
+/// Perceptual brightness for an edge of a given summed energy, relative to the
+/// strongest edge on screen. The scale is logarithmic so a covalent disulfide
+/// (~250 kJ/mol) does not blow out the many weaker non-covalent edges, and it
+/// never falls to zero, so even the faintest hydrophobic contact still draws.
+fn edge_intensity(energy: f32, max_energy: f32) -> f32 {
+    const FLOOR: f32 = 0.4;
+    let denom = (1.0 + max_energy.max(0.0)).ln();
+    let norm = if denom > 0.0 {
+        (1.0 + energy.max(0.0)).ln() / denom
+    } else {
+        1.0
+    };
+
+    FLOOR + (1.0 - FLOOR) * norm.clamp(0.0, 1.0)
+}
+
+/// Dim an RGB colour toward black by `t` in `0..1`; non-RGB colours pass through.
+fn scale_color(color: Color, t: f32) -> Color {
+    match color {
+        Color::Rgb(r, g, b) => {
+            let t = t.clamp(0.0, 1.0);
+            Color::Rgb(
+                (r as f32 * t) as u8,
+                (g as f32 * t) as u8,
+                (b as f32 * t) as u8,
+            )
+        }
+        other => other,
+    }
+}
+
 /// The edge palette, one colour per interaction kind.
 /// Exhaustive on purpose: a new interaction type must choose a colour.
 fn edge_color(kind: InteractionKind) -> Color {
@@ -462,9 +503,9 @@ const KIND_ORDER: [InteractionKind; 9] = [
 
 /// A one-line legend of the interaction kinds present, each a coloured swatch and
 /// its label, in the fixed order.
-fn legend(edges: &[(usize, usize, InteractionKind)]) -> Line<'static> {
+fn legend(edges: &[EdgeVis]) -> Line<'static> {
     let present: std::collections::BTreeSet<InteractionKind> =
-        edges.iter().map(|&(_, _, kind)| kind).collect();
+        edges.iter().map(|e| e.kind).collect();
 
     let mut spans = Vec::new();
     for kind in KIND_ORDER.into_iter().filter(|k| present.contains(k)) {
@@ -610,5 +651,39 @@ mod tests {
         assert_eq!(burial_color(Some(2.0)), burial_color(Some(1.0)));
         // A residue with no reference maximum is neutral.
         assert_eq!(burial_color(None), Color::DarkGray);
+    }
+
+    #[test]
+    fn edge_intensity_rises_with_energy_but_compresses_the_disulfide() {
+        // Disulfide (251) sets the top; a hydrogen bond (20) and hydrophobic
+        // contact (0.3) sit below it, brighter with energy but never dark.
+        let max = 251.0;
+        let weak = edge_intensity(0.3, max);
+        let hbond = edge_intensity(20.0, max);
+        let disulfide = edge_intensity(251.0, max);
+
+        assert!(weak < hbond && hbond < disulfide, "intensity tracks energy");
+        assert!(weak >= 0.4, "the weakest edge still draws above the floor");
+        assert!((disulfide - 1.0).abs() < 1e-6, "the strongest edge is full");
+        // Log compression: the 12x energy gap is nowhere near a 12x brightness
+        // gap, so one covalent bond does not blow out the scale.
+        assert!(
+            disulfide / hbond < 2.0,
+            "disulfide does not dominate visually"
+        );
+    }
+
+    #[test]
+    fn scale_color_dims_toward_black() {
+        assert_eq!(
+            scale_color(Color::Rgb(200, 100, 50), 0.5),
+            Color::Rgb(100, 50, 25)
+        );
+        assert_eq!(
+            scale_color(Color::Rgb(200, 100, 50), 1.0),
+            Color::Rgb(200, 100, 50)
+        );
+        // A non-rgb colour is left untouched.
+        assert_eq!(scale_color(Color::Gray, 0.5), Color::Gray);
     }
 }

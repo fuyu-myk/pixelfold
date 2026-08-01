@@ -11,6 +11,7 @@ pub mod aromatic;
 pub mod classify;
 pub mod connectivity;
 mod detectors;
+mod energy;
 pub mod hydrogens;
 pub mod params;
 pub mod topology;

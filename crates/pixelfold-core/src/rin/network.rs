@@ -57,6 +57,9 @@ pub struct Edge {
     pub min_distance: f32,
     /// Whether the two residues are on different chains.
     pub interchain: bool,
+    /// The summed interaction energy of this edge (kJ/mol): the per-contact weight
+    /// of `kind` times `count`. See [`InteractionKind::contact_energy_kj`].
+    pub energy: f32,
 }
 
 /// A residue interaction network: the residues that interact and the typed
@@ -132,6 +135,7 @@ pub fn build(protein: &Protein, interactions: &[Interaction]) -> Network {
             count: stats.count,
             min_distance: stats.min_distance,
             interchain: stats.interchain,
+            energy: kind.contact_energy_kj() * stats.count as f32,
         })
         .collect();
 
@@ -281,6 +285,34 @@ mod tests {
         assert!(between.contains(&InteractionKind::HydrogenBond));
         assert!(between.contains(&InteractionKind::SaltBridge));
         assert_eq!(between.len(), 2);
+    }
+
+    #[test]
+    fn edge_energy_is_the_per_contact_weight_summed_over_the_count() {
+        let (structure, interactions) = sample();
+        let network = build(&structure, &interactions);
+
+        // Two hydrogen bonds fold into one edge, so its energy is twice one bond.
+        let hbond = network
+            .edges
+            .iter()
+            .find(|e| e.kind == InteractionKind::HydrogenBond && !e.interchain)
+            .expect("the intra-chain hydrogen bond edge");
+        assert_eq!(hbond.count, 2);
+        assert!(
+            (hbond.energy - 2.0 * InteractionKind::HydrogenBond.contact_energy_kj()).abs() < 1e-4
+        );
+
+        // The single hydrophobic contact carries one per-contact weight.
+        let hydrophobic = network
+            .edges
+            .iter()
+            .find(|e| e.kind == InteractionKind::Hydrophobic)
+            .expect("the hydrophobic edge");
+        assert_eq!(hydrophobic.count, 1);
+        assert!(
+            (hydrophobic.energy - InteractionKind::Hydrophobic.contact_energy_kj()).abs() < 1e-4
+        );
     }
 
     #[test]
