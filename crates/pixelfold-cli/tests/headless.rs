@@ -1,16 +1,21 @@
-//! The headless commands over real structures, through the built binary.
+//! The headless commands over a real structure, through the built binary.
 //!
-//! The structures come from the benchmark cache; it skips rather than fails
-//! if the structures are not available.
+//! The fixture is committed beside these tests rather than taken from the
+//! benchmark cache, which is gitignored: a cache-sourced fixture is absent on
+//! every clean checkout, and these tests used to skip themselves when it was,
+//! so CI passed them without running the binary once.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-fn cached(id: &str) -> Option<PathBuf> {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join(format!("../../benchmarks/cache/{id}.cif"))
-        .canonicalize()
-        .ok()
+/// A structure committed under `tests/fixtures`.
+fn fixture(id: &str) -> PathBuf {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(format!("{id}.cif"));
+
+    path.canonicalize()
+        .unwrap_or_else(|e| panic!("missing test fixture {}: {e}", path.display()))
 }
 
 struct Run {
@@ -25,28 +30,25 @@ impl Run {
     }
 }
 
-/// Run the binary against a cached structure, or nothing when it is absent.
-fn pixelfold(id: &str, args: &[&str]) -> Option<Run> {
-    let structure = cached(id)?;
+/// Run the binary against a committed fixture.
+fn pixelfold(id: &str, args: &[&str]) -> Run {
+    let structure = fixture(id);
     let output = Command::new(env!("CARGO_BIN_EXE_pixelfold"))
         .args(args)
         .arg(structure)
         .output()
         .expect("the binary runs");
 
-    Some(Run {
+    Run {
         stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
         stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
         ok: output.status.success(),
-    })
+    }
 }
 
 macro_rules! run {
     ($id:expr, $args:expr) => {
-        match pixelfold($id, $args) {
-            Some(run) => run,
-            None => return,
-        }
+        pixelfold($id, $args)
     };
 }
 
@@ -170,9 +172,7 @@ fn insertion_codes_keep_residues_distinct() {
 /// `pixelfold ... | head` is a normal thing to do, in every format.
 #[test]
 fn a_closed_pipe_is_not_a_failure_in_any_format() {
-    let Some(structure) = cached("1CRN") else {
-        return;
-    };
+    let structure = fixture("1CRN");
 
     for format in ["table", "tsv", "json"] {
         let status = Command::new("sh")
@@ -329,9 +329,7 @@ fn sasa_reports_relative_accessibility() {
 /// `-o` writes the network to a file rather than standard output.
 #[test]
 fn the_network_can_be_written_to_a_file() {
-    let Some(structure) = cached("1CRN") else {
-        return;
-    };
+    let structure = fixture("1CRN");
     let dir = std::env::temp_dir().join(format!("pixelfold-rin-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("temp dir");
     let out = dir.join("net.json");
@@ -365,9 +363,7 @@ fn png_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
 
 #[test]
 fn render_writes_a_png_of_the_requested_size() {
-    let Some(structure) = cached("1CRN") else {
-        return;
-    };
+    let structure = fixture("1CRN");
 
     let dir = std::env::temp_dir().join(format!("pixelfold-render-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("temp dir");
@@ -397,9 +393,7 @@ fn render_writes_a_png_of_the_requested_size() {
 
 #[test]
 fn render_rejects_an_empty_selection() {
-    let Some(structure) = cached("1CRN") else {
-        return;
-    };
+    let structure = fixture("1CRN");
 
     let dir = std::env::temp_dir().join(format!("pixelfold-render-empty-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("temp dir");
@@ -426,7 +420,7 @@ fn render_rejects_an_empty_selection() {
 
 /// Run render with the given extra args and return raw stdout bytes.
 fn render_stdout(args: &[&str]) -> Option<Vec<u8>> {
-    let structure = cached("1CRN")?;
+    let structure = fixture("1CRN");
     let output = Command::new(env!("CARGO_BIN_EXE_pixelfold"))
         .arg("render")
         .args(args)
@@ -484,9 +478,7 @@ fn render_slab_produces_a_valid_png() {
 
 #[test]
 fn render_slab_rejects_an_inverted_range() {
-    let Some(structure) = cached("1CRN") else {
-        return;
-    };
+    let structure = fixture("1CRN");
     let dir = std::env::temp_dir().join(format!("pixelfold-slab-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("temp dir");
     let out = dir.join("bad.png");

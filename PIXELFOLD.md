@@ -109,7 +109,7 @@ Two binaries now exist (`pixelfold` from cli, `pixelfold-validate`); `default-me
 - `report.rs` : the `Row` trait and the three writers (aligned table, TSV, JSON). An empty result still prints its columns, so nothing-found reads differently from wrong-command; the table drops a column empty in every row, the machine formats keep every column so their shape is stable
 - `graph.rs` : the residue interaction network writers: node-link JSON, GraphML (with XML escaping), and a flat edge-list TSV (`write_tsv`, tab-separated for files and pipes; `write_tsv_aligned`, padded fixed-width columns chosen by `main.rs` when standard output is a terminal), each edge carrying its summed interaction energy (kJ/mol), plus `write_analysis` (the `--analyze` report), `write_path` (the `--path` route), and `write_mvsj` (a MolViewSpec scene for Mol\* — the structure with the network's residues highlighted). Core stays serde-free, so the JSON is built from local structs referencing the core `Network`
 - `resolve.rs` : structure resolver returning a `Resolution` (existing path / cached id / fetch request / error), unit-tested
-- `tests/headless.rs` : the built binary run over a cached structure, covering each format and the selection error paths
+- `tests/headless.rs` : the built binary run over real structures, covering each format and the selection error paths. The fixtures (crambin, ubiquitin, thrombin) are committed under `tests/fixtures`, not read from the gitignored benchmark cache: sourcing them from the cache made them absent on every clean checkout, and the tests skipped themselves when they were, so CI passed all 24 without running the binary once. A missing fixture is now a hard failure.
 
 `pixelfold-tui/src/`:
 
