@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -406,6 +406,11 @@ fn run(command: Command) -> Result<()> {
                 emit_to(output.as_deref(), |out| {
                     graph::write_analysis(out, &network, &report)
                 })
+            } else if format == GraphFormat::Tsv
+                && output.is_none()
+                && std::io::stdout().is_terminal()
+            {
+                emit_to(None, |out| graph::write_tsv_aligned(out, &network))
             } else {
                 emit_to(output.as_deref(), |out| graph::write(out, &network, format))
             }

@@ -284,23 +284,81 @@ fn write_json<W: Write + ?Sized>(out: &mut W, network: &Network) -> Result<()> {
 /// flat table, so this carries the edges alone; JSON or GraphML carry the whole
 /// graph.
 fn write_tsv<W: Write + ?Sized>(out: &mut W, network: &Network) -> Result<()> {
-    writeln!(
-        out,
-        "source\ttarget\tkind\tcount\tmin_distance\tinterchain\tenergy"
-    )?;
+    writeln!(out, "{}", EDGE_COLUMNS.join("\t"))?;
     for edge in &network.edges {
-        writeln!(
-            out,
-            "{}\t{}\t{}\t{}\t{:.2}\t{}\t{:.2}",
-            edge.source,
-            edge.target,
-            edge.kind.label(),
-            edge.count,
-            round_2dp(edge.min_distance),
-            edge.interchain,
-            round_2dp(edge.energy),
-        )?;
+        writeln!(out, "{}", edge_cells(edge).join("\t"))?;
     }
+
+    Ok(())
+}
+
+/// The columns of the edge list, shared by the tab-separated and aligned writers.
+const EDGE_COLUMNS: [&str; 7] = [
+    "source",
+    "target",
+    "kind",
+    "count",
+    "min_distance",
+    "interchain",
+    "energy",
+];
+
+/// One edge as the seven column cells, in [`EDGE_COLUMNS`] order.
+fn edge_cells(edge: &Edge) -> [String; 7] {
+    [
+        edge.source.clone(),
+        edge.target.clone(),
+        edge.kind.label().to_string(),
+        edge.count.to_string(),
+        format!("{:.2}", round_2dp(edge.min_distance)),
+        edge.interchain.to_string(),
+        format!("{:.2}", round_2dp(edge.energy)),
+    ]
+}
+
+/// Write the edge list as aligned fixed-width columns, for reading in a terminal.
+///
+/// Unlike [`write_tsv`] this is deliberately not tab-separated: each column is
+/// padded to its widest cell so the header lines up over the values. The caller
+/// picks this only when standard output is a terminal; a file or pipe still gets
+/// genuine tab-separated values from [`write_tsv`].
+pub fn write_tsv_aligned<W: Write + ?Sized>(out: &mut W, network: &Network) -> Result<()> {
+    let rows: Vec<[String; 7]> = network.edges.iter().map(edge_cells).collect();
+
+    // The widest cell in each column, header included, sets the column width.
+    let mut widths = EDGE_COLUMNS.map(str::len);
+    for row in &rows {
+        for (w, cell) in widths.iter_mut().zip(row) {
+            *w = (*w).max(cell.len());
+        }
+    }
+
+    write_padded_row(out, &EDGE_COLUMNS.map(String::from), &widths)?;
+    for row in &rows {
+        write_padded_row(out, row, &widths)?;
+    }
+
+    Ok(())
+}
+
+/// Write one row with each cell left-aligned in its column width, a fixed gutter
+/// between columns and no trailing spaces after the last cell.
+fn write_padded_row<W: Write + ?Sized>(
+    out: &mut W,
+    cells: &[String; 7],
+    widths: &[usize; 7],
+) -> Result<()> {
+    const GUTTER: usize = 2;
+    let last = cells.len() - 1;
+    for (i, (cell, &width)) in cells.iter().zip(widths).enumerate() {
+        if i == last {
+            write!(out, "{cell}")?;
+        } else {
+            let pad = width + GUTTER;
+            write!(out, "{cell:<pad$}")?;
+        }
+    }
+    writeln!(out)?;
 
     Ok(())
 }
@@ -461,6 +519,34 @@ mod tests {
             parsed["edges"][0]["energy"],
             InteractionKind::SaltBridge.contact_energy_kj()
         );
+    }
+
+    #[test]
+    fn the_aligned_edge_list_lines_up_columns_under_the_header() {
+        // A short and a long source id, so the source column must pad to fit.
+        let mut net = network();
+        net.edges.push(Edge {
+            source: "A/100".into(),
+            target: "A/2".into(),
+            kind: InteractionKind::HydrogenBond,
+            count: 1,
+            min_distance: 3.0,
+            interchain: false,
+            energy: 20.0,
+        });
+
+        let mut out = Vec::new();
+        write_tsv_aligned(&mut out, &net).expect("write");
+        let text = String::from_utf8(out).expect("utf8");
+        let lines: Vec<&str> = text.lines().collect();
+
+        // "source" (6) is wider than "A/1"/"A/100" (<=5), so the source column is
+        // 6 wide; with the 2-space gutter the target column starts at index 8.
+        assert_eq!(lines[0].find("target"), Some(8));
+        assert!(lines[1][8..].starts_with("A/2"), "row 1 target aligns");
+        assert!(lines[2][8..].starts_with("A/2"), "row 2 target aligns");
+        // It is not tab-separated: alignment uses spaces.
+        assert!(!text.contains('\t'));
     }
 
     #[test]
