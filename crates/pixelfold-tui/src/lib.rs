@@ -8,7 +8,7 @@ use pixelfold_core::{
 use pixelfold_render::Framebuffer;
 use pixelfold_render::renderer::{self, Camera};
 use ratatui::layout::Rect;
-use ratatui_image::picker::Picker;
+use ratatui_image::picker::{Picker, ProtocolType};
 
 pub mod search;
 
@@ -138,12 +138,26 @@ impl App {
     }
 }
 
+/// Which terminal graphics protocol the viewer draws the structure with.
+///
+/// Detection queries the terminal, which can be wrong. For instance, an emulator
+/// that claims a protocol it does not paint leaves the structure pane blank,
+/// with the rest of the interface intact. `HalfBlock` renders are forced on any
+/// truecolor terminal, to overcome this limitation.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ViewProtocol {
+    #[default]
+    Auto,
+    Kitty,
+    Iterm2,
+    HalfBlock,
+}
+
 /// Load a structure and run the interactive viewer.
-pub fn view(path: &Path, altloc: AltlocPolicy) -> Result<()> {
+pub fn view(path: &Path, altloc: AltlocPolicy, protocol: ViewProtocol) -> Result<()> {
     let mut terminal = ratatui::init();
 
-    // Query the terminal for its graphics protocol and font.
-    let picker = Picker::from_query_stdio().unwrap_or_else(|_| Picker::halfblocks());
+    let picker = build_picker(protocol);
 
     let result = run_view(&mut terminal, &picker, path, altloc);
 
@@ -151,6 +165,24 @@ pub fn view(path: &Path, altloc: AltlocPolicy) -> Result<()> {
     ratatui::restore();
 
     result
+}
+
+/// The picker the structure pane draws through. `Auto` queries the terminal and
+/// falls back to half blocks when the query fails; the explicit modes keep the
+/// queried font size but override what the terminal claimed to support.
+fn build_picker(protocol: ViewProtocol) -> Picker {
+    let queried = Picker::from_query_stdio();
+    let forced = match protocol {
+        ViewProtocol::Auto => return queried.unwrap_or_else(|_| Picker::halfblocks()),
+        ViewProtocol::Kitty => ProtocolType::Kitty,
+        ViewProtocol::Iterm2 => ProtocolType::Iterm2,
+        ViewProtocol::HalfBlock => ProtocolType::Halfblocks,
+    };
+
+    let mut picker = queried.unwrap_or_else(|_| Picker::halfblocks());
+    picker.set_protocol_type(forced);
+
+    picker
 }
 
 fn run_view(

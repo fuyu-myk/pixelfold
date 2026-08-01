@@ -447,11 +447,11 @@ fn render_residue_summary(frame: &mut Frame, app: &App, atom_idx: usize, area: R
 
 fn render_help(frame: &mut Frame, area: Rect) {
     let help_text = [
-        "PixelFold - 3D Protein Viewer",
+        "PixelFold - protein structure viewer and interaction engine",
         "",
-        "Usage: pixelfold <protein.pdb>",
+        "Usage: pixelfold <structure>",
         "",
-        "Supports PDB and mmCIF formats",
+        "A path to a PDB or mmCIF file, or a 4-character PDB id to fetch",
         "",
         "Press 'q' to quit",
     ];

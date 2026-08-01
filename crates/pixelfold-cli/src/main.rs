@@ -34,6 +34,11 @@ struct Cli {
     #[arg(short, long)]
     fetch: bool,
 
+    /// Terminal graphics protocol for the structure pane. Detection is
+    /// automatic; force half-block if the pane stays blank
+    #[arg(long, value_enum, default_value_t = ProtocolArg::Auto)]
+    protocol: ProtocolArg,
+
     #[command(flatten)]
     common: Common,
 }
@@ -75,6 +80,11 @@ enum Command {
     View {
         /// Path to a .pdb/.cif file, or a 4-character PDB id
         structure: String,
+
+        /// Terminal graphics protocol for the structure pane. Detection is
+        /// automatic; force half-block if the pane stays blank
+        #[arg(long, value_enum, default_value_t = ProtocolArg::Auto)]
+        protocol: ProtocolArg,
 
         #[command(flatten)]
         common: Common,
@@ -277,6 +287,17 @@ impl From<ProtocolArg> for render::TerminalTarget {
     }
 }
 
+impl From<ProtocolArg> for pixelfold_tui::ViewProtocol {
+    fn from(arg: ProtocolArg) -> Self {
+        match arg {
+            ProtocolArg::Auto => pixelfold_tui::ViewProtocol::Auto,
+            ProtocolArg::Kitty => pixelfold_tui::ViewProtocol::Kitty,
+            ProtocolArg::Iterm2 => pixelfold_tui::ViewProtocol::Iterm2,
+            ProtocolArg::HalfBlock => pixelfold_tui::ViewProtocol::HalfBlock,
+        }
+    }
+}
+
 /// Alternate-location handling policy for the CLI.
 #[derive(Clone, Copy, Debug, ValueEnum)]
 enum AltlocArg {
@@ -308,7 +329,7 @@ fn main() -> Result<()> {
         Some(command) => run(command),
         None if cli.fetch => search(cli.structure, &cli.common),
         None => match cli.structure {
-            Some(structure) => view(&structure, &cli.common),
+            Some(structure) => view(&structure, cli.protocol, &cli.common),
             None => {
                 Cli::command().print_help()?;
                 println!();
@@ -320,7 +341,11 @@ fn main() -> Result<()> {
 
 fn run(command: Command) -> Result<()> {
     match command {
-        Command::View { structure, common } => view(&structure, &common),
+        Command::View {
+            structure,
+            protocol,
+            common,
+        } => view(&structure, protocol, &common),
 
         Command::Fetch { query, common } => search(query, &common),
 
@@ -481,11 +506,11 @@ fn search(query: Option<String>, common: &Common) -> Result<()> {
     pixelfold_tui::search(query, dir)
 }
 
-fn view(structure: &str, common: &Common) -> Result<()> {
+fn view(structure: &str, protocol: ProtocolArg, common: &Common) -> Result<()> {
     let dir = cache_dir(common)?;
     let path = load::structure_path(structure, &dir)?;
 
-    pixelfold_tui::view(&path, common.altloc.into())
+    pixelfold_tui::view(&path, common.altloc.into(), protocol.into())
 }
 
 fn loaded(structure: &str, common: &Common) -> Result<pixelfold_core::Protein> {
