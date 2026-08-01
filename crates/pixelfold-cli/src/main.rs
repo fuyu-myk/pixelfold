@@ -34,10 +34,6 @@ struct Cli {
     #[arg(short, long)]
     fetch: bool,
 
-    /// Skip surface calculation for faster loading of large structures
-    #[arg(long)]
-    no_surface: bool,
-
     #[command(flatten)]
     common: Common,
 }
@@ -79,10 +75,6 @@ enum Command {
     View {
         /// Path to a .pdb/.cif file, or a 4-character PDB id
         structure: String,
-
-        /// Skip surface calculation for faster loading of large structures
-        #[arg(long)]
-        no_surface: bool,
 
         #[command(flatten)]
         common: Common,
@@ -316,7 +308,7 @@ fn main() -> Result<()> {
         Some(command) => run(command),
         None if cli.fetch => search(cli.structure, &cli.common),
         None => match cli.structure {
-            Some(structure) => view(&structure, cli.no_surface, &cli.common),
+            Some(structure) => view(&structure, &cli.common),
             None => {
                 Cli::command().print_help()?;
                 println!();
@@ -328,11 +320,7 @@ fn main() -> Result<()> {
 
 fn run(command: Command) -> Result<()> {
     match command {
-        Command::View {
-            structure,
-            no_surface,
-            common,
-        } => view(&structure, no_surface, &common),
+        Command::View { structure, common } => view(&structure, &common),
 
         Command::Fetch { query, common } => search(query, &common),
 
@@ -493,11 +481,11 @@ fn search(query: Option<String>, common: &Common) -> Result<()> {
     pixelfold_tui::search(query, dir)
 }
 
-fn view(structure: &str, no_surface: bool, common: &Common) -> Result<()> {
+fn view(structure: &str, common: &Common) -> Result<()> {
     let dir = cache_dir(common)?;
     let path = load::structure_path(structure, &dir)?;
 
-    pixelfold_tui::view(&path, no_surface, common.altloc.into())
+    pixelfold_tui::view(&path, common.altloc.into())
 }
 
 fn loaded(structure: &str, common: &Common) -> Result<pixelfold_core::Protein> {

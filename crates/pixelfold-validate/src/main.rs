@@ -117,7 +117,7 @@ fn evaluate(
         pixelfold_fetch::fetch_cif(&id, cache_dir).with_context(|| format!("fetching {id}"))?;
     }
 
-    let protein = load_protein_with_options(&path, true, AltlocPolicy::default())
+    let protein = load_protein_with_options(&path, AltlocPolicy::default())
         .with_context(|| format!("loading {}", path.display()))?;
     let prediction = analysis::predict(&protein);
 

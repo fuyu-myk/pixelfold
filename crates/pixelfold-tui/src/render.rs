@@ -171,7 +171,6 @@ mod tests {
         Protein {
             atoms,
             title: String::new(),
-            surface_points: Vec::new(),
             hbonds: Vec::new(),
             assembly: None,
             components: Default::default(),

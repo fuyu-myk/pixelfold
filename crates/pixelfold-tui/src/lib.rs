@@ -101,13 +101,10 @@ impl App {
         path: &Path,
         width: f32,
         height: f32,
-        skip_surface: bool,
         altloc: AltlocPolicy,
     ) -> Result<()> {
         self.protein = Some(pixelfold_core::parser::load_protein_with_options(
-            path,
-            skip_surface,
-            altloc,
+            path, altloc,
         )?);
 
         if let Some(ref protein) = self.protein {
@@ -142,13 +139,13 @@ impl App {
 }
 
 /// Load a structure and run the interactive viewer.
-pub fn view(path: &Path, skip_surface: bool, altloc: AltlocPolicy) -> Result<()> {
+pub fn view(path: &Path, altloc: AltlocPolicy) -> Result<()> {
     let mut terminal = ratatui::init();
 
     // Query the terminal for its graphics protocol and font.
     let picker = Picker::from_query_stdio().unwrap_or_else(|_| Picker::halfblocks());
 
-    let result = run_view(&mut terminal, &picker, path, skip_surface, altloc);
+    let result = run_view(&mut terminal, &picker, path, altloc);
 
     let _ = crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture);
     ratatui::restore();
@@ -160,7 +157,6 @@ fn run_view(
     terminal: &mut ratatui::DefaultTerminal,
     picker: &Picker,
     path: &Path,
-    skip_surface: bool,
     altloc: AltlocPolicy,
 ) -> Result<()> {
     crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture)?;
@@ -172,7 +168,7 @@ fn run_view(
     let height = (rows as u32 * font_h as u32).max(1) as f32;
 
     let mut app = App::new();
-    app.load_protein(path, width, height, skip_surface, altloc)?;
+    app.load_protein(path, width, height, altloc)?;
 
     crate::app::run_app(terminal, &mut app, picker)
 }

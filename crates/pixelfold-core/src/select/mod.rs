@@ -153,7 +153,6 @@ mod tests {
         let protein = Protein {
             atoms: Vec::new(),
             title: String::new(),
-            surface_points: Vec::new(),
             hbonds: Vec::new(),
             assembly: None,
             components: Default::default(),

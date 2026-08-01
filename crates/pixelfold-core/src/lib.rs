@@ -19,7 +19,6 @@ pub use dssp::HBond;
 pub use fixed_str::FixedStr;
 pub use interactions::{Interaction, InteractionKind};
 pub use rin::Network;
-pub use sasa::SurfacePoint;
 pub use select::{AtomSet, Selection, select};
 pub use structure::{
     AltlocPolicy, Atom, BiologicalAssembly, DisplayMode, Protein, SecondaryStructure,

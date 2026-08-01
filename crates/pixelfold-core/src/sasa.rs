@@ -1,15 +1,6 @@
 use crate::structure::Atom;
-use glam::Vec3;
 use nalgebra::Point3;
 use rust_sasa::Atom as SasaAtom;
-
-/// A point on the solvent-accessible surface
-#[derive(Clone, Debug)]
-pub struct SurfacePoint {
-    pub position: Vec3,
-    pub atom_idx: usize,     // Parent atom index
-    pub hydrophobicity: f32, // Kyte-Doolittle scale value
-}
 
 /// Shrake-Rupley algorithm for solvent-accessible surface calculation
 pub struct SurfaceCalculator {
@@ -35,52 +26,10 @@ impl SurfaceCalculator {
         }
     }
 
-    /// Calculate solvent-accessible surface points for a protein
-    pub fn calculate_surface(&self, atoms: &[Atom]) -> Vec<SurfacePoint> {
-        if atoms.is_empty() {
-            return Vec::new();
-        }
-
-        let sasa_values = self.calculate_atom_sasa(atoms);
-
-        // Generate surface points based on SASA values
-        let mut surface_points = Vec::new();
-        let sphere_points = self.generate_fibonacci_sphere(self.points_per_atom);
-
-        for (atom_idx, atom) in atoms.iter().enumerate() {
-            let sasa_value = sasa_values.get(atom_idx).copied().unwrap_or(0.0);
-
-            // Only generate surface points for atoms with accessible surface
-            if sasa_value > 0.1 {
-                // Threshold (avoids atoms with tiny SASA)
-                let vdw_radius = get_vdw_radius(atom.element.as_str());
-                let surface_radius = vdw_radius + self.probe_radius;
-                let hydrophobicity = get_hydrophobicity(atom.residue_name.as_str());
-
-                // Calculate how many points to generate based on SASA ratio
-                // Full sphere: 4π(r + probe)²
-                let full_surface = 4.0 * std::f32::consts::PI * surface_radius * surface_radius;
-                let accessibility_ratio = (sasa_value / full_surface).min(1.0);
-                let num_points =
-                    (self.points_per_atom as f32 * accessibility_ratio).max(1.0) as usize;
-
-                for &unit_point in sphere_points.iter().take(num_points) {
-                    let surface_pos = atom.position + unit_point * surface_radius;
-                    surface_points.push(SurfacePoint {
-                        position: surface_pos,
-                        atom_idx,
-                        hydrophobicity,
-                    });
-                }
-            }
-        }
-
-        surface_points
-    }
-
     /// Per-atom solvent-accessible surface area (square Angstroms), aligned to
-    /// `atoms`. This is the raw Shrake-Rupley output used for validation against
-    /// reference tools, before it is turned into surface points.
+    /// `atoms`. The raw Shrake-Rupley output, reported by `pixelfold sasa`, used
+    /// for validation against reference tools, and summed per residue for the
+    /// network pane's burial colouring.
     pub fn calculate_atom_sasa(&self, atoms: &[Atom]) -> Vec<f32> {
         if atoms.is_empty() {
             return Vec::new();
@@ -93,27 +42,6 @@ impl SurfaceCalculator {
             self.points_per_atom,
             true, // parallel
         )
-    }
-
-    /// Generate uniformly distributed points on a unit sphere using Fibonacci spiral
-    fn generate_fibonacci_sphere(&self, num_points: usize) -> Vec<Vec3> {
-        let mut points = Vec::with_capacity(num_points);
-        let golden_ratio = (1.0 + 5.0_f32.sqrt()) / 2.0;
-        let angle_increment = std::f32::consts::PI * 2.0 * golden_ratio;
-
-        for i in 0..num_points {
-            let t = i as f32 / num_points as f32;
-            let inclination = (1.0 - 2.0 * t).acos();
-            let azimuth = angle_increment * i as f32;
-
-            let x = inclination.sin() * azimuth.cos();
-            let y = inclination.sin() * azimuth.sin();
-            let z = inclination.cos();
-
-            points.push(Vec3::new(x, y, z));
-        }
-
-        points
     }
 }
 
@@ -295,24 +223,6 @@ mod tests {
         assert!((relative_sasa(129.0, "ALA").unwrap() - 1.0).abs() < 1e-6);
         assert!((relative_sasa(64.5, "ALA").unwrap() - 0.5).abs() < 1e-6);
         assert!(relative_sasa(50.0, "STI").is_none());
-    }
-
-    #[test]
-    fn test_fibonacci_sphere_generation() {
-        let calc = SurfaceCalculator::default();
-        let points = calc.generate_fibonacci_sphere(100);
-
-        assert_eq!(points.len(), 100);
-
-        // All points should be approximately unit length
-        for point in points {
-            let length = point.length();
-            assert!(
-                (length - 1.0).abs() < 0.01,
-                "Point length {} not close to 1.0",
-                length
-            );
-        }
     }
 
     #[test]

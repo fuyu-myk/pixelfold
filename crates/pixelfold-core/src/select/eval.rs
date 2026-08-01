@@ -223,7 +223,6 @@ mod tests {
         Protein {
             atoms: vec![ala_n, ala_ca, water, zinc],
             title: String::new(),
-            surface_points: Vec::new(),
             hbonds: Vec::new(),
             assembly: None,
             components: Default::default(),

@@ -2,7 +2,6 @@ use glam::Vec3;
 
 use crate::dssp::HBond;
 use crate::fixed_str::FixedStr;
-use crate::sasa::SurfacePoint;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum DisplayMode {
@@ -73,7 +72,6 @@ impl SecondaryStructure {
 pub struct Protein {
     pub atoms: Vec<Atom>,
     pub title: String,
-    pub surface_points: Vec<SurfacePoint>,
     pub hbonds: Vec<HBond>,
     /// Set when the file declares a biological assembly that differs from the
     /// deposited asymmetric unit (the coordinates shown). `None` when the
@@ -334,7 +332,6 @@ mod tests {
                 atom_with_bfactor(50.0),
             ],
             title: String::new(),
-            surface_points: Vec::new(),
             hbonds: Vec::new(),
             assembly: None,
             components: Default::default(),

@@ -683,7 +683,6 @@ mod tests {
                 atom("B", 5, "CB", "LEU"),
             ],
             title: String::new(),
-            surface_points: Vec::new(),
             hbonds: Vec::new(),
             assembly: None,
             components: Default::default(),
@@ -717,7 +716,6 @@ mod tests {
         let protein = Protein {
             atoms: vec![atom("A", 1, "N", "LYS"), atom("A", 2, "O", "GLU")],
             title: String::new(),
-            surface_points: Vec::new(),
             hbonds: Vec::new(),
             assembly: None,
             components: Default::default(),
@@ -823,7 +821,6 @@ mod tests {
         let protein = Protein {
             atoms: vec![atom("A", 1, "N", "LYS"), atom("A", 2, "O", "GLU")],
             title: String::new(),
-            surface_points: Vec::new(),
             hbonds: Vec::new(),
             assembly: None,
             components: Default::default(),
@@ -852,7 +849,6 @@ mod tests {
                 atom("A", 2, "OE1", "GLU"),
             ],
             title: String::new(),
-            surface_points: Vec::new(),
             hbonds: Vec::new(),
             assembly: None,
             components: Default::default(),

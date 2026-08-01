@@ -10,7 +10,6 @@ use std::{
 use crate::{
     dssp,
     fixed_str::FixedStr,
-    sasa::SurfaceCalculator,
     structure::{AltlocPolicy, Atom, Protein, SecondaryStructure, filter_altlocs},
 };
 
@@ -158,15 +157,11 @@ fn strip_symmetry_records(cif: &str) -> String {
 
 /// Load a protein structure from a PDB or mmCIF file
 pub fn load_protein<P: AsRef<Path>>(path: P) -> Result<Protein> {
-    load_protein_with_options(path, false, AltlocPolicy::default())
+    load_protein_with_options(path, AltlocPolicy::default())
 }
 
 /// Load a protein structure with additional options
-pub fn load_protein_with_options<P: AsRef<Path>>(
-    path: P,
-    skip_surface: bool,
-    altloc: AltlocPolicy,
-) -> Result<Protein> {
+pub fn load_protein_with_options<P: AsRef<Path>>(path: P, altloc: AltlocPolicy) -> Result<Protein> {
     let path = path.as_ref();
     let path_str = path
         .to_str()
@@ -209,14 +204,6 @@ pub fn load_protein_with_options<P: AsRef<Path>>(
 
     let hbonds = dssp::assign(&mut atoms);
 
-    // Compute solvent-accessible surface (unless skipped for performance)
-    let surface_points = if skip_surface {
-        Vec::new()
-    } else {
-        let surface_calculator = SurfaceCalculator::default();
-        surface_calculator.calculate_surface(&atoms)
-    };
-
     // Two things live only in the raw file, past what pdbtbx returns: a
     // biological unit that differs from the deposited coordinates, and the
     // chemical definitions of the components used.
@@ -232,7 +219,6 @@ pub fn load_protein_with_options<P: AsRef<Path>>(
     Ok(Protein {
         atoms,
         title,
-        surface_points,
         hbonds,
         assembly,
         components,
@@ -241,14 +227,6 @@ pub fn load_protein_with_options<P: AsRef<Path>>(
 
 /// Load only backbone atoms (CA, C, N, O) for simplified rendering
 pub fn load_protein_backbone<P: AsRef<Path>>(path: P) -> Result<Protein> {
-    load_protein_backbone_with_options(path, false)
-}
-
-/// Load backbone atoms with additional options
-pub fn load_protein_backbone_with_options<P: AsRef<Path>>(
-    path: P,
-    skip_surface: bool,
-) -> Result<Protein> {
     let path = path.as_ref();
     let path_str = path
         .to_str()
@@ -273,18 +251,9 @@ pub fn load_protein_backbone_with_options<P: AsRef<Path>>(
 
     let hbonds = dssp::assign(&mut atoms);
 
-    // Compute solvent-accessible surface (unless skipped for performance)
-    let surface_points = if skip_surface {
-        Vec::new()
-    } else {
-        let surface_calculator = SurfaceCalculator::default();
-        surface_calculator.calculate_surface(&atoms)
-    };
-
     Ok(Protein {
         atoms,
         title,
-        surface_points,
         hbonds,
         assembly: None,
         components: Default::default(),
@@ -293,14 +262,6 @@ pub fn load_protein_backbone_with_options<P: AsRef<Path>>(
 
 /// Load only CA (alpha carbon) atoms for minimal rendering of large proteins
 pub fn load_protein_ca_only<P: AsRef<Path>>(path: P) -> Result<Protein> {
-    load_protein_ca_only_with_options(path, false)
-}
-
-/// Load CA atoms with additional options
-pub fn load_protein_ca_only_with_options<P: AsRef<Path>>(
-    path: P,
-    skip_surface: bool,
-) -> Result<Protein> {
     let path = path.as_ref();
     let path_str = path
         .to_str()
@@ -322,18 +283,9 @@ pub fn load_protein_ca_only_with_options<P: AsRef<Path>>(
 
     let hbonds = dssp::assign(&mut atoms);
 
-    // Compute solvent-accessible surface (unless skipped for performance)
-    let surface_points = if skip_surface {
-        Vec::new()
-    } else {
-        let surface_calculator = SurfaceCalculator::default();
-        surface_calculator.calculate_surface(&atoms)
-    };
-
     Ok(Protein {
         atoms,
         title,
-        surface_points,
         hbonds,
         assembly: None,
         components: Default::default(),
@@ -427,7 +379,7 @@ ATOM 2 C CA ALA AAAAA AAAAA 2 3.8 0.0 0.0 1.0 0.0
 ";
         let path = std::env::temp_dir().join("pf_truncation_test.cif");
         std::fs::write(&path, cif).unwrap();
-        let protein = load_protein_with_options(&path, true, AltlocPolicy::All).unwrap();
+        let protein = load_protein_with_options(&path, AltlocPolicy::All).unwrap();
 
         assert_eq!(protein.atoms.len(), 2);
         assert_eq!(protein.atoms[0].chain_id.as_str(), "AAAA"); // truncated from "AAAAA"
@@ -507,7 +459,7 @@ ATOM 1 C CA ALA A A 1 0.0 0.0 0.0 1.0 0.0
         // ...but the loader strips symmetry and still returns the atom.
         let path = std::env::temp_dir().join("pf_conflicting_spacegroup_test.cif");
         std::fs::write(&path, cif).unwrap();
-        let protein = load_protein_with_options(&path, true, AltlocPolicy::All).unwrap();
+        let protein = load_protein_with_options(&path, AltlocPolicy::All).unwrap();
         assert_eq!(protein.atoms.len(), 1);
         assert_eq!(protein.atoms[0].chain_id.as_str(), "A");
         let _ = std::fs::remove_file(&path);

@@ -27,7 +27,7 @@ pub fn structure_path(input: &str, cache_dir: &Path) -> Result<PathBuf> {
 pub fn analysis_structure(input: &str, cache_dir: &Path, altloc: AltlocPolicy) -> Result<Protein> {
     let path = structure_path(input, cache_dir)?;
 
-    load_protein_with_options(&path, true, altloc)
+    load_protein_with_options(&path, altloc)
         .with_context(|| format!("failed to load {}", path.display()))
 }
 
