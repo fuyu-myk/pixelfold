@@ -4,7 +4,7 @@ members = ["crates/*"]
 default-members = ["crates/pixelfold-cli"]
 
 [workspace.package]
-version = "0.6.0"
+version = "1.0.0"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/fuyu-myk/pixelfold"
@@ -15,10 +15,10 @@ categories = ["science", "command-line-utilities", "visualization"]
 rust-version = "1.88"
 
 [workspace.dependencies]
-pixelfold-core = { path = "crates/pixelfold-core", version = "0.6.0" }
-pixelfold-render = { path = "crates/pixelfold-render", version = "0.6.0" }
-pixelfold-fetch = { path = "crates/pixelfold-fetch", version = "0.6.0" }
-pixelfold-tui = { path = "crates/pixelfold-tui", version = "0.6.0" }
+pixelfold-core = { path = "crates/pixelfold-core", version = "1.0.0" }
+pixelfold-render = { path = "crates/pixelfold-render", version = "1.0.0" }
+pixelfold-fetch = { path = "crates/pixelfold-fetch", version = "1.0.0" }
+pixelfold-tui = { path = "crates/pixelfold-tui", version = "1.0.0" }
 
 anyhow = "1.0.100"
 bytes = "1.11.0"
