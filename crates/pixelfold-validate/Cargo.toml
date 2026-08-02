@@ -4,6 +4,8 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+description = "Internal validation harness for PixelFold, not published"
+publish = false
 
 [dependencies]
 pixelfold-core.workspace = true

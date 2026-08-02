@@ -6,7 +6,7 @@ Pixelfold loads `PIXELFOLD.md` from the workspace root as agent memory (similar 
 
 ## Project
 
-**Pixelfold**: open-source, terminal-based protein structure visualization and analysis tool, written in Rust and Ratatui. It features a braille-based rendering engine for high-resolution visualization of protein structures, hydrogen bond networks, and solvent-accessible surfaces.
+**Pixelfold**: open-source, terminal-based protein structure visualization and analysis tool, written in Rust and Ratatui. The viewer is the demo; the residue interaction engine is the product. Structures rasterise into an RGBA framebuffer shown through terminal graphics protocols (Kitty, iTerm2) with a truecolor half-block fallback, and the same core computes secondary structure, solvent accessibility, typed non-covalent interactions, and the residue interaction network, all reachable headlessly from the CLI.
 
 - Run/build: `cargo build --release`, and `cargo run --release`
 - Rust checks: `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace --all-targets`.
@@ -37,7 +37,7 @@ Living map of where code lives and where it is going. This doubles as the progre
 
 ### Target: Cargo workspace
 
-The Cargo workspace exists. `pixelfold-core` holds the extracted analysis code (`structure`, `parser`, `sasa`, `rin`); `pixelfold-render` holds camera/projection (`renderer`) and the color/line helpers (`draw`); `pixelfold-fetch` holds the RCSB client + download + API types; `pixelfold-tui` is now a library holding the UI, `App` state, screen-space picking, and the app driver (`run`); `pixelfold-cli` is the `pixelfold` binary that calls `pixelfold_tui::run()`; `validate` is still a stub awaiting its code. The direction is that the library has lasting value independent of the terminal UI. Rules:
+The Cargo workspace exists. `pixelfold-core` holds the extracted analysis code (`structure`, `parser`, `sasa`, `rin`); `pixelfold-render` holds camera/projection (`renderer`) and the color/line helpers (`draw`); `pixelfold-fetch` holds the RCSB client + download + API types; `pixelfold-tui` is now a library holding the UI, `App` state, screen-space picking, and the app driver (`run`); `crates/pixelfold-cli/` holds the `pixelfold` package (renamed from `pixelfold-cli` so `cargo install pixelfold` works and matches the binary), the `pixelfold` binary that calls `pixelfold_tui::run()`; `validate` is still a stub awaiting its code. The direction is that the library has lasting value independent of the terminal UI. Rules:
 
 - `core` carries zero terminal or rendering dependencies; it is usable as a plain library.
 - `core` uses fixed-size byte fields in hot structs, not `String` (atom names `[u8; 4]`, residue names `[u8; 3]`, chain ids `[u8; 2]`).
@@ -62,7 +62,7 @@ Crates:
 - `[~]` `crates/pixelfold-validate/` : validation harness, precision/recall vs DSSP, FreeSASA, PLIP, RING. (today: compares pixelfold's DSSP (Q3, H-bond edge F1), SASA (MAE/median/Pearson), and per-type interaction precision/recall/F1 against committed golden files and prints a markdown report. The interaction comparison reduces `detect()` to unordered residue pairs per type, scoring only the types a reference reports; a ligand-scoped reference (PLIP) is compared only against pixelfold's ligand-touching edges, so a whole-structure engine is not charged for the protein-protein interactions PLIP never profiles. PLIP golden (`<ID>.plip.json`) is generated over the 60 protein-ligand complexes and committed; the published numbers are per-type F1 from 0.59 (water-bridge) to 0.98 (halogen), high on the shape-driven types and directionally lower where pixelfold reports every reachable bond and PLIP one. RING golden (`<ID>.ring.json`, same shape, whole-structure) waits on its license-gated binary; the `--check` gate enforces the mean PLIP F1)
 - `[~]` `benchmarks/` : pinned PDB manifest + golden reference files. (today: `manifest.toml` with a confident starter set per stratum (expand toward the target counts); `golden/` for `<ID>.dssp.json` / `<ID>.freesasa.json`; `tools/` a pinned DSSP 4 + FreeSASA Docker image + `generate_golden.py` that produces the golden set; `thresholds.toml` the `--check` regression gates (all off until baselines exist); structures cache under `benchmarks/cache/`, gitignored. A CI job runs the harness once golden files land)
 
-Two binaries now exist (`pixelfold` from cli, `pixelfold-validate`); `default-members = ["crates/pixelfold-cli"]` keeps bare `cargo run` pointed at `pixelfold`.
+Two binaries now exist (`pixelfold` from the `pixelfold` package in `crates/pixelfold-cli/`, and `pixelfold-validate`); `default-members = ["crates/pixelfold-cli"]` names the directory, not the package, and keeps bare `cargo run` pointed at `pixelfold`. `pixelfold-validate` is `publish = false`: its CLI defaults point at `benchmarks/` paths that never ship.
 
 ### Current source map
 

@@ -3,28 +3,15 @@
 [![CI](https://github.com/fuyu-myk/pixelfold/actions/workflows/ci.yml/badge.svg)](https://github.com/fuyu-myk/pixelfold/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A terminal-based 3D protein structure viewer using Braille Unicode characters for high-resolution visualization.
-
-## Demo
+A protein structure viewer and residue interaction network engine that runs
+entirely in your terminal.
 
 ![PixelFold demo](docs/demo.gif)
 
-## Features
-
-- **Braille Rendering**: Uses Unicode Braille characters (2×4 pixel resolution per character cell) for detailed protein structure visualization
-- **PDB & mmCIF Support**: Parses both PDB and mmCIF/PDBx protein structure formats using `pdbtbx`
-- **Interactive 3D Controls**: Rotate, zoom, and pan the protein structure in real-time
-- **Surface Visualization**: Solvent-accessible surface with Kyte-Doolittle hydrophobicity coloring using the Shrake-Rupley algorithm
-- **Hydrogen Bond Visualization**: Displays backbone H-bonds with energy-based color coding (cyan→yellow→orange)
-- **H-Bond Network Analysis**: Graph-based analysis using `petgraph` to identify structural motifs, hubs, and connected components
-- **Protein structure searching**: Ability to search for and download `.cif` files through the RCSB API
-
 ## Validation
 
-Pixelfold's analyses are checked against reference implementations across a
-stratified PDB benchmark: secondary structure against **DSSP 4**,
-solvent-accessible surface area against **FreeSASA**, and non-covalent
-interactions against **PLIP** across the 60 protein-ligand complexes.
+The viewer is the demo. The interaction engine is the product, and it is measured
+against existing trusted tools.
 
 <!-- VALIDATION:START -->
 Validated 205 benchmark entries against DSSP 4, FreeSASA and PLIP.
@@ -51,181 +38,188 @@ Per-type interaction agreement (precision / recall / F1):
 | metal-coordination | PLIP | 60 | 444 | 338 | 0.82 | 0.92 | 0.81 |
 <!-- VALIDATION:END -->
 
-Agreement is high on secondary structure, surface area, and the shape-driven
-interactions (pi-stacking, halogen, pi-cation, hydrophobic, salt bridge, metal
-coordination). It is
-lower and directional on hydrogen bonds and water bridges, where pixelfold
-reports every geometrically reachable bond (a rotatable donor placed against each
-acceptor, one bridge per donor) while PLIP commits to one: recall stays high
-(pixelfold finds what PLIP finds) and precision is where the modelling choice
-shows. The residual SASA error is the same kind of difference: pixelfold uses
-Bondi radii with Shrake-Rupley, FreeSASA uses ProtOr radii with Lee-Richards, and
-where a residue is modelled in alternate conformers pixelfold keeps one whole
-conformer (so a sidechain is never chimeric) while FreeSASA resolves each atom
-independently. The per-residue correlation is still 0.99.
+These are agreement figures and never improvement claims. Where PixelFold and the
+reference disagree, the reference is right by construction. The harness lives in
+this repository and runs in CI, allowing the numbers above to be reproduced, rather than simply
+asserted. See [Validation and methods](#validation-and-methods) for what the
+weaker rows mean.
 
-PLIP profiles ligand binding sites, so its numbers cover the 60 protein-ligand
-complexes and each edge is scored only where it touches a ligand. RING 4.0 (the
-whole-structure protein-protein reference) is a license-gated binary and is not
-generated here; the harness reads its golden of the same shape once available.
-
-Regenerate this table with `cargo run -p pixelfold-validate` (it prints the
-markdown above). The harness compares against committed golden files under
-`benchmarks/golden/` and runs on every PR, failing on regression past the gates
-in `benchmarks/thresholds.toml`.
-
-## Installation
-
-Clone this repository, then install the `pixelfold` binary onto your `PATH`:
+## Install
 
 ```bash
-cargo install --path crates/pixelfold-cli
+cargo install pixelfold
 ```
 
-Or build it in place (the binary is written to `target/release/pixelfold`):
+## A 30 second demo
 
-```bash
-cargo build --release
+**Dihydrofolate reductase with its inhibitor methotrexate**. How does this drug
+interact with the enzyme, and does it matter structurally?
+
+```console
+$ pixelfold interactions 4DFR --ligand MTX
+kind           chain_a  resi_a  resn_a  atoms_a     chain_b  resi_b  resn_b  atoms_b  distance  angle
+-------------  -------  ------  ------  ----------  -------  ------  ------  -------  --------  -----
+hydrogen-bond  A            52  ARG     NH2         A           161  MTX     O            2.88  152.8
+hydrogen-bond  A            52  ARG     NH2         A           161  MTX     OE2          3.43  138.2
+hydrogen-bond  A            57  ARG     NH1         A           161  MTX     O1           2.57  155.1
+hydrogen-bond  A            57  ARG     NH2         A           161  MTX     O2           2.72  170.8
+... 53 rows
 ```
+
+Next, analyze the network to find where the important residues are located.
+
+```console
+$ pixelfold rin 4DFR --analyze
+Residue interaction network: 311 residues, 629 edges, 5 components
+...
+Top hubs by betweenness centrality:
+  residue    resn  ss  degree      between
+  A/23       ASN   C        5     13880.74
+  A/24       LEU   C        5     12961.77
+  B/162      MTX   C       17     10909.25
+  A/161      MTX   C       15     10552.69
+  B/22       TRP   C        7     10378.71
+```
+
+Both copies of the inhibitor rank among the most central residues in the
+structure. Both are also articulation points, where the network will split if one is removed.
+This local computation takes about a second, and provides insight to the fold.
+
+Everything here is scriptable. `--format json|tsv|graphml` feeds a pipeline,
+`--select` narrows any command with the same query language, and `pixelfold 4DFR`
+opens the interactive viewer over the same data.
+
+## Why it exists
+
+Structures usually live where the compute is, like a cluster login node, a remote
+workstation, or a container. To look at one normally, one must copy it to their machine,
+open a desktop application, before any analysis can be made.
+
+PixelFold runs in the shell that already has the file, with no need for X11, a display server,
+a GPU, browser upload, and Python environment. It is a
+single static binary, which drops into a Nextflow or Snakemake step as easily as
+`grep`. The analysis is in text, so it diffs, greps, and pipes, while being
+deterministic.
+
+## Honest comparison
+
+PixelFold is is in its infancy. It is not competitive on rendering, breadth, or
+maturity with any established viewer, and it does not claim to be the reference on interaction
+chemistry. Below is a compilation of how different tools compare.
+
+| Tool | Where it beats PixelFold | Where PixelFold differs |
+| --- | --- | --- |
+| [PyMOL](https://pymol.org) | Ray-traced publication figures, cartoons, surfaces, electrostatics, trajectories, twenty years of plugins, an embedded Python API, and near-universal adoption | Terminal-native with no display server; MIT throughout; the network is the primary output rather than a side feature |
+| [Mol\*](https://molstar.org) | GPU rendering at a quality and scale PixelFold cannot approach, million-atom and integrative models, MD streaming, zero install, and it powers RCSB, PDBe and AlphaFold DB | No browser and no upload, so embargoed coordinates stays local. PixelFold complements through its exportable `.mvsj` scenes |
+| [ChimeraX](https://www.cgl.ucsf.edu/chimerax/) | Cryo-EM density, structure building and refinement, VR, AlphaFold workflows, a bundle ecosystem, and NIH-funded maintenance | MIT versus a non-commercial licence, so it can be vendored freely; a small static binary rather than a GB-class install |
+| [RING 4.0](https://ring.biocomputingup.it) | The peer-reviewed network reference the field accepts. Ligand coverage across the whole PDB chemical component dictionary, plus pi-hydrogen bonds, which PixelFold does not detect. RING-PyMOL already does ensemble and MD contact analysis | Readable MIT source you can fork or embed as a Rust library, offline with no web upload, and graph analytics in the same binary. Distribution differences, not accuracy claims |
+| [PLIP](https://plip-tool.biotec.tu-dresden.de) | The yardstick for interaction detection. Its protonation-aware pipeline is more physically grounded, and it covers DNA, RNA and protein-protein interfaces | No Python or OpenBabel to install; profiles the whole structure as a graph rather than only ligand sites |
+| [asciiMol](https://github.com/dewberryants/asciiMol) | Runs on genuinely any terminal, including plain ncurses, where PixelFold degrades to half-blocks and looks worse. `pip install` into an environment you already have. Native `.xyz` and SMILES | Protein-scale mmCIF and PDB with chains, conformers and a selection language, and the analysis engine behind it |
+
+## Validation and methods
+
+Reference implementations: DSSP 4 for secondary structure, FreeSASA for
+solvent-accessible surface area, and PLIP for non-covalent interactions, over a
+stratified benchmark of 205 PDB entries, 60 of them protein-ligand complexes. Run
+it yourself with `cargo run -p pixelfold-validate -- --check`.
+
+Interaction geometry follows PLIP's published thresholds, with the exact source
+variable recorded next to every constant in
+[`params.rs`](crates/pixelfold-core/src/interactions/params.rs). Each known
+difference from RING is also noted. Secondary structure is
+Kabsch-Sander electrostatic hydrogen bonding with inferred amide hydrogens.
+
+**The weak rows are a modelling choice, and they are the honest headline.**
+Hydrogen bonds (F1 0.65, precision 0.58) and water bridges (F1 0.59, precision
+0.50) are the two classes where PixelFold reports every geometrically reachable
+bond while PLIP commits to one. Those two classes are roughly
+half of all protein-ligand interactions, so for ligand-site work where a curated
+answer matters, use PLIP.
+
+Per-edge interaction energies are a literature-sourced scoring table with one
+primary citation per value, in
+[`energy.rs`](crates/pixelfold-core/src/interactions/energy.rs). They are
+representative magnitudes, not computed free energies.
+
+## Architecture
+
+A Cargo workspace. `pixelfold-core` has no terminal or rendering dependencies, so
+the analysis is usable as a library.
+
+- [`pixelfold-core`](crates/pixelfold-core/src): parsing, DSSP, SASA, the
+  interaction engine, the selection language, and the residue interaction network
+  with its graph analytics
+- [`pixelfold-render`](crates/pixelfold-render/src): a z-buffered
+  sphere-impostor rasteriser writing one RGBA framebuffer, and the sinks that put
+  it on a terminal (Kitty, iTerm2, truecolor half-blocks) or in a PNG
+- [`pixelfold-tui`](crates/pixelfold-tui/src): the `ratatui` front end and the
+  linked network pane
+- [`pixelfold-cli`](crates/pixelfold-cli/src): the `pixelfold` binary
+- [`pixelfold-validate`](crates/pixelfold-validate/src): the agreement harness
+
+The CLI computes everything the viewer shows headlessly.
+
+## Limitations
+
+Being explicit about what this does not do:
+
+- **No agreement number against RING 4.0**. The harness
+  covers DSSP, FreeSASA and PLIP; RING is not in it yet, so no accuracy
+  comparison against it exists.
+- **Hydrogen bonds and water bridges over-report** relative to PLIP, as above.
+- **No cartoons or ribbons, no molecular surfaces, no ray tracing.** Space-filling
+  spheres and bonds only.
+- **No trajectories, ensembles, or multi-model analysis.** One structure at a
+  time.
+- **No cryo-EM density, no electrostatics, no structure building or refinement.**
+- **No pi-hydrogen bonds**, which RING 4.0 detects.
+- **Rendering quality depends on your terminal.** Kitty and iTerm2 show real
+  pixels; anywhere else falls back to half-blocks, which is coarse. Pass
+  `--protocol half-block` if the structure pane comes up blank.
+- **Not peer reviewed.** The validation harness is the evidence on offer.
 
 ## Usage
 
 ```bash
-# Load and visualize a protein structure
-pixelfold data/protein.pdb
+# Interactive viewer, from a file or a 4-character PDB id (fetched and cached)
+pixelfold structure.cif
+pixelfold 4HHB
 
-# Or with mmCIF format
-pixelfold data/protein.cif
+# Non-covalent interactions
+pixelfold interactions 4DFR --ligand MTX
+pixelfold interactions 4DFR --type hydrogen-bond --format tsv
 
-# Or a 4-character PDB id, auto-downloaded from RCSB into the cache
-pixelfold 1CRN
-```
+# The residue interaction network, for Cytoscape, Gephi, or a script
+pixelfold rin 4DFR --format graphml -o network.graphml
+pixelfold rin 4DFR --analyze
+pixelfold rin 4DFR --path A/23 A/94
+pixelfold rin 4DFR --mvsj -o scene.mvsj
 
-Everything the viewer computes is also available headless, for scripting and
-pipelines:
-
-```bash
-# Non-covalent interactions, as a table
-pixelfold interactions 1IEP --ligand STI
-
-# One interaction type, as TSV to pipe onward
-pixelfold interactions 4HHB --type salt-bridge --format tsv
-
-# Secondary structure and solvent accessibility, per residue
-pixelfold ss 1CRN
+# Secondary structure and solvent accessibility
+pixelfold ss 1UBQ --format tsv
 pixelfold sasa 1UBQ --format json
 
-# The residue interaction network, for Cytoscape or Gephi
-pixelfold rin 4HHB --format graphml -o net.graphml
+# Render to a PNG, or to the terminal
+pixelfold render 4HHB -o hemoglobin.png --width 1600 --height 1200
 
-# Any of them narrowed by the selection language
-pixelfold interactions 1IEP --select 'byres within 4.5 of resn STI'
-pixelfold rin 1IEP --select 'resn STI'
-pixelfold sasa 4HHB --select 'chain A and ss H'
+# Any command, narrowed by the selection language
+pixelfold interactions 1STP --select 'byres within 5 of resn BTN'
 ```
 
-### Controls
+### Viewer controls
 
-#### Search mode
-
-- **Enter**: Send a search query or download selected proteins
-- **F1**: Clear the search bar
-- **Esc**: Quit
-
-#### Visualization mode
-
-- **WASD**: Rotate the structure (W/S = pitch, A/D = yaw)
-- **Z/X**: Roll rotation
-- **+/-**: Zoom in/out
-- **Arrow Keys**: Pan the view (or cycle through candidate atoms in inspect mode, or adjust surface density when surface is visible, or adjust H-bond threshold when H-bonds visible)
-- **1/2**: Toggle display modes (1: All atoms (default); 2: Alpha carbon backbone)
-- **F**: Auto-frame (reset and fit protein to view)
-- **I**: Inspect-mode (interactive clicking enabled to view more information)
-  - **Up/Down arrows** (upon clicking on an atom): Cycle between closest 5 atoms
-- **R**: Toggle highlight amino acid (in inspect mode only)
-- **C**: Toggle backbone connections
-- **B**: Toggle b-factor coloring
-- **V**: Toggle solvent-accessible surface visualization
-  - **Note**: When surface is visible, atom rendering is disabled to show clear hydrophobicity patterns
-  - **Up/Down arrows** (when surface visible): Adjust point density (100-500 points/atom)
-- **H**: Toggle hydrogen bond visualization
-  - **Dashed lines** colored by bond strength: cyan (weak, ~-0.5 kcal/mol) → yellow (medium, ~-2.0 kcal/mol) → orange (strong, ~-5.0 kcal/mol)
-  - **Up/Down arrows** (when H-bonds visible): Adjust energy threshold (-0.1 to -10.0 kcal/mol)
-- **N**: Toggle H-bond network analysis overlay
-  - Shows connected components and hub residues
-  - Displays network statistics in status bar
-- **Q**: Quit
-
-## Implementation Details
-
-### Architecture
-
-The project is a Cargo workspace of focused crates:
-
-- [**`pixelfold-core`**](crates/pixelfold-core/src): pure analysis library, free of terminal and rendering dependencies
-  - [`parser`](crates/pixelfold-core/src/parser.rs): loads PDB/mmCIF via `pdbtbx`, with alternate-location handling, backbone H-bond detection, and DSSP secondary-structure assignment
-  - [`sasa`](crates/pixelfold-core/src/sasa.rs): solvent-accessible surface (Shrake-Rupley via `rust-sasa`), van der Waals radii, and Kyte-Doolittle hydrophobicity coloring
-  - [`rin`](crates/pixelfold-core/src/rin.rs): residue interaction network over `petgraph` with degree centrality, connected components, and motif detection
-  - [`assembly`](crates/pixelfold-core/src/assembly.rs): detects when the deposited coordinates are only part of the biological assembly
-
-- [**`pixelfold-render`**](crates/pixelfold-render/src): scene projection and drawing
-  - [`renderer`](crates/pixelfold-render/src/renderer.rs): orthographic projection, quaternion camera (rotate/zoom/pan, auto-framing), and depth sorting for atom occlusion
-  - [`draw`](crates/pixelfold-render/src/draw.rs): Bresenham lines and b-factor/H-bond/hydrophobicity color mapping
-
-- [**`pixelfold-fetch`**](crates/pixelfold-fetch/src): RCSB search and structure download
-  - [`client`](crates/pixelfold-fetch/src/client.rs): async `reqwest` wrapper around the RCSB API
-  - [`download`](crates/pixelfold-fetch/src/download.rs): concurrent download with `flate2` gzip decompression
-
-- [**`pixelfold-tui`**](crates/pixelfold-tui/src): the `ratatui` front-end (Braille canvas, input handling, and the search interface, whose background threads report to the UI thread via `mpsc` channels)
-
-- [**`pixelfold-cli`**](crates/pixelfold-cli/src): the `pixelfold` binary: argument parsing, a path/PDB-id resolver, and fetch-on-miss caching
-
-### Why Braille?
-
-Braille Unicode characters provide **8× higher resolution** compared to ASCII:
-
-- Each terminal character cell can display 2×4 sub-pixels (8 dots)
-- Excellent for visualizing protein density and structure detail
-- Native support in `ratatui::widgets::canvas::Canvas` with `Marker::Braille`
-
-### Dependencies
-
-- **`ratatui`**: Terminal UI framework
-- **`crossterm`**: Terminal manipulation
-- **`pdbtbx`**: PDB and mmCIF parsing
-- **`glam`**: 3D math library (vectors, matrices)
-- **`petgraph`**: Graph data structures and algorithms for H-bond network analysis
-- **`rust-sasa`**: Shrake-Rupley solvent-accessible surface calculation
-- **`anyhow`**: Error handling
-- **`tokio`**: Async calls for API interaction
-- **`reqwest`**: API interaction
-- **`flate2`**: Gz file decompresser
-
-### Current limitations
-
-**Color bleeding**: Due to how braille is rendered and colored, the colors of atoms in close proximity to each other may bleed into surrounding ones
-
-- This is especially prevalent in inspect mode, where the atom is marked
-- One workaround is to zoom in as much as possible to clearly distinguish which atom is marked
-
-**Surface computation performance**: For very large proteins (>5000 atoms), surface calculation may take several seconds on load
-
-- Surface computation uses the optimized `rust-sasa` library with parallel computation
-- Use `--no-surface` flag to skip surface calculation and compute on-demand with 'V' key
-- Surface points are computed once and cached for the session
-
-## Example Workflow
-
-1. Search and download protein structure(s) using `pixelfold -f`
-2. Run PixelFold with the file: `pixelfold 1CRN`
-3. Use WASD to rotate and explore the structure
-4. Press F to auto-frame the view
-5. Press H to visualize hydrogen bonds
-6. Use up/down arrows to adjust H-bond energy threshold
-7. Press N to analyze H-bond network topology
-8. Press V to toggle surface visualization
-9. Use up/down arrows to adjust surface point density
-10. Use +/- to zoom in on specific regions
+| Key | Action |
+| --- | --- |
+| `WASD` | Rotate; `z`/`x` roll |
+| `+`/`-`, arrows | Zoom, pan |
+| `1`/`2` | All atoms, C-alpha backbone |
+| `c` `b` `h` | Bonds, B-factor colouring, hydrogen bonds |
+| `i`, click | Inspect mode, pick an atom; `r` highlights its residue |
+| `g` | Linked interaction network pane |
+| `l` `e` | Network layout (force or spatial), node colour (structure or burial) |
+| `t` `y` | Filter network edges by interaction type, by chain |
+| `k` `[` `]` `,` `.` | Slab: toggle, move, and resize a depth slice |
+| `f`, `q` | Reset the view, quit |
 
 ## Citations
 

@@ -5,3 +5,5 @@
 benchmarks/cache/
 __pycache__
 benchmarks/pdb-cache/
+docs/*.mov
+docs/*.mp4
