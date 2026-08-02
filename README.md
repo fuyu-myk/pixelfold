@@ -6,7 +6,7 @@
 A protein structure viewer and residue interaction network engine that runs
 entirely in your terminal.
 
-![PixelFold demo](docs/demo.gif)
+![PixelFold demo](https://raw.githubusercontent.com/fuyu-myk/pixelfold/main/docs/demo.gif)
 
 ## Validation
 
@@ -125,7 +125,7 @@ it yourself with `cargo run -p pixelfold-validate -- --check`.
 
 Interaction geometry follows PLIP's published thresholds, with the exact source
 variable recorded next to every constant in
-[`params.rs`](crates/pixelfold-core/src/interactions/params.rs). Each known
+[`params.rs`](https://github.com/fuyu-myk/pixelfold/blob/main/crates/pixelfold-core/src/interactions/params.rs). Each known
 difference from RING is also noted. Secondary structure is
 Kabsch-Sander electrostatic hydrogen bonding with inferred amide hydrogens.
 
@@ -138,7 +138,7 @@ answer matters, use PLIP.
 
 Per-edge interaction energies are a literature-sourced scoring table with one
 primary citation per value, in
-[`energy.rs`](crates/pixelfold-core/src/interactions/energy.rs). They are
+[`energy.rs`](https://github.com/fuyu-myk/pixelfold/blob/main/crates/pixelfold-core/src/interactions/energy.rs). They are
 representative magnitudes, not computed free energies.
 
 ## Architecture
@@ -146,16 +146,16 @@ representative magnitudes, not computed free energies.
 A Cargo workspace. `pixelfold-core` has no terminal or rendering dependencies, so
 the analysis is usable as a library.
 
-- [`pixelfold-core`](crates/pixelfold-core/src): parsing, DSSP, SASA, the
+- [`pixelfold-core`](https://github.com/fuyu-myk/pixelfold/blob/main/crates/pixelfold-core/src): parsing, DSSP, SASA, the
   interaction engine, the selection language, and the residue interaction network
   with its graph analytics
-- [`pixelfold-render`](crates/pixelfold-render/src): a z-buffered
+- [`pixelfold-render`](https://github.com/fuyu-myk/pixelfold/blob/main/crates/pixelfold-render/src): a z-buffered
   sphere-impostor rasteriser writing one RGBA framebuffer, and the sinks that put
   it on a terminal (Kitty, iTerm2, truecolor half-blocks) or in a PNG
-- [`pixelfold-tui`](crates/pixelfold-tui/src): the `ratatui` front end and the
+- [`pixelfold-tui`](https://github.com/fuyu-myk/pixelfold/blob/main/crates/pixelfold-tui/src): the `ratatui` front end and the
   linked network pane
-- [`pixelfold-cli`](crates/pixelfold-cli/src): the `pixelfold` binary
-- [`pixelfold-validate`](crates/pixelfold-validate/src): the agreement harness
+- [`pixelfold-cli`](https://github.com/fuyu-myk/pixelfold/blob/main/crates/pixelfold-cli/src): the `pixelfold` binary
+- [`pixelfold-validate`](https://github.com/fuyu-myk/pixelfold/blob/main/crates/pixelfold-validate/src): the agreement harness
 
 The CLI computes everything the viewer shows headlessly.
 
