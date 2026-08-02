@@ -5,8 +5,9 @@
 //! every clean checkout, and these tests used to skip themselves when it was,
 //! so CI passed them without running the binary once.
 
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 /// A structure committed under `tests/fixtures`.
 fn fixture(id: &str) -> PathBuf {
@@ -170,24 +171,34 @@ fn insertion_codes_keep_residues_distinct() {
 }
 
 /// `pixelfold ... | head` is a normal thing to do, in every format.
+///
+/// The pipe is built here rather than by a shell.
 #[test]
 fn a_closed_pipe_is_not_a_failure_in_any_format() {
-    let structure = fixture("1CRN");
+    let structure = fixture("1PPB");
 
     for format in ["table", "tsv", "json"] {
-        let status = Command::new("sh")
-            .arg("-c")
-            .arg(format!(
-                "set -o pipefail; {} interactions {} --format {format} | head -1 > /dev/null",
-                env!("CARGO_BIN_EXE_pixelfold"),
-                structure.display(),
-            ))
-            .status()
-            .expect("the shell runs");
+        let mut child = Command::new(env!("CARGO_BIN_EXE_pixelfold"))
+            .args(["interactions", "--format", format])
+            .arg(&structure)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("the binary runs");
 
+        // Emulate what `| head -1` does.
+        let stdout = child.stdout.take().expect("stdout was piped");
+        let mut reader = BufReader::new(stdout);
+        let mut first = String::new();
+        reader
+            .read_line(&mut first)
+            .expect("the first line arrives");
+        drop(reader);
+
+        let status = child.wait().expect("the child exits");
         assert!(
             status.success(),
-            "{format} reported a closed pipe as an error"
+            "{format} reported a closed pipe as an error (exit {status})"
         );
     }
 }
