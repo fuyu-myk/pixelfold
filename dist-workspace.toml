@@ -1,0 +1,33 @@
+[workspace]
+members = ["cargo:."]
+
+# Config for 'dist'. Regenerate .github/workflows/release.yml with `dist generate`
+# after changing anything here; that workflow is generated, not hand-edited.
+[dist]
+# The preferred dist version to use in CI (Cargo.toml SemVer syntax)
+cargo-dist-version = "0.32.0"
+# CI backends to support
+ci = "github"
+# The installers to generate for each app
+installers = ["shell", "powershell", "homebrew"]
+# The tap the generated Homebrew formula is pushed to. Needs a HOMEBREW_TAP_TOKEN
+# secret on this repository with contents write access to the tap.
+tap = "fuyu-myk/homebrew-tap"
+publish-jobs = ["homebrew"]
+# Target platforms to build apps for (Rust target-triple syntax). Each of these
+# gets a native runner, aarch64 Linux included (ubuntu-22.04-arm), so nothing is
+# cross-compiled: reqwest's rustls backend pulls in aws-lc-sys, which wants a C
+# toolchain for the machine it is built on.
+targets = [
+    "aarch64-apple-darwin",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+]
+# On a pull request, only run the planning step: building every target on a PR is
+# slow and the artifacts are discarded, but the plan still catches a broken
+# release config before a tag goes out.
+pr-run-mode = "plan"
+# No self-updater binary alongside the tool.
+install-updater = false

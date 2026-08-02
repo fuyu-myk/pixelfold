@@ -59,3 +59,10 @@ opt-level = 3
 
 [profile.dev.package.pixelfold-render]
 opt-level = 3
+
+# The profile dist builds released binaries with. `dist init` writes
+# `lto = "thin"` here, which would quietly ship binaries built with weaker
+# optimisation than `cargo build --release` produces; inheriting release keeps
+# the fat LTO the release profile already asks for.
+[profile.dist]
+inherits = "release"
