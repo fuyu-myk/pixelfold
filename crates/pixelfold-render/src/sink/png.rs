@@ -75,10 +75,7 @@ pub fn decode_rgba(bytes: &[u8]) -> Result<(u32, u32, Vec<[u8; 4]>), png::Decodi
     }
 
     buf.truncate(info.buffer_size());
-    let pixels = buf
-        .chunks_exact(4)
-        .map(|c| [c[0], c[1], c[2], c[3]])
-        .collect();
+    let pixels = buf.as_chunks::<4>().0.to_vec();
 
     Ok((info.width, info.height, pixels))
 }

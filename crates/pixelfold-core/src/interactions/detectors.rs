@@ -627,7 +627,7 @@ fn residue_charged_groups(
         .map(|component| {
             super::classify::component_charged_groups(component)
                 .into_iter()
-                .filter(|site| !site.centre.as_deref().is_some_and(&linked))
+                .filter(|site| !site.centre.as_deref().is_some_and(linked))
                 .map(|site| (site.sign, site.atoms))
                 .collect()
         })
