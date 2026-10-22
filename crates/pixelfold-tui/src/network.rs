@@ -171,7 +171,7 @@ impl NetworkView {
             })
             .collect();
 
-        let key_index: HashMap<(String, u32, Option<char>), usize> = network
+        let key_index: HashMap<(String, i32, Option<char>), usize> = network
             .nodes
             .iter()
             .enumerate()
@@ -624,7 +624,7 @@ mod tests {
     use pixelfold_core::interactions::InteractionKind;
     use pixelfold_core::{Atom, FixedStr, Interaction, SecondaryStructure};
 
-    fn atom(chain: &str, seq: u32, name: &str, residue: &str) -> Atom {
+    fn atom(chain: &str, seq: i32, name: &str, residue: &str) -> Atom {
         Atom {
             serial: 0,
             name: FixedStr::new(name),

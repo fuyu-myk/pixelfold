@@ -1,61 +1,245 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
+use flate2::read::MultiGzDecoder;
 use glam::Vec3;
-use pdbtbx::*;
-use std::{
-    collections::BTreeSet,
-    io::{BufReader, Cursor},
-    path::Path,
-};
+use mmcif_cif::{Block, BuildError, Document, DocumentBuilder, Entry};
+use mmcif_model::{AtomRef, Model, Structure};
+use std::{collections::BTreeSet, io::Read, path::Path};
 
 use crate::{
+    assembly,
+    components::Dictionary,
     dssp,
     fixed_str::FixedStr,
     structure::{AltlocPolicy, Atom, Protein, SecondaryStructure, filter_altlocs},
 };
 
-/// Build `Atom` from a pdbtbx hierarchy item.
-fn build_atom(hierarchy: &impl ContainsAtomConformerResidueChainModel) -> Atom {
-    let atom = hierarchy.atom();
-    let residue = hierarchy.residue();
-    let conformer = hierarchy.conformer();
-    let chain = hierarchy.chain();
-    let element = atom
-        .element()
-        .map(|e| e.symbol().to_string())
-        .unwrap_or_else(|| infer_element(atom.name()));
-    let altloc = conformer
-        .alternative_location()
-        .and_then(|s| s.chars().next());
-    let insertion_code = residue.insertion_code().and_then(|s| s.chars().next());
-    let position = Vec3::new(atom.x() as f32, atom.y() as f32, atom.z() as f32);
+/// A structure file as read from disk. An mmCIF document is kept whole: the
+/// component definitions and the assembly details live in categories the
+/// typed structure does not carry.
+enum StructureFile {
+    Mmcif(Document),
+    Pdb(String),
+}
+
+impl StructureFile {
+    /// Read `path`, gunzipping a `.gz` file first. The extension underneath
+    /// picks the format: legacy PDB for `.pdb`, `.ent`, or a numbered assembly
+    /// file such as `.pdb1`, and mmCIF for anything else.
+    fn read(path: &Path) -> Result<Self> {
+        let mut bytes = std::fs::read(path)?;
+        let mut name = path;
+        if extension_of(path).as_deref() == Some("gz") {
+            let mut decompressed = Vec::new();
+            MultiGzDecoder::new(bytes.as_slice()).read_to_end(&mut decompressed)?;
+            bytes = decompressed;
+            name = Path::new(path.file_stem().unwrap_or_default());
+        }
+
+        let file = match extension_of(name) {
+            Some(extension) if is_pdb_extension(&extension) => Self::Pdb(String::from_utf8(bytes)?),
+            _ => Self::Mmcif(Document::from_bytes(bytes)?),
+        };
+
+        Ok(file)
+    }
+
+    fn block(&self) -> Option<Block<'_>> {
+        match self {
+            Self::Mmcif(document) => document.block(0),
+            Self::Pdb(_) => None,
+        }
+    }
+
+    /// The typed structure. An mmCIF file whose coordinates read but whose
+    /// assembly or entity records do not falls back to its coordinates alone,
+    /// with a warning: none of those records is needed to show the structure.
+    fn structure(&self) -> Result<Structure> {
+        let document = match self {
+            Self::Mmcif(document) => document,
+            Self::Pdb(text) => return Ok(mmcif_model::parse_pdb(text)?),
+        };
+
+        let error = match Structure::from_document(document) {
+            Ok(structure) => return Ok(structure),
+            Err(error) => error,
+        };
+        let fallback = document
+            .block(0)
+            .and_then(|block| coordinates_only(&block).ok())
+            .and_then(|reduced| Structure::from_document(&reduced).ok());
+        match fallback {
+            Some(structure) => {
+                eprintln!("Warning: {error}; the file's assembly and entity records were ignored");
+                Ok(structure)
+            }
+            None => Err(error.into()),
+        }
+    }
+
+    fn title(&self, structure: &Structure) -> String {
+        let block = self.block();
+        structure
+            .entry_id()
+            .or_else(|| block.as_ref().map(Block::name))
+            .unwrap_or("Unknown")
+            .to_string()
+    }
+
+    /// The first model, its alternate locations resolved by `altloc`, with the
+    /// biological assembly and the component definitions the file declares.
+    fn protein(&self, altloc: AltlocPolicy) -> Result<Protein> {
+        let structure = self.structure()?;
+        let mut atoms = filter_altlocs(atoms_of(first_model(&structure)?, |_| true), altloc);
+        let hbonds = dssp::assign(&mut atoms);
+
+        let block = self.block();
+        let assembly = match (self, &block) {
+            (Self::Pdb(text), _) => assembly::detect_pdb(text),
+            (Self::Mmcif(_), Some(block)) => assembly::detect_mmcif(&structure, block),
+            (Self::Mmcif(_), None) => None,
+        };
+        let components = block
+            .as_ref()
+            .map(Dictionary::from_block)
+            .unwrap_or_default();
+
+        Ok(Protein {
+            atoms,
+            title: self.title(&structure),
+            hbonds,
+            assembly,
+            components,
+        })
+    }
+
+    /// The first model's atoms that `keep` accepts by name, every conformer
+    /// included, without assembly or component definitions.
+    fn subset(&self, keep: impl Fn(&str) -> bool) -> Result<Protein> {
+        let structure = self.structure()?;
+        let mut atoms = atoms_of(first_model(&structure)?, keep);
+        let hbonds = dssp::assign(&mut atoms);
+
+        Ok(Protein {
+            atoms,
+            title: self.title(&structure),
+            hbonds,
+            assembly: None,
+            components: Default::default(),
+        })
+    }
+}
+
+fn extension_of(path: &Path) -> Option<String> {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .map(str::to_ascii_lowercase)
+}
+
+fn is_pdb_extension(extension: &str) -> bool {
+    extension == "ent"
+        || extension
+            .strip_prefix("pdb")
+            .is_some_and(|number| number.bytes().all(|b| b.is_ascii_digit()))
+}
+
+/// A copy of `block` keeping only its coordinates and entry id.
+fn coordinates_only(block: &Block<'_>) -> Result<Document, BuildError> {
+    let kept = |tag: &str| {
+        ["_atom_site.", "_entry."].iter().any(|prefix| {
+            tag.get(..prefix.len())
+                .is_some_and(|start| start.eq_ignore_ascii_case(prefix))
+        })
+    };
+
+    let mut builder = DocumentBuilder::new();
+    builder.start_block(block.name())?;
+    for entry in block.entries() {
+        match entry {
+            Entry::Pair(pair) if kept(pair.tag()) => builder.pair(pair.tag(), pair.value())?,
+            Entry::Loop(rows) if rows.tags().next().is_some_and(kept) => {
+                builder.start_loop(rows.tags())?;
+                for value in rows.values() {
+                    builder.push(value)?;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    builder.finish()
+}
+
+fn first_model(structure: &Structure) -> Result<&Model> {
+    structure
+        .first_model()
+        .map(|model| model.as_ref())
+        .ok_or_else(|| anyhow::anyhow!("the file contains no atoms"))
+}
+
+/// Build `Atom` from one atom of a model, under author numbering.
+fn build_atom(model: &Model, atom: AtomRef<'_>) -> Atom {
+    let residue = atom.residue();
+    let [x, y, z] = atom.position();
 
     Atom {
-        serial: atom.serial_number() as u32,
-        name: FixedStr::new(atom.name()),
-        element: FixedStr::new(&element),
-        residue_name: FixedStr::new(conformer.name()),
-        residue_seq: residue.serial_number() as u32,
-        chain_id: FixedStr::new(chain.id()),
-        is_hetatm: atom.hetero(),
-        altloc,
+        serial: atom
+            .serial()
+            .and_then(|serial| u32::try_from(serial).ok())
+            .unwrap_or_default(),
+        name: FixedStr::new(atom.name().as_str()),
+        element: FixedStr::new(atom.element().symbol()),
+        residue_name: FixedStr::new(residue.comp().as_str()),
+        residue_seq: residue.auth_seq().get(),
+        chain_id: FixedStr::new(residue.chain().auth_asym().as_str()),
+        is_hetatm: residue.is_hetero(),
+        altloc: atom.altloc().get(),
         occupancy: atom.occupancy() as f32,
-        insertion_code,
-        model_number: hierarchy.model().serial_number(),
-        position,
+        insertion_code: residue.ins_code().get(),
+        model_number: usize::try_from(model.number().get()).unwrap_or_default(),
+        position: Vec3::new(x as f32, y as f32, z as f32),
         b_factor: atom.b_factor() as f32,
         secondary_structure: SecondaryStructure::Coil,
     }
 }
 
-/// Best-effort element inference from an atom name when the element column is
-/// absent. Uses the leading letter, which is correct for standard protein
-/// atoms but cannot disambiguate metals (for example a calcium named "CA")
-/// without the column; those are expected to carry an explicit element symbol.
-fn infer_element(name: &str) -> String {
-    name.chars()
-        .find(|c| c.is_ascii_alphabetic())
-        .map(|c| c.to_ascii_uppercase().to_string())
-        .unwrap_or_default()
+/// Every atom of `model` whose name `keep` accepts, warning once when an
+/// identifier overflowed its fixed field.
+fn atoms_of(model: &Model, keep: impl Fn(&str) -> bool) -> Vec<Atom> {
+    let mut truncated: BTreeSet<(&'static str, String)> = BTreeSet::new();
+    let atoms = model
+        .atoms()
+        .filter(|source| keep(source.name().as_str()))
+        .map(|source| {
+            let atom = build_atom(model, source);
+            let residue = source.residue();
+            let fields = [
+                ("atom name", atom.name.as_str(), source.name().as_str()),
+                (
+                    "residue name",
+                    atom.residue_name.as_str(),
+                    residue.comp().as_str(),
+                ),
+                (
+                    "chain id",
+                    atom.chain_id.as_str(),
+                    residue.chain().auth_asym().as_str(),
+                ),
+            ];
+            for (field, kept, read) in fields {
+                if kept != read {
+                    truncated.insert((field, read.to_string()));
+                }
+            }
+
+            atom
+        })
+        .collect();
+
+    if let Some(message) = truncation_warning(&truncated) {
+        eprintln!("Warning: {message}");
+    }
+
+    atoms
 }
 
 /// Format a one-line warning for identifiers that overflowed their fixed field
@@ -75,84 +259,8 @@ fn truncation_warning(truncated: &BTreeSet<(&'static str, String)>) -> Option<St
     ))
 }
 
-/// Read a structure with pdbtbx (Loose strictness, first model only), retrying
-/// past one specific spurious failure.
-///
-/// pdbtbx raises an `InvalidatingError` when a file names one crystal space
-/// group two non-identical ways. Crystal symmetry is never used, so retry with
-/// the symmetry records stripped.
-fn read_structure(path_str: &str) -> Result<(PDB, Vec<PDBError>)> {
-    let first = ReadOptions::default()
-        .set_level(StrictnessLevel::Loose)
-        .set_only_first_model(true)
-        .read(path_str);
-
-    match first {
-        Ok(loaded) => Ok(loaded),
-        Err(errors) if errors.iter().any(is_space_group_mismatch) => {
-            let text = std::fs::read_to_string(path_str)
-                .map_err(|e| anyhow::anyhow!("Failed to open file: {:?}", e))?;
-            ReadOptions::default()
-                .set_level(StrictnessLevel::Loose)
-                .set_only_first_model(true)
-                .set_format(Format::Mmcif)
-                .read_raw(BufReader::new(Cursor::new(strip_symmetry_records(&text))))
-                .map_err(|e| anyhow::anyhow!("Failed to open file: {:?}", e))
-        }
-        Err(errors) => Err(anyhow::anyhow!("Failed to open file: {:?}", errors)),
-    }
-}
-
-fn is_space_group_mismatch(error: &PDBError) -> bool {
-    error.short_description() == "Space group does not match"
-}
-
-/// Drop the single-value crystal space-group records that pdbtbx cross-checks
-/// against one another. Leaves the `_space_group_symop` loop and the unit cell
-/// intact; pixelfold reads none of them.
-fn strip_symmetry_records(cif: &str) -> String {
-    const DROP: [&str; 6] = [
-        "_symmetry.Int_Tables_number",
-        "_symmetry.space_group_name_H-M",
-        "_symmetry.space_group_name_Hall",
-        "_space_group.name_H-M_alt",
-        "_space_group.name_Hall",
-        "_space_group.IT_number",
-    ];
-    let mut out = String::with_capacity(cif.len());
-    let mut lines = cif.lines().peekable();
-    while let Some(line) = lines.next() {
-        let trimmed = line.trim_start();
-        if !DROP.iter().any(|tag| trimmed.starts_with(tag)) {
-            out.push_str(line);
-            out.push('\n');
-            continue;
-        }
-
-        // Drop the key line.
-        let inline_value = trimmed
-            .split_once(char::is_whitespace)
-            .is_some_and(|(_, rest)| !rest.trim().is_empty());
-        if inline_value {
-            continue;
-        }
-
-        match lines.peek() {
-            Some(next) if next.trim_start().starts_with(';') => {
-                lines.next(); // opening ';' line
-                for block in lines.by_ref() {
-                    if block.trim_start().starts_with(';') {
-                        break; // closing ';' line
-                    }
-                }
-            }
-            Some(_) => {
-                lines.next(); // value on its own line
-            }
-            None => {}
-        }
-    }
-    out
+fn read_file(path: &Path) -> Result<StructureFile> {
+    StructureFile::read(path).with_context(|| format!("failed to read {}", path.display()))
 }
 
 /// Load a protein structure from a PDB or mmCIF file
@@ -163,139 +271,30 @@ pub fn load_protein<P: AsRef<Path>>(path: P) -> Result<Protein> {
 /// Load a protein structure with additional options
 pub fn load_protein_with_options<P: AsRef<Path>>(path: P, altloc: AltlocPolicy) -> Result<Protein> {
     let path = path.as_ref();
-    let path_str = path
-        .to_str()
-        .ok_or_else(|| anyhow::anyhow!("Invalid path: {}", path.display()))?;
-
-    let (pdb, errors) = read_structure(path_str)?;
-
-    if !errors.is_empty() {
-        eprintln!("Warning: {} errors while parsing file", errors.len());
-    }
-
-    let title = pdb.identifier.as_deref().unwrap_or("Unknown").to_string();
-
-    // Build atoms, noting any identifier that overflowed its fixed-capacity
-    // field.
-    let mut truncated: BTreeSet<(&'static str, String)> = BTreeSet::new();
-    let atoms: Vec<Atom> = pdb
-        .atoms_with_hierarchy()
-        .map(|hierarchy| {
-            let atom = build_atom(&hierarchy);
-            if atom.name.as_str() != hierarchy.atom().name() {
-                truncated.insert(("atom name", hierarchy.atom().name().to_string()));
-            }
-            if atom.residue_name.as_str() != hierarchy.conformer().name() {
-                truncated.insert(("residue name", hierarchy.conformer().name().to_string()));
-            }
-            if atom.chain_id.as_str() != hierarchy.chain().id() {
-                truncated.insert(("chain id", hierarchy.chain().id().to_string()));
-            }
-
-            atom
-        })
-        .collect();
-
-    if let Some(message) = truncation_warning(&truncated) {
-        eprintln!("Warning: {message}");
-    }
-
-    let mut atoms = filter_altlocs(atoms, altloc);
-
-    let hbonds = dssp::assign(&mut atoms);
-
-    // Two things live only in the raw file, past what pdbtbx returns: a
-    // biological unit that differs from the deposited coordinates, and the
-    // chemical definitions of the components used.
-    let file_text = std::fs::read_to_string(path).ok();
-    let assembly = file_text
-        .as_deref()
-        .and_then(crate::assembly::detect_partial_assembly);
-    let components = file_text
-        .as_deref()
-        .map(crate::components::Dictionary::parse)
-        .unwrap_or_default();
-
-    Ok(Protein {
-        atoms,
-        title,
-        hbonds,
-        assembly,
-        components,
-    })
+    read_file(path)?
+        .protein(altloc)
+        .with_context(|| format!("failed to read {}", path.display()))
 }
 
 /// Load only backbone atoms (CA, C, N, O) for simplified rendering
 pub fn load_protein_backbone<P: AsRef<Path>>(path: P) -> Result<Protein> {
     let path = path.as_ref();
-    let path_str = path
-        .to_str()
-        .ok_or_else(|| anyhow::anyhow!("Invalid path: {}", path.display()))?;
-
-    let (pdb, errors) = read_structure(path_str)?;
-
-    if !errors.is_empty() {
-        eprintln!("Warning: {} errors while parsing file", errors.len());
-    }
-
-    let title = pdb.identifier.as_deref().unwrap_or("Unknown").to_string();
-
-    let mut atoms: Vec<Atom> = pdb
-        .atoms_with_hierarchy()
-        .filter(|hierarchy| {
-            let name = hierarchy.atom().name();
-            name == "CA" || name == "C" || name == "N" || name == "O"
-        })
-        .map(|hierarchy| build_atom(&hierarchy))
-        .collect();
-
-    let hbonds = dssp::assign(&mut atoms);
-
-    Ok(Protein {
-        atoms,
-        title,
-        hbonds,
-        assembly: None,
-        components: Default::default(),
-    })
+    read_file(path)?
+        .subset(|name| matches!(name, "CA" | "C" | "N" | "O"))
+        .with_context(|| format!("failed to read {}", path.display()))
 }
 
 /// Load only CA (alpha carbon) atoms for minimal rendering of large proteins
 pub fn load_protein_ca_only<P: AsRef<Path>>(path: P) -> Result<Protein> {
     let path = path.as_ref();
-    let path_str = path
-        .to_str()
-        .ok_or_else(|| anyhow::anyhow!("Invalid path: {}", path.display()))?;
-
-    let (pdb, errors) = read_structure(path_str)?;
-
-    if !errors.is_empty() {
-        eprintln!("Warning: {} errors while parsing file", errors.len());
-    }
-
-    let title = pdb.identifier.as_deref().unwrap_or("Unknown").to_string();
-
-    let mut atoms: Vec<Atom> = pdb
-        .atoms_with_hierarchy()
-        .filter(|hierarchy| hierarchy.atom().name() == "CA")
-        .map(|hierarchy| build_atom(&hierarchy))
-        .collect();
-
-    let hbonds = dssp::assign(&mut atoms);
-
-    Ok(Protein {
-        atoms,
-        title,
-        hbonds,
-        assembly: None,
-        components: Default::default(),
-    })
+    read_file(path)?
+        .subset(|name| name == "CA")
+        .with_context(|| format!("failed to read {}", path.display()))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::{BufReader, Cursor};
 
     #[test]
     fn build_atom_reads_element_and_hetatm() {
@@ -320,13 +319,8 @@ _atom_site.B_iso_or_equiv
 ATOM 1 C CA ALA A 1 0.0 0.0 0.0 1.0 0.0
 HETATM 2 Ca CA CA B 2 5.0 0.0 0.0 1.0 0.0
 ";
-        let (pdb, _errors) = ReadOptions::default()
-            .set_level(StrictnessLevel::Loose)
-            .set_format(Format::Mmcif)
-            .read_raw(BufReader::new(Cursor::new(cif)))
-            .expect("minimal mmCIF should parse");
-
-        let atoms: Vec<Atom> = pdb.atoms_with_hierarchy().map(|h| build_atom(&h)).collect();
+        let file = StructureFile::Mmcif(Document::parse(cif).expect("minimal mmCIF should parse"));
+        let atoms = file.protein(AltlocPolicy::All).unwrap().atoms;
         assert_eq!(atoms.len(), 2);
 
         let carbon = atoms
@@ -386,42 +380,10 @@ ATOM 2 C CA ALA AAAAA AAAAA 2 3.8 0.0 0.0 1.0 0.0
         let _ = std::fs::remove_file(&path);
     }
 
+    // 6ZPA names one space group two inconsistent ways ('H 3 2' vs 'R 3 2 :H').
+    // Crystal symmetry is never used, so the coordinates must still load.
     #[test]
-    fn strip_symmetry_records_drops_names_keeps_symop_and_cell() {
-        // The Hall symbol is a multi-line `;`-delimited value, exactly as in 6ZPA.
-        let cif = "\
-_symmetry.Int_Tables_number 155
-_symmetry.space_group_name_Hall
-;R 3 2\"
-;
-_symmetry.space_group_name_H-M 'H 3 2'
-_space_group.name_H-M_alt 'R 3 2 :H'
-_space_group.IT_number 155
-_cell.length_a 141.489
-loop_
-_space_group_symop.id
-_space_group_symop.operation_xyz
-1 x,y,z
-";
-        let cleaned = strip_symmetry_records(cif);
-        assert!(!cleaned.contains("space_group_name_H-M"));
-        assert!(!cleaned.contains("name_H-M_alt"));
-        assert!(!cleaned.contains("Int_Tables_number"));
-        assert!(!cleaned.contains("_space_group.IT_number"));
-        // The multi-line Hall value is removed with its key, not orphaned.
-        assert!(!cleaned.contains("space_group_name_Hall"));
-        assert!(!cleaned.contains(";R 3 2"));
-        // The symop loop and unit cell are untouched.
-        assert!(cleaned.contains("_space_group_symop.operation_xyz"));
-        assert!(cleaned.contains("1 x,y,z"));
-        assert!(cleaned.contains("_cell.length_a 141.489"));
-    }
-
-    // A file that names one space group two inconsistent ways (as 6ZPA does with
-    // 'H 3 2' vs 'R 3 2 :H') makes pdbtbx fail even at Loose strictness; the
-    // loader must recover by stripping the symmetry records.
-    #[test]
-    fn loader_recovers_from_conflicting_space_group() {
+    fn conflicting_space_group_records_still_load() {
         let cif = "\
 data_test
 _symmetry.Int_Tables_number 155
@@ -446,22 +408,307 @@ _atom_site.occupancy
 _atom_site.B_iso_or_equiv
 ATOM 1 C CA ALA A A 1 0.0 0.0 0.0 1.0 0.0
 ";
-        // pdbtbx rejects the conflicting records outright...
-        let raw = ReadOptions::default()
-            .set_level(StrictnessLevel::Loose)
-            .set_format(Format::Mmcif)
-            .read_raw(BufReader::new(Cursor::new(cif.to_string())));
-        assert!(
-            raw.is_err(),
-            "expected pdbtbx to reject the conflicting space group"
-        );
-
-        // ...but the loader strips symmetry and still returns the atom.
         let path = std::env::temp_dir().join("pf_conflicting_spacegroup_test.cif");
         std::fs::write(&path, cif).unwrap();
         let protein = load_protein_with_options(&path, AltlocPolicy::All).unwrap();
         assert_eq!(protein.atoms.len(), 1);
         assert_eq!(protein.atoms[0].chain_id.as_str(), "A");
         let _ = std::fs::remove_file(&path);
+    }
+
+    fn load_cif(name: &str, cif: &str, altloc: AltlocPolicy) -> Protein {
+        let path = std::env::temp_dir().join(format!("pf_{name}.cif"));
+        std::fs::write(&path, cif).unwrap();
+        let protein = load_protein_with_options(&path, altloc).unwrap();
+        let _ = std::fs::remove_file(&path);
+        protein
+    }
+
+    const ATOM_SITE_HEADER: &str = "\
+data_TEST
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_alt_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.label_seq_id
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+_atom_site.occupancy
+_atom_site.B_iso_or_equiv
+_atom_site.auth_seq_id
+_atom_site.auth_asym_id
+";
+
+    // The backbone is shared (no altloc) while the side chain is split, as in
+    // 1GCI SER 3. The shared atoms must stay unlabelled at full occupancy, so
+    // the side chain's occupancy decides which conformer is kept.
+    const SPLIT_SIDE_CHAIN: &str = "\
+ATOM 1 N N . SER A 1 0.0 0.0 0.0 1.00 5.0 3 A
+ATOM 2 C CA . SER A 1 1.5 0.0 0.0 1.00 5.0 3 A
+ATOM 3 C C . SER A 1 2.0 1.4 0.0 1.00 5.0 3 A
+ATOM 4 O O . SER A 1 1.3 2.4 0.0 1.00 5.0 3 A
+ATOM 5 C CB A SER A 1 2.0 -0.8 1.2 0.47 6.0 3 A
+ATOM 6 C CB B SER A 1 2.0 -0.8 -1.2 0.53 6.0 3 A
+ATOM 7 O OG A SER A 1 3.4 -0.8 1.2 0.47 6.0 3 A
+ATOM 8 O OG B SER A 1 3.4 -0.8 -1.2 0.53 6.0 3 A
+";
+
+    #[test]
+    fn shared_atoms_of_a_split_residue_stay_unlabelled_at_full_occupancy() {
+        let cif = format!("{ATOM_SITE_HEADER}{SPLIT_SIDE_CHAIN}");
+        let protein = load_cif("shared_atoms", &cif, AltlocPolicy::All);
+
+        let backbone: Vec<&Atom> = protein
+            .atoms
+            .iter()
+            .filter(|a| matches!(a.name.as_str(), "N" | "CA" | "C" | "O"))
+            .collect();
+        assert_eq!(backbone.len(), 4);
+        assert!(backbone.iter().all(|a| a.altloc.is_none()));
+        assert!(backbone.iter().all(|a| a.occupancy == 1.0));
+    }
+
+    #[test]
+    fn default_policy_keeps_the_more_occupied_side_chain() {
+        let cif = format!("{ATOM_SITE_HEADER}{SPLIT_SIDE_CHAIN}");
+        let protein = load_cif("split_side_chain", &cif, AltlocPolicy::Occupancy);
+
+        assert_eq!(protein.atoms.len(), 6);
+        let cb = protein.atoms.iter().find(|a| a.name == "CB").unwrap();
+        assert_eq!(cb.altloc, Some('B'));
+    }
+
+    #[test]
+    fn policy_b_keeps_the_shared_atoms_of_a_residue_modelled_only_in_a() {
+        let cif = format!(
+            "{ATOM_SITE_HEADER}\
+ATOM 1 N N . ALA A 1 0.0 0.0 0.0 1.00 5.0 1 A
+ATOM 2 C CA . ALA A 1 1.5 0.0 0.0 1.00 5.0 1 A
+ATOM 3 C CB A ALA A 1 2.0 -0.8 1.2 0.60 6.0 1 A
+"
+        );
+        let protein = load_cif("a_only_residue", &cif, AltlocPolicy::B);
+
+        let names: Vec<&str> = protein.atoms.iter().map(|a| a.name.as_str()).collect();
+        assert_eq!(names, vec!["N", "CA"]);
+    }
+
+    #[test]
+    fn negative_author_numbers_are_kept() {
+        let cif = format!(
+            "{ATOM_SITE_HEADER}\
+ATOM 1 C CA . GLY A 1 0.0 0.0 0.0 1.00 5.0 -3 A
+ATOM 2 C CA . GLY A 2 3.8 0.0 0.0 1.00 5.0 -2 A
+"
+        );
+        let protein = load_cif("negative_numbers", &cif, AltlocPolicy::Occupancy);
+
+        let numbers: Vec<i64> = protein
+            .atoms
+            .iter()
+            .map(|a| i64::from(a.residue_seq))
+            .collect();
+        assert_eq!(numbers, vec![-3, -2]);
+    }
+
+    #[test]
+    fn an_unknown_atom_keeps_element_x() {
+        let cif = format!(
+            "{ATOM_SITE_HEADER}\
+HETATM 1 X UNK . UNX B . 0.0 0.0 0.0 1.00 5.0 324 A
+"
+        );
+        let protein = load_cif("unknown_atom", &cif, AltlocPolicy::Occupancy);
+
+        assert!(protein.atoms[0].element.as_str().eq_ignore_ascii_case("X"));
+    }
+
+    #[test]
+    fn a_numeric_looking_component_id_is_kept_verbatim() {
+        let cif = format!(
+            "{ATOM_SITE_HEADER}\
+HETATM 1 C C1 . 4E2 B . 0.0 0.0 0.0 1.00 5.0 401 A
+HETATM 2 Cl CL2 . 4E2 B . 1.7 0.0 0.0 1.00 5.0 401 A
+#
+loop_
+_chem_comp_atom.comp_id
+_chem_comp_atom.atom_id
+_chem_comp_atom.type_symbol
+4E2 C1 C
+4E2 CL2 CL
+#
+loop_
+_chem_comp_bond.comp_id
+_chem_comp_bond.atom_id_1
+_chem_comp_bond.atom_id_2
+4E2 C1 CL2
+#
+"
+        );
+        let protein = load_cif("numeric_component", &cif, AltlocPolicy::Occupancy);
+
+        let residue = protein.atoms[0].residue_name;
+        assert_eq!(residue.as_str(), "4E2");
+        assert!(protein.components.get(residue.as_str()).is_some());
+    }
+
+    const OPERATORS: &str = "\
+loop_
+_pdbx_struct_oper_list.id
+_pdbx_struct_oper_list.type
+_pdbx_struct_oper_list.matrix[1][1]
+_pdbx_struct_oper_list.matrix[1][2]
+_pdbx_struct_oper_list.matrix[1][3]
+_pdbx_struct_oper_list.vector[1]
+_pdbx_struct_oper_list.matrix[2][1]
+_pdbx_struct_oper_list.matrix[2][2]
+_pdbx_struct_oper_list.matrix[2][3]
+_pdbx_struct_oper_list.vector[2]
+_pdbx_struct_oper_list.matrix[3][1]
+_pdbx_struct_oper_list.matrix[3][2]
+_pdbx_struct_oper_list.matrix[3][3]
+_pdbx_struct_oper_list.vector[3]
+1 'identity operation' 1 0 0 0 0 1 0 0 0 0 1 0
+2 'crystal symmetry operation' -1 0 0 10 0 -1 0 0 0 0 1 0
+#
+";
+
+    const TWO_CHAINS: &str = "\
+ATOM 1 C CA . GLY A 1 0.0 0.0 0.0 1.00 5.0 1 A
+ATOM 2 C CA . GLY B 1 9.0 0.0 0.0 1.00 5.0 1 B
+#
+";
+
+    // 7AEW: the whole asymmetric unit is listed twice, once per operator, in
+    // separate generation records.
+    #[test]
+    fn an_assembly_copying_the_whole_unit_across_records_is_partial() {
+        let cif = format!(
+            "{ATOM_SITE_HEADER}{TWO_CHAINS}{OPERATORS}\
+loop_
+_pdbx_struct_assembly_gen.assembly_id
+_pdbx_struct_assembly_gen.oper_expression
+_pdbx_struct_assembly_gen.asym_id_list
+1 1 A,B
+1 2 A,B
+#
+"
+        );
+        let protein = load_cif("assembly_copies", &cif, AltlocPolicy::Occupancy);
+
+        assert_eq!(protein.assembly.map(|a| a.operator_count), Some(2));
+    }
+
+    // 3BOG: each chain appears once, but one is placed by a symmetry operator,
+    // so the deposited coordinates are not the biological arrangement.
+    #[test]
+    fn an_assembly_moving_one_chain_is_partial() {
+        let cif = format!(
+            "{ATOM_SITE_HEADER}{TWO_CHAINS}{OPERATORS}\
+loop_
+_pdbx_struct_assembly_gen.assembly_id
+_pdbx_struct_assembly_gen.oper_expression
+_pdbx_struct_assembly_gen.asym_id_list
+1 1 A
+1 2 B
+#
+"
+        );
+        let protein = load_cif("assembly_moves", &cif, AltlocPolicy::Occupancy);
+
+        assert!(protein.assembly.is_some());
+    }
+
+    #[test]
+    fn an_identity_assembly_split_across_records_is_complete() {
+        let cif = format!(
+            "{ATOM_SITE_HEADER}{TWO_CHAINS}{OPERATORS}\
+loop_
+_pdbx_struct_assembly_gen.assembly_id
+_pdbx_struct_assembly_gen.oper_expression
+_pdbx_struct_assembly_gen.asym_id_list
+1 1 A
+1 1 B
+#
+"
+        );
+        let protein = load_cif("assembly_identity", &cif, AltlocPolicy::Occupancy);
+
+        assert_eq!(protein.assembly, None);
+    }
+
+    // A non-identity operator applied once to every chain moves the whole unit
+    // rigidly; the arrangement on screen is still the complete assembly.
+    #[test]
+    fn a_rigid_move_of_the_whole_unit_is_complete() {
+        let cif = format!(
+            "{ATOM_SITE_HEADER}{TWO_CHAINS}{OPERATORS}\
+loop_
+_pdbx_struct_assembly_gen.assembly_id
+_pdbx_struct_assembly_gen.oper_expression
+_pdbx_struct_assembly_gen.asym_id_list
+1 2 A,B
+#
+"
+        );
+        let protein = load_cif("assembly_rigid", &cif, AltlocPolicy::Occupancy);
+
+        assert_eq!(protein.assembly, None);
+    }
+
+    // Crystal symmetry and assemblies are never needed to show coordinates, so
+    // a record that cannot be read costs the assembly note, not the load.
+    #[test]
+    fn an_unreadable_assembly_record_does_not_stop_the_load() {
+        let cif = format!(
+            "{ATOM_SITE_HEADER}{TWO_CHAINS}\
+loop_
+_pdbx_struct_assembly_gen.assembly_id
+_pdbx_struct_assembly_gen.oper_expression
+_pdbx_struct_assembly_gen.asym_id_list
+1 ? A,B
+#
+"
+        );
+        let protein = load_cif("assembly_unreadable", &cif, AltlocPolicy::Occupancy);
+
+        assert_eq!(protein.atoms.len(), 2);
+        assert_eq!(protein.assembly, None);
+    }
+
+    #[test]
+    fn a_gzipped_file_loads() {
+        use std::io::Write;
+
+        let cif = format!("{ATOM_SITE_HEADER}{TWO_CHAINS}");
+        let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        encoder.write_all(cif.as_bytes()).unwrap();
+        let path = std::env::temp_dir().join("pf_gzipped.cif.gz");
+        std::fs::write(&path, encoder.finish().unwrap()).unwrap();
+
+        let protein = load_protein_with_options(&path, AltlocPolicy::Occupancy).unwrap();
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(protein.atoms.len(), 2);
+    }
+
+    // RCSB serves each biological assembly as `<id>.pdb1`, `<id>.pdb2`, ...
+    #[test]
+    fn a_numbered_pdb_assembly_file_reads_as_pdb() {
+        let pdb =
+            "ATOM      1  CA  GLY A   1       0.000   0.000   0.000  1.00  5.00           C\n";
+        let path = std::env::temp_dir().join("pf_assembly.pdb1");
+        std::fs::write(&path, pdb).unwrap();
+
+        let protein = load_protein_with_options(&path, AltlocPolicy::Occupancy).unwrap();
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(protein.atoms.len(), 1);
+        assert_eq!(protein.atoms[0].name, "CA");
     }
 }

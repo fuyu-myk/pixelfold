@@ -1,124 +1,107 @@
 //! Detects whether a structure file declares a biological assembly that differs
-//! from the deposited asymmetric unit.
+//! from the deposited coordinates.
 //!
-//! pdbtbx does not parse assembly records, so this reads them straight from the
-//! raw file text: mmCIF `_pdbx_struct_assembly` / `_pdbx_struct_assembly_gen`,
-//! or legacy PDB `REMARK 350` `BIOMT` records. It reports only whether the
-//! primary assembly applies symmetry beyond the identity (so the coordinates on
-//! screen are partial); it does not generate the assembly.
+//! An mmCIF file's assemblies are read through `mmcif-model`, operators and
+//! all; a legacy PDB file's come from its `REMARK 350` `BIOMT` records. Either
+//! way this reports only whether the coordinates on screen are a partial view
+//! of the primary assembly; it does not generate the assembly.
 
-use crate::mmcif::{read_loop, read_value};
+use std::collections::{HashMap, HashSet};
+
+use mmcif_cif::Block;
+use mmcif_model::{AssemblyId, OperatorId, Structure, Transform};
+
 use crate::structure::BiologicalAssembly;
 
-/// Detect a biological assembly that requires symmetry expansion beyond the
-/// deposited coordinates. Returns `Some` only when the primary assembly applies
-/// more than one operator; `None` when the deposited coordinates already are the
-/// biological unit, no assembly is declared, or the text cannot be interpreted.
-pub fn detect_partial_assembly(file_text: &str) -> Option<BiologicalAssembly> {
-    let lines: Vec<&str> = file_text.lines().collect();
+/// Matrices are written to a few decimal places; two genuinely different
+/// operators differ by far more than this.
+const TRANSFORM_TOLERANCE: f64 = 1e-3;
 
-    if lines
+/// Detect a primary assembly the deposited coordinates do not already show:
+/// one that places a chain more than once, or places its chains by different
+/// transforms. One transform for every chain, identity or not, moves the whole
+/// unit rigidly and leaves its arrangement as deposited. The primary assembly
+/// is "1", the id RCSB gives the preferred one, or else the first declared.
+/// `None` when the coordinates are the biological unit or no assembly is
+/// declared.
+pub fn detect_mmcif(structure: &Structure, block: &Block<'_>) -> Option<BiologicalAssembly> {
+    let assemblies = structure.assemblies();
+    let primary = assemblies
         .iter()
-        .any(|l| l.trim_start().starts_with("_pdbx_struct_assembly"))
-    {
-        return detect_mmcif(&lines);
+        .find(|assembly| assembly.id().as_str() == "1")
+        .or_else(|| assemblies.first())?;
+
+    let mut placements: HashMap<&str, usize> = HashMap::new();
+    let mut combinations: HashSet<Vec<OperatorId>> = HashSet::new();
+    let mut first: Option<Transform> = None;
+    let mut rearranged = false;
+    for generator in primary.generators() {
+        for combination in generator.operators().combinations() {
+            let transform = compose(structure, &combination);
+            match first {
+                Some(first) => rearranged |= !same(&first, &transform),
+                None => first = Some(transform),
+            }
+            for asym in generator.asym_ids() {
+                *placements.entry(asym.as_str()).or_default() += 1;
+            }
+            combinations.insert(combination);
+        }
     }
 
-    if lines.iter().any(|l| l.starts_with("REMARK 350")) {
-        return detect_pdb(&lines);
-    }
-
-    None
-}
-
-fn detect_mmcif(lines: &[&str]) -> Option<BiologicalAssembly> {
-    let gens = assembly_gen_records(lines);
-    if gens.is_empty() {
+    let copied = placements.values().any(|&count| count > 1);
+    if !copied && !rearranged {
         return None;
     }
 
-    // RCSB numbers the preferred assembly "1"; fall back to the first declared.
-    let primary_id = if gens.iter().any(|(id, _)| id == "1") {
-        "1".to_string()
-    } else {
-        gens[0].0.clone()
-    };
-
-    // Warn when any single generation record expands the coordinates. Summing
-    // across records would misfire on structures whose asymmetric unit already
-    // holds the full complex as several identity-mapped chain groups.
-    let operator_count = gens
-        .iter()
-        .filter(|(id, _)| *id == primary_id)
-        .map(|(_, expr)| count_operators(expr))
-        .max()
-        .unwrap_or(0);
-
-    if operator_count <= 1 {
-        return None;
-    }
-
-    let oligomer = oligomeric_details(lines, &primary_id);
     Some(BiologicalAssembly {
-        operator_count,
-        oligomer,
+        operator_count: combinations.len(),
+        oligomer: oligomeric_details(block, primary.id()),
     })
 }
 
-/// `(assembly_id, oper_expression)` pairs from `_pdbx_struct_assembly_gen`,
-/// handling both the looped and single-record mmCIF layouts.
-fn assembly_gen_records(lines: &[&str]) -> Vec<(String, String)> {
-    const PREFIX: &str = "_pdbx_struct_assembly_gen.";
-
-    if let Some((cols, rows)) = read_loop(lines, PREFIX) {
-        let id = cols.iter().position(|c| c == "assembly_id");
-        let expr = cols.iter().position(|c| c == "oper_expression");
-        if let (Some(id), Some(expr)) = (id, expr) {
-            return rows
-                .iter()
-                .filter_map(|r| Some((r.get(id)?.clone(), r.get(expr)?.clone())))
-                .collect();
-        }
-
-        return Vec::new();
-    }
-
-    let id = read_value(lines, "_pdbx_struct_assembly_gen.assembly_id");
-    let expr = read_value(lines, "_pdbx_struct_assembly_gen.oper_expression");
-    match (id, expr) {
-        (Some(id), Some(expr)) => vec![(id, expr)],
-        _ => Vec::new(),
-    }
+/// The transform a combination applies, its last operator first. An operator
+/// the file does not define is taken as the identity, so a file without
+/// `_pdbx_struct_oper_list` is judged by its copies alone.
+fn compose(structure: &Structure, combination: &[OperatorId]) -> Transform {
+    combination.iter().fold(Transform::IDENTITY, |applied, id| {
+        structure
+            .operator(id.as_str())
+            .map_or(applied, |operator| applied.compose(operator.transform()))
+    })
 }
 
-/// `oligomeric_details` for the given assembly id, from either mmCIF layout.
-fn oligomeric_details(lines: &[&str], assembly_id: &str) -> Option<String> {
-    const PREFIX: &str = "_pdbx_struct_assembly.";
-
-    let value = if let Some((cols, rows)) = read_loop(lines, PREFIX) {
-        let id = cols.iter().position(|c| c == "id")?;
-        let details = cols.iter().position(|c| c == "oligomeric_details")?;
-        rows.iter()
-            .find(|r| r.get(id).map(String::as_str) == Some(assembly_id))
-            .and_then(|r| r.get(details).cloned())
-    } else {
-        match read_value(lines, "_pdbx_struct_assembly.id") {
-            Some(id) if id == assembly_id => {
-                read_value(lines, "_pdbx_struct_assembly.oligomeric_details")
-            }
-            _ => None,
-        }
-    };
-
-    value.filter(|s| !s.is_empty() && s != "?" && s != ".")
+fn same(a: &Transform, b: &Transform) -> bool {
+    let close = |x: f64, y: f64| (x - y).abs() <= TRANSFORM_TOLERANCE;
+    (0..3).all(|i| {
+        close(a.translation[i], b.translation[i])
+            && (0..3).all(|j| close(a.rotation[i][j], b.rotation[i][j]))
+    })
 }
 
-fn detect_pdb(lines: &[&str]) -> Option<BiologicalAssembly> {
+/// `_pdbx_struct_assembly.oligomeric_details` of the given assembly, which the
+/// typed structure does not carry.
+fn oligomeric_details(block: &Block<'_>, assembly: &AssemblyId) -> Option<String> {
+    let category = block.category("pdbx_struct_assembly")?;
+    let ids = category.column("id")?;
+    let details = category.column("oligomeric_details")?;
+
+    (0..category.row_count())
+        .find(|&row| ids.get(row).and_then(|value| value.as_str()) == Some(assembly.as_str()))
+        .and_then(|row| details.get(row)?.as_str())
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+}
+
+/// Detect a biological assembly that needs symmetry expansion from the
+/// `REMARK 350` records of a legacy PDB file. Returns `Some` only when the first
+/// biomolecule applies more than one operator.
+pub fn detect_pdb(file_text: &str) -> Option<BiologicalAssembly> {
     let mut in_biomolecule_1 = false;
     let mut operator_count = 0usize;
     let mut oligomer: Option<String> = None;
 
-    for line in lines {
+    for line in file_text.lines() {
         let Some(rest) = line.strip_prefix("REMARK 350") else {
             continue;
         };
@@ -163,77 +146,39 @@ fn detect_pdb(lines: &[&str]) -> Option<BiologicalAssembly> {
     }
 }
 
-/// Count the distinct transforms an `oper_expression` produces: comma-separated
-/// terms, `a-b` ranges, and the Cartesian product of parenthesised groups.
-fn count_operators(expr: &str) -> usize {
-    let expr = expr.trim();
-
-    let groups: Vec<String> = if expr.contains('(') {
-        let mut groups = Vec::new();
-        let mut depth = 0usize;
-        let mut current = String::new();
-        for c in expr.chars() {
-            match c {
-                '(' => {
-                    depth += 1;
-                    if depth == 1 {
-                        current.clear();
-                    } else {
-                        current.push(c);
-                    }
-                }
-                ')' => {
-                    if depth == 1 {
-                        groups.push(std::mem::take(&mut current));
-                    } else if depth > 1 {
-                        current.push(c);
-                    }
-
-                    depth = depth.saturating_sub(1);
-                }
-                _ if depth >= 1 => current.push(c),
-                _ => {}
-            }
-        }
-
-        groups
-    } else {
-        vec![expr.to_string()]
-    };
-
-    if groups.is_empty() {
-        return 0;
-    }
-
-    groups.iter().map(|g| count_group(g)).product()
-}
-
-fn count_group(group: &str) -> usize {
-    group.split(',').map(count_term).sum()
-}
-
-fn count_term(term: &str) -> usize {
-    let term = term.trim();
-    if term.is_empty() {
-        return 0;
-    }
-
-    if let Some((start, end)) = term.split_once('-')
-        && let (Ok(start), Ok(end)) = (start.trim().parse::<i64>(), end.trim().parse::<i64>())
-        && end >= start
-    {
-        return (end - start + 1) as usize;
-    }
-
-    1
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mmcif_cif::Document;
+
+    const ATOMS: &str = "\
+data_TEST
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.label_seq_id
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+ATOM 1 C CA GLY A 1 0.0 0.0 0.0
+ATOM 2 C CA GLY B 1 5.0 0.0 0.0
+ATOM 3 C CA GLY C 1 10.0 0.0 0.0
+ATOM 4 C CA GLY D 1 15.0 0.0 0.0
+#
+";
+
+    fn detect(records: &str) -> Option<BiologicalAssembly> {
+        let document = Document::parse(format!("{ATOMS}{records}")).unwrap();
+        let block = document.block(0).unwrap();
+        let structure = Structure::from_block(&block).unwrap();
+        detect_mmcif(&structure, &block)
+    }
 
     const MMCIF_DIMER: &str = "\
-data_TEST
 loop_
 _pdbx_struct_assembly.id
 _pdbx_struct_assembly.details
@@ -249,7 +194,6 @@ _pdbx_struct_assembly_gen.asym_id_list
 ";
 
     const MMCIF_MONOMER: &str = "\
-data_TEST
 loop_
 _pdbx_struct_assembly.id
 _pdbx_struct_assembly.details
@@ -265,10 +209,9 @@ _pdbx_struct_assembly_gen.asym_id_list
 ";
 
     // A crystal whose asymmetric unit already holds the full complex: the
-    // assembly applies identity to two chain groups in separate records. The
-    // per-record operator count is one, so this must not warn.
+    // assembly applies identity to two chain groups in separate records, so
+    // this must not warn.
     const MMCIF_TWO_IDENTITY_RECORDS: &str = "\
-data_TEST
 loop_
 _pdbx_struct_assembly_gen.assembly_id
 _pdbx_struct_assembly_gen.oper_expression
@@ -303,8 +246,6 @@ REMARK 350   BIOMT3   1  0.000000  0.000000  1.000000        0.00000
     // values, as every bundled sample file does. The primary assembly expands
     // one chain into a dimer.
     const MMCIF_SINGLE_RECORD_DIMER: &str = "\
-data_TEST
-#
 _pdbx_struct_assembly.id                   1
 _pdbx_struct_assembly.details              author_defined_assembly
 _pdbx_struct_assembly.oligomeric_details   dimeric
@@ -320,8 +261,6 @@ _pdbx_struct_assembly_gen.asym_id_list      A
     // (chains A,B), so the generation operator is the identity and nothing is
     // partial. The oligomeric label must not, by itself, trigger a warning.
     const MMCIF_SINGLE_RECORD_COMPLETE: &str = "\
-data_TEST
-#
 _pdbx_struct_assembly.id                   1
 _pdbx_struct_assembly.details              author_defined_assembly
 _pdbx_struct_assembly.oligomeric_details   dimeric
@@ -333,65 +272,70 @@ _pdbx_struct_assembly_gen.asym_id_list      A,B
 #
 ";
 
-    #[test]
-    fn count_operators_handles_ranges_lists_and_products() {
-        assert_eq!(count_operators("1"), 1);
-        assert_eq!(count_operators("1,2"), 2);
-        assert_eq!(count_operators("1,2,3,4"), 4);
-        assert_eq!(count_operators("1-24"), 24);
-        assert_eq!(count_operators("(1-60)"), 60);
-        assert_eq!(count_operators("(1-60)(P)"), 60);
-        assert_eq!(count_operators("(1,2,3)(4,5)"), 6);
-    }
+    // A capsid: one chain group expanded by sixty operators.
+    const MMCIF_ICOSAHEDRAL: &str = "\
+_pdbx_struct_assembly_gen.assembly_id       1
+_pdbx_struct_assembly_gen.oper_expression   (1-60)
+_pdbx_struct_assembly_gen.asym_id_list      A,B
+#
+";
 
     #[test]
     fn mmcif_multimeric_assembly_warns_with_oligomer() {
-        let assembly = detect_partial_assembly(MMCIF_DIMER).expect("dimer should warn");
+        let assembly = detect(MMCIF_DIMER).expect("dimer should warn");
         assert_eq!(assembly.operator_count, 2);
         assert_eq!(assembly.oligomer.as_deref(), Some("dimeric"));
     }
 
     #[test]
     fn mmcif_monomeric_assembly_does_not_warn() {
-        assert_eq!(detect_partial_assembly(MMCIF_MONOMER), None);
+        assert_eq!(detect(MMCIF_MONOMER), None);
     }
 
     #[test]
     fn mmcif_identity_split_across_records_does_not_warn() {
-        assert_eq!(detect_partial_assembly(MMCIF_TWO_IDENTITY_RECORDS), None);
+        assert_eq!(detect(MMCIF_TWO_IDENTITY_RECORDS), None);
     }
 
     #[test]
     fn mmcif_single_record_multimeric_warns() {
-        let assembly =
-            detect_partial_assembly(MMCIF_SINGLE_RECORD_DIMER).expect("dimer should warn");
+        let assembly = detect(MMCIF_SINGLE_RECORD_DIMER).expect("dimer should warn");
         assert_eq!(assembly.operator_count, 2);
         assert_eq!(assembly.oligomer.as_deref(), Some("dimeric"));
     }
 
     #[test]
     fn mmcif_single_record_complete_asu_does_not_warn() {
-        assert_eq!(detect_partial_assembly(MMCIF_SINGLE_RECORD_COMPLETE), None);
+        assert_eq!(detect(MMCIF_SINGLE_RECORD_COMPLETE), None);
+    }
+
+    #[test]
+    fn mmcif_operator_ranges_count_every_combination() {
+        let assembly = detect(MMCIF_ICOSAHEDRAL).expect("capsid should warn");
+        assert_eq!(assembly.operator_count, 60);
+        assert_eq!(assembly.oligomer, None);
+    }
+
+    #[test]
+    fn no_mmcif_assembly_returns_none() {
+        assert_eq!(detect(""), None);
     }
 
     #[test]
     fn pdb_dimer_warns_with_author_unit() {
-        let assembly = detect_partial_assembly(PDB_DIMER).expect("dimer should warn");
+        let assembly = detect_pdb(PDB_DIMER).expect("dimer should warn");
         assert_eq!(assembly.operator_count, 2);
         assert_eq!(assembly.oligomer.as_deref(), Some("DIMERIC"));
     }
 
     #[test]
     fn pdb_monomer_does_not_warn() {
-        assert_eq!(detect_partial_assembly(PDB_MONOMER), None);
+        assert_eq!(detect_pdb(PDB_MONOMER), None);
     }
 
     #[test]
-    fn no_assembly_records_returns_none() {
-        assert_eq!(
-            detect_partial_assembly("ATOM      1  N   ALA A   1\n"),
-            None
-        );
-        assert_eq!(detect_partial_assembly(""), None);
+    fn no_pdb_assembly_records_returns_none() {
+        assert_eq!(detect_pdb("ATOM      1  N   ALA A   1\n"), None);
+        assert_eq!(detect_pdb(""), None);
     }
 }

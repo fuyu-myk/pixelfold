@@ -220,7 +220,7 @@ fn bonded_names(protein: &Protein, residue_name: &str, name: &str) -> Vec<String
         .unwrap_or_default()
 }
 
-type ResidueKey = (crate::fixed_str::FixedStr<4>, u32, Option<char>);
+type ResidueKey = (crate::fixed_str::FixedStr<4>, i32, Option<char>);
 
 fn residue_key(atom: &Atom) -> ResidueKey {
     (atom.chain_id, atom.residue_seq, atom.insertion_code)
@@ -233,7 +233,7 @@ mod tests {
     use crate::structure::SecondaryStructure;
     use glam::Vec3;
 
-    fn atom(residue: &str, seq: u32, name: &str, element: &str, position: Vec3) -> Atom {
+    fn atom(residue: &str, seq: i32, name: &str, element: &str, position: Vec3) -> Atom {
         Atom {
             serial: 0,
             name: FixedStr::new(name),

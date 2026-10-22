@@ -90,7 +90,7 @@ pub fn detect(protein: &Protein) -> Vec<Interaction> {
 /// An atom's residue-and-name identity, ignoring its alternate-location label.
 type AtomIdentity = (
     crate::fixed_str::FixedStr<4>,
-    u32,
+    i32,
     Option<char>,
     crate::fixed_str::FixedStr<4>,
 );
@@ -141,7 +141,7 @@ mod tests {
     use crate::structure::{Atom, SecondaryStructure};
     use glam::Vec3;
 
-    fn atom(seq: u32, name: &str, altloc: Option<char>) -> Atom {
+    fn atom(seq: i32, name: &str, altloc: Option<char>) -> Atom {
         Atom {
             serial: 0,
             name: FixedStr::new(name),

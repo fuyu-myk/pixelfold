@@ -226,7 +226,7 @@ struct JsonNetwork<'a> {
 struct JsonNode<'a> {
     id: &'a str,
     chain: &'a str,
-    resi: u32,
+    resi: i32,
     icode: Option<char>,
     resn: &'a str,
     ss: char,

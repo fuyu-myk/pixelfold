@@ -140,7 +140,7 @@ mod tests {
     use crate::structure::{Atom, Protein, SecondaryStructure};
     use glam::Vec3;
 
-    fn atom(chain: &str, seq: u32, name: &str) -> Atom {
+    fn atom(chain: &str, seq: i32, name: &str) -> Atom {
         Atom {
             serial: 0,
             name: FixedStr::new(name),
@@ -170,7 +170,7 @@ mod tests {
     }
 
     /// A chain of residues each hydrogen-bonded to the next.
-    fn chain_network(len: u32) -> Network {
+    fn chain_network(len: i32) -> Network {
         let atoms: Vec<Atom> = (0..len).map(|i| atom("A", i + 1, "N")).collect();
         let interactions: Vec<Interaction> = (0..len - 1)
             .map(|i| Interaction {

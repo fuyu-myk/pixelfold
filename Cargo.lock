@@ -1532,9 +1532,18 @@ dependencies = [
 
 [[package]]
 name = "memchr"
-version = "2.7.6"
+version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f52b00d39961fc5b2736ea853c9cc86238e165017a493d1d5c8eac6bdc4cc273"
+checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
+
+[[package]]
+name = "memmap2"
+version = "0.9.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b0ca1155a9ecc25aa12e8313a119f32edf0255fea2f44839c4ac0a12b2ac157"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "mimalloc"
@@ -1577,6 +1586,27 @@ dependencies = [
  "log",
  "wasi",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "mmcif-cif"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5b9db6932260f666a529617bee0a1f43656e332cc94120726f417c2a065b344b"
+dependencies = [
+ "memchr",
+ "memmap2",
+ "thiserror 2.0.17",
+]
+
+[[package]]
+name = "mmcif-model"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1ed9d8f39d1975f387e935cf312bb9c7f03314a90e093df790ee15fdc7b8378"
+dependencies = [
+ "mmcif-cif",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -1849,10 +1879,12 @@ version = "1.0.0"
 dependencies = [
  "anyhow",
  "fixedbitset",
+ "flate2",
  "glam",
+ "mmcif-cif",
+ "mmcif-model",
  "nalgebra",
  "nom 7.1.3",
- "pdbtbx",
  "petgraph",
  "rust-sasa",
 ]

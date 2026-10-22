@@ -29,12 +29,12 @@ fn rounded(value: f32, places: u32) -> f32 {
 pub struct InteractionRecord {
     pub kind: String,
     pub chain_a: String,
-    pub resi_a: u32,
+    pub resi_a: i32,
     pub icode_a: Option<char>,
     pub resn_a: String,
     pub atoms_a: String,
     pub chain_b: String,
-    pub resi_b: u32,
+    pub resi_b: i32,
     pub icode_b: Option<char>,
     pub resn_b: String,
     pub atoms_b: String,
@@ -159,7 +159,7 @@ fn record(protein: &Protein, interaction: &Interaction) -> InteractionRecord {
 #[derive(Serialize)]
 pub struct SecondaryRecord {
     pub chain: String,
-    pub resi: u32,
+    pub resi: i32,
     pub icode: Option<char>,
     pub resn: String,
     pub ss: char,
@@ -208,7 +208,7 @@ pub fn secondary(protein: &Protein, chosen: &AtomSet) -> Vec<SecondaryRecord> {
 #[derive(Serialize)]
 pub struct SasaRecord {
     pub chain: String,
-    pub resi: u32,
+    pub resi: i32,
     pub icode: Option<char>,
     pub resn: String,
     pub sasa: f32,

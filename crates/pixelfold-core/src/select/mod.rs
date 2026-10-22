@@ -96,12 +96,12 @@ impl Cmp {
 /// An inclusive residue-number range; a single number has equal ends.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ResiRange {
-    pub lo: u32,
-    pub hi: u32,
+    pub lo: i32,
+    pub hi: i32,
 }
 
 impl ResiRange {
-    fn contains(self, seq: u32) -> bool {
+    fn contains(self, seq: i32) -> bool {
         self.lo <= seq && seq <= self.hi
     }
 }

@@ -151,7 +151,7 @@ fn reduce(ss: SecondaryStructure) -> Ss3 {
 fn residue_key(atom: &Atom) -> ResidueKey {
     ResidueKey {
         chain: atom.chain_id.as_str().to_string(),
-        seq: atom.residue_seq as i64,
+        seq: i64::from(atom.residue_seq),
         icode: atom.insertion_code.map(|c| c.to_string()),
     }
 }
@@ -162,7 +162,7 @@ mod tests {
     use glam::Vec3;
     use pixelfold_core::{FixedStr, Protein, SecondaryStructure};
 
-    fn atom(element: &str, is_hetatm: bool, residue_name: &str, seq: u32, pos: Vec3) -> Atom {
+    fn atom(element: &str, is_hetatm: bool, residue_name: &str, seq: i32, pos: Vec3) -> Atom {
         Atom {
             serial: 0,
             name: FixedStr::new(element),

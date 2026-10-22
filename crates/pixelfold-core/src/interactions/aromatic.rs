@@ -40,7 +40,7 @@ use super::topology;
 /// Ring sizes a pi interaction is defined for, following PLIP.
 const RING_SIZES: std::ops::RangeInclusive<usize> = 5..=6;
 
-type ResidueKey = (FixedStr<4>, u32, Option<char>);
+type ResidueKey = (FixedStr<4>, i32, Option<char>);
 
 fn residue_key(atom: &Atom) -> ResidueKey {
     (atom.chain_id, atom.residue_seq, atom.insertion_code)
@@ -238,7 +238,7 @@ mod tests {
     use super::*;
     use crate::structure::SecondaryStructure;
 
-    fn atom(residue: &str, seq: u32, name: &str, position: Vec3) -> Atom {
+    fn atom(residue: &str, seq: i32, name: &str, position: Vec3) -> Atom {
         Atom {
             serial: 0,
             name: FixedStr::new(name),
@@ -268,7 +268,7 @@ mod tests {
     }
 
     /// A flat regular hexagon in the z = h plane, named as a phenylalanine ring.
-    fn phenylalanine(seq: u32, height: f32) -> Vec<Atom> {
+    fn phenylalanine(seq: i32, height: f32) -> Vec<Atom> {
         let names = ["CG", "CD1", "CE1", "CZ", "CE2", "CD2"];
         (0..6)
             .map(|k| {
@@ -326,7 +326,8 @@ mod tests {
     fn cycle_definition(count: usize, aromatic: bool) -> String {
         let flag = if aromatic { "Y" } else { "N" };
         let mut text = String::from(
-            "loop_\n\
+            "data_TEST\n\
+             loop_\n\
              _chem_comp_atom.comp_id\n\
              _chem_comp_atom.atom_id\n\
              _chem_comp_atom.type_symbol\n\
@@ -405,6 +406,7 @@ mod tests {
     #[test]
     fn a_fused_ligand_ring_system_yields_each_ring_separately() {
         const INDOLE: &str = "\
+data_TEST
 loop_
 _chem_comp_atom.comp_id
 _chem_comp_atom.atom_id
