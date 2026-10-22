@@ -93,17 +93,12 @@ fn draw_overlays(app: &App, protein: &Protein, camera: &Camera, fb: &mut Framebu
                 let (r, g, b) = bfactor_to_color(avg, b_min, b_max);
                 [r, g, b]
             } else {
-                match app.residue_colors.get(&protein.atoms[i].residue_seq) {
-                    Some(ss) => {
-                        let (r, g, b) = ss.color_rgb();
-                        [
-                            (r as f32 * CONNECTION_DIM) as u8,
-                            (g as f32 * CONNECTION_DIM) as u8,
-                            (b as f32 * CONNECTION_DIM) as u8,
-                        ]
-                    }
-                    None => [128, 128, 128],
-                }
+                let (r, g, b) = protein.atoms[i].secondary_structure.color_rgb();
+                [
+                    (r as f32 * CONNECTION_DIM) as u8,
+                    (g as f32 * CONNECTION_DIM) as u8,
+                    (b as f32 * CONNECTION_DIM) as u8,
+                ]
             };
             draw_segment(
                 fb,
@@ -186,6 +181,43 @@ mod tests {
         app.compute_static_geometry();
         app.show_depth_cue = false;
         app
+    }
+
+    // Both chains number their residues 1 and 2, so only the chain tells the
+    // two connections apart.
+    #[test]
+    fn a_backbone_connection_takes_its_own_chains_secondary_structure() {
+        let ca = |chain: &str, seq: i32, x: f32, y: f32, ss: SecondaryStructure| Atom {
+            chain_id: FixedStr::new(chain),
+            residue_seq: seq,
+            secondary_structure: ss,
+            ..atom("CA", "C", Vec3::new(x, y, 0.0))
+        };
+        let p = protein(vec![
+            ca("A", 1, 0.0, 0.0, SecondaryStructure::Helix),
+            ca("A", 2, 3.8, 0.0, SecondaryStructure::Helix),
+            ca("B", 1, 0.0, 20.0, SecondaryStructure::Sheet),
+            ca("B", 2, 3.8, 20.0, SecondaryStructure::Sheet),
+        ]);
+        let mut app = framed_app(p, 128, 128);
+        app.display_mode = DisplayMode::Backbone;
+
+        let fb = render_scene(&app, 128, 128);
+
+        let dimmed = |ss: SecondaryStructure| {
+            let (r, g, b) = ss.color_rgb();
+            [r, g, b].map(|c| (c as f32 * CONNECTION_DIM) as u8)
+        };
+        let line_colours: std::collections::HashSet<[u8; 3]> = (0..fb.height())
+            .flat_map(|y| (0..fb.width()).map(move |x| (x, y)))
+            .filter(|&(x, y)| fb.id_at(x, y) == NO_ID)
+            .map(|(x, y)| {
+                let [r, g, b, _] = fb.pixel(x, y);
+                [r, g, b]
+            })
+            .collect();
+        assert!(line_colours.contains(&dimmed(SecondaryStructure::Helix)));
+        assert!(line_colours.contains(&dimmed(SecondaryStructure::Sheet)));
     }
 
     #[test]

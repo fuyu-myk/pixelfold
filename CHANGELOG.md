@@ -18,8 +18,19 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   assembly or entity records cannot be read loads its coordinates with a
   warning instead of failing.
 
+### Removed
+
+- `App::residue_colors` in `pixelfold-tui`. It mapped a residue number to a
+  secondary structure with no chain, and every atom already carries its own
+  residue's secondary structure.
+
 ### Fixed
 
+- **Backbone connections took another chain's colour.** In backbone mode a
+  connection was coloured by the first residue anywhere in the structure with
+  the same number, so in a multi-chain structure chain B's residue 10 showed
+  chain A's residue 10 secondary structure. Each connection now takes its own
+  residue's.
 - **The default altloc policy kept the minor conformer** wherever a side chain
   was split and the backbone was not. pdbtbx copied the shared atoms into every
   conformer at a fraction of their occupancy, so the backbone vote always tied

@@ -1,10 +1,8 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use pixelfold_core::{
-    AltlocPolicy, DisplayMode, Protein, SecondaryStructure, get_calpha_connections,
-};
+use pixelfold_core::{AltlocPolicy, DisplayMode, Protein, get_calpha_connections};
 use pixelfold_render::Framebuffer;
 use pixelfold_render::renderer::{self, Camera};
 use ratatui::layout::Rect;
@@ -34,7 +32,6 @@ pub struct App {
     pub redraw_needed: bool,
     pub ca_indices: Vec<usize>,
     pub backbone_connections: Vec<(usize, usize)>,
-    pub residue_colors: HashMap<i32, SecondaryStructure>,
     pub inspect_mode: bool,
     pub residue_highlight: bool,
     pub selected_atom_idx: Option<usize>,
@@ -75,7 +72,6 @@ impl App {
             redraw_needed: true,
             ca_indices: Vec::new(),
             backbone_connections: Vec::new(),
-            residue_colors: HashMap::new(),
             inspect_mode: false,
             residue_highlight: false,
             selected_atom_idx: None,
@@ -127,13 +123,6 @@ impl App {
                 .collect();
 
             self.backbone_connections = get_calpha_connections(protein, &self.ca_indices);
-
-            self.residue_colors.clear();
-            for atom in &protein.atoms {
-                self.residue_colors
-                    .entry(atom.residue_seq)
-                    .or_insert(atom.secondary_structure);
-            }
         }
     }
 }
