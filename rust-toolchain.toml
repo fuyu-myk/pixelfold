@@ -1,5 +1,8 @@
-# Everyone (and CI, which uses dtolnay/rust-toolchain@stable) builds, formats,
-# and lints with the same toolchain, so output cannot diverge by version.
+# Pinned, not `stable`: a floating channel resolves to whatever each machine
+# last installed, so a local toolchain can lag CI's and new lints first appear
+# in CI. Everyone (and CI) builds, formats, and lints with this one version;
+# bump it deliberately, together with the `dtolnay/rust-toolchain` refs in
+# .github/workflows/ci.yml.
 [toolchain]
-channel = "stable"
+channel = "1.99.1"
 components = ["rustfmt", "clippy"]

@@ -10,6 +10,7 @@ Pixelfold loads `PIXELFOLD.md` from the workspace root as agent memory (similar 
 
 - Run/build: `cargo build --release`, and `cargo run --release`
 - Rust checks: `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace --all-targets`.
+- Toolchain: pinned to one exact release in `rust-toolchain.toml`, which CI installs too. Bump it deliberately, together with the `dtolnay/rust-toolchain` refs in `.github/workflows/ci.yml`, and fix whatever new lints the bump brings in the same change.
 
 ## Quality bar
 
