@@ -4,10 +4,13 @@ use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::visit::EdgeRef;
 use std::collections::HashMap;
 
+type ResidueKey = (FixedStr<4>, i32, Option<char>);
+
 /// Residue node in the H-bond network graph
 #[derive(Clone, Debug)]
 pub struct ResidueNode {
     pub residue_seq: i32,
+    pub insertion_code: Option<char>,
     pub chain_id: FixedStr<4>,
     pub residue_name: FixedStr<6>,
     pub secondary_structure: SecondaryStructure,
@@ -32,7 +35,7 @@ pub enum BondType {
 /// H-bond network graph with analysis capabilities
 pub struct HBondGraph {
     pub graph: DiGraph<ResidueNode, HBondEdge>,
-    residue_to_node: HashMap<(FixedStr<4>, i32), NodeIndex>, // (chain_id, residue_seq) -> NodeIndex
+    residue_to_node: HashMap<ResidueKey, NodeIndex>,
 }
 
 impl HBondGraph {
@@ -42,27 +45,29 @@ impl HBondGraph {
         let mut residue_to_node = HashMap::new();
 
         // Group atoms by residue
-        let mut residues: HashMap<(FixedStr<4>, i32), Vec<usize>> = HashMap::new();
+        let mut residues: HashMap<ResidueKey, Vec<usize>> = HashMap::new();
         for (idx, atom) in protein.atoms.iter().enumerate() {
             residues
-                .entry((atom.chain_id, atom.residue_seq))
+                .entry((atom.chain_id, atom.residue_seq, atom.insertion_code))
                 .or_default()
                 .push(idx);
         }
 
         // Create nodes for each residue
-        for ((chain_id, residue_seq), atom_indices) in residues.iter() {
+        for (&key, atom_indices) in residues.iter() {
+            let (chain_id, residue_seq, insertion_code) = key;
             let first_atom = &protein.atoms[atom_indices[0]];
             let node = ResidueNode {
-                residue_seq: *residue_seq,
-                chain_id: *chain_id,
+                residue_seq,
+                insertion_code,
+                chain_id,
                 residue_name: first_atom.residue_name,
                 secondary_structure: first_atom.secondary_structure,
                 atom_indices: atom_indices.clone(),
             };
 
             let node_idx = graph.add_node(node);
-            residue_to_node.insert((*chain_id, *residue_seq), node_idx);
+            residue_to_node.insert(key, node_idx);
         }
 
         // Add edges for H-bonds
@@ -70,8 +75,16 @@ impl HBondGraph {
             let donor_atom = &protein.atoms[hbond.donor_atom_idx];
             let acceptor_atom = &protein.atoms[hbond.acceptor_atom_idx];
 
-            let donor_key = (donor_atom.chain_id, donor_atom.residue_seq);
-            let acceptor_key = (acceptor_atom.chain_id, acceptor_atom.residue_seq);
+            let donor_key = (
+                donor_atom.chain_id,
+                donor_atom.residue_seq,
+                donor_atom.insertion_code,
+            );
+            let acceptor_key = (
+                acceptor_atom.chain_id,
+                acceptor_atom.residue_seq,
+                acceptor_atom.insertion_code,
+            );
 
             if let (Some(&donor_node), Some(&acceptor_node)) = (
                 residue_to_node.get(&donor_key),
@@ -111,7 +124,10 @@ impl HBondGraph {
             let node = &self.graph[node_idx];
             let new_idx = new_graph.add_node(node.clone());
             old_to_new.insert(node_idx, new_idx);
-            new_residue_to_node.insert((node.chain_id, node.residue_seq), new_idx);
+            new_residue_to_node.insert(
+                (node.chain_id, node.residue_seq, node.insertion_code),
+                new_idx,
+            );
         }
 
         // Copy edges that pass the threshold
@@ -130,9 +146,14 @@ impl HBondGraph {
     }
 
     /// Get node index for a residue
-    pub fn get_node(&self, chain_id: &str, residue_seq: i32) -> Option<NodeIndex> {
+    pub fn get_node(
+        &self,
+        chain_id: &str,
+        residue_seq: i32,
+        insertion_code: Option<char>,
+    ) -> Option<NodeIndex> {
         self.residue_to_node
-            .get(&(FixedStr::new(chain_id), residue_seq))
+            .get(&(FixedStr::new(chain_id), residue_seq, insertion_code))
             .copied()
     }
 }
@@ -278,5 +299,56 @@ impl HBondGraph {
             connected_components: self.find_connected_components(),
             motifs: self.detect_hbond_motifs(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::structure::Atom;
+    use glam::Vec3;
+
+    fn calpha(seq: i32, insertion_code: Option<char>, x: f32) -> Atom {
+        Atom {
+            serial: 0,
+            name: FixedStr::new("CA"),
+            element: FixedStr::new("C"),
+            residue_name: FixedStr::new("ALA"),
+            residue_seq: seq,
+            chain_id: FixedStr::new("L"),
+            is_hetatm: false,
+            altloc: None,
+            occupancy: 1.0,
+            insertion_code,
+            model_number: 1,
+            position: Vec3::new(x, 0.0, 0.0),
+            b_factor: 0.0,
+            secondary_structure: SecondaryStructure::Coil,
+        }
+    }
+
+    // Chymotrypsin numbering: thrombin's light chain runs 1B, 1A, 1, so one
+    // residue number names three residues.
+    #[test]
+    fn residues_differing_only_by_insertion_code_are_separate_nodes() {
+        let protein = Protein {
+            atoms: vec![
+                calpha(1, Some('B'), 0.0),
+                calpha(1, Some('A'), 3.8),
+                calpha(1, None, 7.6),
+            ],
+            title: String::new(),
+            hbonds: Vec::new(),
+            assembly: None,
+            components: Default::default(),
+        };
+
+        let graph = HBondGraph::build(&protein);
+
+        assert_eq!(graph.graph.node_count(), 3);
+        let one_a = graph.get_node("L", 1, Some('A')).unwrap();
+        let one = graph.get_node("L", 1, None).unwrap();
+        assert_ne!(one_a, one);
+        assert_eq!(graph.graph[one_a].insertion_code, Some('A'));
     }
 }

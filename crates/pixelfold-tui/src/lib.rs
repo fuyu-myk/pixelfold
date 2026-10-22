@@ -215,7 +215,8 @@ where
 }
 
 /// Recompute the highlighted set as every atom in the selected atom's residue
-/// (same chain and residue number). Cleared when nothing is selected.
+/// (same chain, residue number, and insertion code). Cleared when nothing is
+/// selected.
 pub fn update_highlighted_atoms(app: &mut App) {
     app.highlighted_atom_indices.clear();
 
@@ -226,9 +227,13 @@ pub fn update_highlighted_atoms(app: &mut App) {
     let selected_atom = &protein.atoms[selected];
     let chain = selected_atom.chain_id;
     let residue_seq = selected_atom.residue_seq;
+    let insertion_code = selected_atom.insertion_code;
 
     for (idx, atom) in protein.atoms.iter().enumerate() {
-        if atom.chain_id == chain && atom.residue_seq == residue_seq {
+        if atom.chain_id == chain
+            && atom.residue_seq == residue_seq
+            && atom.insertion_code == insertion_code
+        {
             app.highlighted_atom_indices.insert(idx);
         }
     }
@@ -259,5 +264,53 @@ pub fn pick_at(app: &App, column: u16, row: u16) -> Option<usize> {
     match frame.fb.id_at(px, py) {
         pixelfold_render::NO_ID => None,
         id => Some(id as usize),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use glam::Vec3;
+    use pixelfold_core::{Atom, FixedStr, SecondaryStructure};
+
+    fn atom(name: &str, insertion_code: Option<char>) -> Atom {
+        Atom {
+            serial: 0,
+            name: FixedStr::new(name),
+            element: FixedStr::new("C"),
+            residue_name: FixedStr::new("ALA"),
+            residue_seq: 1,
+            chain_id: FixedStr::new("L"),
+            is_hetatm: false,
+            altloc: None,
+            occupancy: 1.0,
+            insertion_code,
+            model_number: 1,
+            position: Vec3::ZERO,
+            b_factor: 0.0,
+            secondary_structure: SecondaryStructure::Coil,
+        }
+    }
+
+    #[test]
+    fn highlighting_a_residue_leaves_its_insertion_code_neighbours_alone() {
+        let mut app = App::new();
+        app.protein = Some(Protein {
+            atoms: vec![
+                atom("N", Some('A')),
+                atom("CA", Some('A')),
+                atom("N", None),
+                atom("CA", None),
+            ],
+            title: String::new(),
+            hbonds: Vec::new(),
+            assembly: None,
+            components: Default::default(),
+        });
+        app.selected_atom_idx = Some(1);
+
+        update_highlighted_atoms(&mut app);
+
+        assert_eq!(app.highlighted_atom_indices, HashSet::from([0, 1]));
     }
 }

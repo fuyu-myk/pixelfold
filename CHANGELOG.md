@@ -31,6 +31,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the same number, so in a multi-chain structure chain B's residue 10 showed
   chain A's residue 10 secondary structure. Each connection now takes its own
   residue's.
+- **Residues differing only by insertion code were merged** in two places.
+  Selecting an atom highlighted every residue with its chain and number, so
+  clicking thrombin's `1A` lit up `1C`, `1B`, `1A` and `1` together; and
+  `HBondGraph` made one node of them all, pooling their atoms and hydrogen
+  bonds. Both now key a residue by chain, number and insertion code;
+  `ResidueNode` carries `insertion_code` and `HBondGraph::get_node` takes it.
 - **The default altloc policy kept the minor conformer** wherever a side chain
   was split and the backbone was not. pdbtbx copied the shared atoms into every
   conformer at a fraction of their occupancy, so the backbone vote always tied
