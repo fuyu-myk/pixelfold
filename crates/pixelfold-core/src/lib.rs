@@ -6,7 +6,6 @@ pub mod components;
 pub mod dssp;
 pub mod fixed_str;
 pub mod interactions;
-mod mmcif;
 pub mod parser;
 pub mod rin;
 pub mod sasa;

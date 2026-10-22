@@ -34,7 +34,7 @@ pub struct App {
     pub redraw_needed: bool,
     pub ca_indices: Vec<usize>,
     pub backbone_connections: Vec<(usize, usize)>,
-    pub residue_colors: HashMap<u32, SecondaryStructure>,
+    pub residue_colors: HashMap<i32, SecondaryStructure>,
     pub inspect_mode: bool,
     pub residue_highlight: bool,
     pub selected_atom_idx: Option<usize>,

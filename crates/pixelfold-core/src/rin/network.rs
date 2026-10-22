@@ -16,7 +16,7 @@ use crate::fixed_str::FixedStr;
 use crate::interactions::{Interaction, InteractionKind};
 use crate::structure::{Atom, Protein};
 
-type ResidueKey = (FixedStr<4>, u32, Option<char>);
+type ResidueKey = (FixedStr<4>, i32, Option<char>);
 
 fn residue_key(atom: &Atom) -> ResidueKey {
     (atom.chain_id, atom.residue_seq, atom.insertion_code)
@@ -36,7 +36,7 @@ fn node_id(atom: &Atom) -> String {
 pub struct Node {
     pub id: String,
     pub chain: String,
-    pub resi: u32,
+    pub resi: i32,
     pub icode: Option<char>,
     pub resn: String,
     /// The DSSP-style secondary-structure letter.
@@ -190,7 +190,7 @@ mod tests {
     use crate::structure::SecondaryStructure;
     use glam::Vec3;
 
-    fn atom(chain: &str, seq: u32, name: &str, residue: &str) -> Atom {
+    fn atom(chain: &str, seq: i32, name: &str, residue: &str) -> Atom {
         Atom {
             serial: 0,
             name: FixedStr::new(name),

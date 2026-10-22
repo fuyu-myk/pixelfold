@@ -44,7 +44,7 @@ pub struct HBond {
 /// One residue's backbone geometry, in chain then sequence order.
 struct Residue {
     chain_id: FixedStr<4>,
-    residue_seq: u32,
+    residue_seq: i32,
     insertion_code: Option<char>,
     is_proline: bool,
     n: Option<Vec3>,
@@ -64,7 +64,7 @@ pub fn assign(atoms: &mut [Atom]) -> Vec<HBond> {
     let hbonds = compute_hbonds(&residues);
     let ss = assign_from_hbonds(&hbonds, &residues);
 
-    let mut ss_by_key: HashMap<(FixedStr<4>, u32, Option<char>), SecondaryStructure> =
+    let mut ss_by_key: HashMap<(FixedStr<4>, i32, Option<char>), SecondaryStructure> =
         HashMap::new();
     for (res, &s) in residues.iter().zip(ss.iter()) {
         ss_by_key.insert((res.chain_id, res.residue_seq, res.insertion_code), s);
@@ -83,7 +83,7 @@ pub fn assign(atoms: &mut [Atom]) -> Vec<HBond> {
 /// (chain, sequence, insertion code) key changes.
 fn build_residues(atoms: &[Atom]) -> Vec<Residue> {
     let mut residues: Vec<Residue> = Vec::new();
-    let mut current: Option<(FixedStr<4>, u32, Option<char>)> = None;
+    let mut current: Option<(FixedStr<4>, i32, Option<char>)> = None;
 
     for (idx, atom) in atoms.iter().enumerate() {
         let key = (atom.chain_id, atom.residue_seq, atom.insertion_code);
@@ -344,7 +344,7 @@ fn assign_from_hbonds(hbonds: &[HBond], residues: &[Residue]) -> Vec<SecondarySt
 mod tests {
     use super::*;
 
-    fn residue(chain: &str, seq: u32, proline: bool) -> Residue {
+    fn residue(chain: &str, seq: i32, proline: bool) -> Residue {
         Residue {
             chain_id: FixedStr::new(chain),
             residue_seq: seq,
@@ -361,7 +361,7 @@ mod tests {
 
     /// `n` residues, all in chain A, for pattern tests driven by synthetic bonds.
     fn chain_a(n: usize) -> Vec<Residue> {
-        (0..n).map(|i| residue("A", i as u32 + 1, false)).collect()
+        (0..n).map(|i| residue("A", i as i32 + 1, false)).collect()
     }
 
     /// A hydrogen bond whose C=O side is `acceptor` and N-H side is `donor`.
@@ -545,7 +545,7 @@ mod tests {
         assert_eq!(residues[1].chain_id.as_str(), "B");
     }
 
-    fn atom(chain: &str, seq: u32, name: &str) -> Atom {
+    fn atom(chain: &str, seq: i32, name: &str) -> Atom {
         Atom {
             serial: 0,
             name: FixedStr::new(name),

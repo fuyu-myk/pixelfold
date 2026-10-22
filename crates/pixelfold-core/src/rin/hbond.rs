@@ -7,7 +7,7 @@ use std::collections::HashMap;
 /// Residue node in the H-bond network graph
 #[derive(Clone, Debug)]
 pub struct ResidueNode {
-    pub residue_seq: u32,
+    pub residue_seq: i32,
     pub chain_id: FixedStr<4>,
     pub residue_name: FixedStr<6>,
     pub secondary_structure: SecondaryStructure,
@@ -32,7 +32,7 @@ pub enum BondType {
 /// H-bond network graph with analysis capabilities
 pub struct HBondGraph {
     pub graph: DiGraph<ResidueNode, HBondEdge>,
-    residue_to_node: HashMap<(FixedStr<4>, u32), NodeIndex>, // (chain_id, residue_seq) -> NodeIndex
+    residue_to_node: HashMap<(FixedStr<4>, i32), NodeIndex>, // (chain_id, residue_seq) -> NodeIndex
 }
 
 impl HBondGraph {
@@ -42,7 +42,7 @@ impl HBondGraph {
         let mut residue_to_node = HashMap::new();
 
         // Group atoms by residue
-        let mut residues: HashMap<(FixedStr<4>, u32), Vec<usize>> = HashMap::new();
+        let mut residues: HashMap<(FixedStr<4>, i32), Vec<usize>> = HashMap::new();
         for (idx, atom) in protein.atoms.iter().enumerate() {
             residues
                 .entry((atom.chain_id, atom.residue_seq))
@@ -130,7 +130,7 @@ impl HBondGraph {
     }
 
     /// Get node index for a residue
-    pub fn get_node(&self, chain_id: &str, residue_seq: u32) -> Option<NodeIndex> {
+    pub fn get_node(&self, chain_id: &str, residue_seq: i32) -> Option<NodeIndex> {
         self.residue_to_node
             .get(&(FixedStr::new(chain_id), residue_seq))
             .copied()
@@ -217,7 +217,7 @@ impl HBondGraph {
             let target = &self.graph[edge.target()];
 
             if source.chain_id == target.chain_id {
-                let offset = (target.residue_seq as i32 - source.residue_seq as i32).abs();
+                let offset = target.residue_seq.abs_diff(source.residue_seq);
 
                 if offset == 4 {
                     let mut ladder = vec![edge.source(), edge.target()];
@@ -227,9 +227,9 @@ impl HBondGraph {
                     while let Some(next_edge) = self.graph.edges(current).find(|e| {
                         let next_target = &self.graph[e.target()];
                         next_target.chain_id == source.chain_id
-                            && (next_target.residue_seq as i32
-                                - self.graph[current].residue_seq as i32)
-                                .abs()
+                            && next_target
+                                .residue_seq
+                                .abs_diff(self.graph[current].residue_seq)
                                 == 4
                     }) {
                         ladder.push(next_edge.target());

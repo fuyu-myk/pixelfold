@@ -24,7 +24,7 @@ use super::params::{
 };
 use super::{Interaction, InteractionKind, aromatic, connectivity, hydrogens};
 
-type ResidueKey = (FixedStr<4>, u32, Option<char>);
+type ResidueKey = (FixedStr<4>, i32, Option<char>);
 
 fn residue_key(atom: &Atom) -> ResidueKey {
     (atom.chain_id, atom.residue_seq, atom.insertion_code)
@@ -797,7 +797,7 @@ mod tests {
     use super::*;
     use crate::structure::SecondaryStructure;
 
-    fn atom(residue: &str, seq: u32, name: &str, element: &str, position: Vec3) -> Atom {
+    fn atom(residue: &str, seq: i32, name: &str, element: &str, position: Vec3) -> Atom {
         Atom {
             serial: 0,
             name: FixedStr::new(name),
@@ -941,6 +941,7 @@ mod tests {
     /// it, so a ligand anion salt-bridges a protein cation as a residue would.
     fn ligand_carboxylate(atoms: Vec<Atom>) -> Protein {
         const LIG: &str = "\
+data_TEST
 loop_
 _chem_comp_atom.comp_id
 _chem_comp_atom.atom_id
@@ -990,6 +991,7 @@ LIG C1 C2  sing
     #[test]
     fn a_polymerised_residues_backbone_is_not_charged() {
         const MODIFIED: &str = "\
+data_TEST
 loop_
 _chem_comp_atom.comp_id
 _chem_comp_atom.atom_id
@@ -1036,6 +1038,7 @@ MLE C  OXT sing
     #[test]
     fn a_components_own_groups_do_not_bridge_each_other() {
         const ZWITTERION: &str = "\
+data_TEST
 loop_
 _chem_comp_atom.comp_id
 _chem_comp_atom.atom_id
@@ -1206,7 +1209,7 @@ LIG C2 O2  sing
     /// nitrogen and C reaches the oxygen. It exists so the side-chain carbons
     /// have something to be bonded to, since a carbon with no bonds is not
     /// apolar.
-    fn backbone(residue: &str, seq: u32) -> Vec<Atom> {
+    fn backbone(residue: &str, seq: i32) -> Vec<Atom> {
         let away = Vec3::new(0.0, -40.0, 0.0);
         vec![
             atom(residue, seq, "N", "N", away),
@@ -1217,14 +1220,14 @@ LIG C2 O2  sing
     }
 
     /// An alanine whose only apolar carbon, CB, sits where asked.
-    fn alanine(seq: u32, cb: Vec3) -> Vec<Atom> {
+    fn alanine(seq: i32, cb: Vec3) -> Vec<Atom> {
         let mut atoms = backbone("ALA", seq);
         atoms.push(atom("ALA", seq, "CB", "C", cb));
         atoms
     }
 
     /// A leucine whose four apolar carbons sit where asked.
-    fn leucine(seq: u32, side_chain: [Vec3; 4]) -> Vec<Atom> {
+    fn leucine(seq: i32, side_chain: [Vec3; 4]) -> Vec<Atom> {
         let mut atoms = backbone("LEU", seq);
         for (name, position) in ["CB", "CG", "CD1", "CD2"].iter().zip(side_chain) {
             atoms.push(atom("LEU", seq, name, "C", position));
@@ -1367,7 +1370,7 @@ LIG C2 O2  sing
 
     /// A flat six-membered ring, named as a phenylalanine, centred at `center`
     /// and spanned by two in-plane axes so its plane can be aimed.
-    fn ring_at(seq: u32, center: Vec3, u: Vec3, v: Vec3) -> Vec<Atom> {
+    fn ring_at(seq: i32, center: Vec3, u: Vec3, v: Vec3) -> Vec<Atom> {
         let names = ["CG", "CD1", "CE1", "CZ", "CE2", "CD2"];
         (0..6)
             .map(|k| {
@@ -1591,7 +1594,8 @@ LIG C2 O2  sing
     /// swung to meet the 120 +/- 30 window at the acceptor.
     fn halogen_pair(halogen: &str, element: &str, antecedent: Vec3) -> Protein {
         let definition = format!(
-            "loop_\n\
+            "data_TEST\n\
+             loop_\n\
              _chem_comp_atom.comp_id\n\
              _chem_comp_atom.atom_id\n\
              _chem_comp_atom.type_symbol\n\
@@ -1691,6 +1695,7 @@ LIG C2 O2  sing
     /// A ligand hydroxyl and a ligand ring, defined the way a structure file
     /// states them, so both flow through the detectors as any residue's would.
     const LIGAND: &str = "\
+data_TEST
 loop_
 _chem_comp_atom.comp_id
 _chem_comp_atom.atom_id

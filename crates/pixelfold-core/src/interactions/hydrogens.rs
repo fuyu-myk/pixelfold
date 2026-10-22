@@ -521,7 +521,7 @@ fn position_of(
         .map(|atom| atom.position)
 }
 
-type ResidueKey = (crate::fixed_str::FixedStr<4>, u32, Option<char>);
+type ResidueKey = (crate::fixed_str::FixedStr<4>, i32, Option<char>);
 
 fn residue_key(atom: &Atom) -> ResidueKey {
     (atom.chain_id, atom.residue_seq, atom.insertion_code)
@@ -533,7 +533,7 @@ mod tests {
     use crate::fixed_str::FixedStr;
     use crate::structure::SecondaryStructure;
 
-    fn atom(residue: &str, seq: u32, name: &str, position: Vec3) -> Atom {
+    fn atom(residue: &str, seq: i32, name: &str, position: Vec3) -> Atom {
         Atom {
             serial: 0,
             name: FixedStr::new(name),
@@ -573,6 +573,7 @@ mod tests {
     /// O2 is a hydroxyl, N4 a carboxamide, N6 a secondary amine, N11 an amidine
     /// nitrogen, N20 a protonated secondary amine, and S8 a thiol.
     const DEFINITION: &str = "\
+data_TEST
 loop_
 _chem_comp_atom.comp_id
 _chem_comp_atom.atom_id
@@ -774,6 +775,7 @@ LIG C33 C34  sing
     #[test]
     fn a_bond_to_the_next_component_accounts_for_one_of_its_hydrogens() {
         const MODIFIED: &str = "\
+data_TEST
 loop_
 _chem_comp_atom.comp_id
 _chem_comp_atom.atom_id
@@ -818,6 +820,7 @@ MSE N  CA
     #[test]
     fn a_standard_residue_ignores_the_hydrogen_count_in_the_definitions() {
         const FREE_ALANINE: &str = "\
+data_TEST
 loop_
 _chem_comp_atom.comp_id
 _chem_comp_atom.atom_id
@@ -856,6 +859,7 @@ ALA N  CA
     #[test]
     fn water_never_donates_however_its_definition_reads() {
         const WATER: &str = "\
+data_TEST
 loop_
 _chem_comp_atom.comp_id
 _chem_comp_atom.atom_id
@@ -882,6 +886,7 @@ HOH O  H2
     /// hydrogen the file writes on OP2 is not there at pH 7.4, and the hydroxyl
     /// on O3' is given up to the bond to the next residue.
     const NUCLEOTIDE: &str = "\
+data_TEST
 loop_
 _chem_comp_atom.comp_id
 _chem_comp_atom.atom_id

@@ -16,7 +16,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::mmcif::{column_of, read_loop};
+use mmcif_cif::{Block, Column, Document};
 
 /// How strongly two atoms are bonded, as the file writes it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -123,59 +123,70 @@ pub struct Dictionary {
 }
 
 impl Dictionary {
-    /// Read the `_chem_comp_atom` and `_chem_comp_bond` categories out of an
-    /// mmCIF file. A file without them yields an empty dictionary.
+    /// Read the `_chem_comp_atom` and `_chem_comp_bond` categories out of the
+    /// first data block of mmCIF text. Text that is not CIF, or that carries no
+    /// such categories, yields an empty dictionary.
     pub fn parse(file_text: &str) -> Self {
-        let lines: Vec<&str> = file_text.lines().collect();
+        Document::parse(file_text)
+            .ok()
+            .and_then(|document| document.block(0).map(|block| Self::from_block(&block)))
+            .unwrap_or_default()
+    }
+
+    /// Read the `_chem_comp_atom` and `_chem_comp_bond` categories of one data
+    /// block. A block without them yields an empty dictionary.
+    pub fn from_block(block: &Block<'_>) -> Self {
         let mut components: HashMap<String, Component> = HashMap::new();
         // Hydrogen names per component.
         let mut hydrogen_names: HashMap<String, HashSet<String>> = HashMap::new();
 
-        if let Some((columns, rows)) = read_loop(&lines, "_chem_comp_atom.") {
-            let (Some(id), Some(name), Some(symbol)) = (
-                column_of(&columns, "comp_id"),
-                column_of(&columns, "atom_id"),
-                column_of(&columns, "type_symbol"),
+        if let Some(atoms) = block.category("chem_comp_atom") {
+            let (Some(ids), Some(names), Some(symbols)) = (
+                atoms.column("comp_id"),
+                atoms.column("atom_id"),
+                atoms.column("type_symbol"),
             ) else {
                 return Self::default();
             };
-            let aromatic = column_of(&columns, "pdbx_aromatic_flag");
+            let aromatic = atoms.column("pdbx_aromatic_flag");
 
-            for row in rows {
+            for row in 0..atoms.row_count() {
                 let (Some(id), Some(name), Some(symbol)) =
-                    (row.get(id), row.get(name), row.get(symbol))
+                    (text(&ids, row), text(&names, row), text(&symbols, row))
                 else {
                     continue;
                 };
                 if symbol.eq_ignore_ascii_case("H") || symbol.eq_ignore_ascii_case("D") {
                     hydrogen_names
-                        .entry(id.clone())
+                        .entry(id.to_string())
                         .or_default()
-                        .insert(name.clone());
+                        .insert(name.to_string());
                     continue; // the coordinates hold no hydrogens to match
                 }
 
-                let component = components.entry(id.clone()).or_default();
-                component.elements.insert(name.clone(), symbol.clone());
-                if aromatic.and_then(|a| row.get(a)).is_some_and(|f| f == "Y") {
-                    component.aromatic.push(name.clone());
+                let component = components.entry(id.to_string()).or_default();
+                component
+                    .elements
+                    .insert(name.to_string(), symbol.to_string());
+                if aromatic.as_ref().and_then(|flags| text(flags, row)) == Some("Y") {
+                    component.aromatic.push(name.to_string());
                 }
             }
         }
 
-        if let Some((columns, rows)) = read_loop(&lines, "_chem_comp_bond.") {
-            let (Some(id), Some(first), Some(second)) = (
-                column_of(&columns, "comp_id"),
-                column_of(&columns, "atom_id_1"),
-                column_of(&columns, "atom_id_2"),
+        if let Some(bonds) = block.category("chem_comp_bond") {
+            let (Some(ids), Some(firsts), Some(seconds)) = (
+                bonds.column("comp_id"),
+                bonds.column("atom_id_1"),
+                bonds.column("atom_id_2"),
             ) else {
-                return Self::with_numeric_aliases(components);
+                return Self { components };
             };
-            let order = column_of(&columns, "value_order");
+            let orders = bonds.column("value_order");
 
-            for row in rows {
+            for row in 0..bonds.row_count() {
                 let (Some(id), Some(first), Some(second)) =
-                    (row.get(id), row.get(first), row.get(second))
+                    (text(&ids, row), text(&firsts, row), text(&seconds, row))
                 else {
                     continue;
                 };
@@ -186,39 +197,24 @@ impl Dictionary {
 
                 let first_heavy = component.elements.contains_key(first);
                 let second_heavy = component.elements.contains_key(second);
-                let is_hydrogen =
-                    |name: &String| hydrogens.is_some_and(|names| names.contains(name));
+                let is_hydrogen = |name: &str| hydrogens.is_some_and(|names| names.contains(name));
 
                 if first_heavy && second_heavy {
                     component.bonds.push(Bond {
-                        first: first.clone(),
-                        second: second.clone(),
-                        order: order
-                            .and_then(|o| row.get(o))
-                            .map_or(BondOrder::Single, |value| BondOrder::parse(value)),
+                        first: first.to_string(),
+                        second: second.to_string(),
+                        order: orders
+                            .as_ref()
+                            .and_then(|orders| text(orders, row))
+                            .map_or(BondOrder::Single, BondOrder::parse),
                     });
                 } else if first_heavy && is_hydrogen(second) {
-                    *component.hydrogens.entry(first.clone()).or_default() += 1;
+                    *component.hydrogens.entry(first.to_string()).or_default() += 1;
                 } else if second_heavy && is_hydrogen(first) {
-                    *component.hydrogens.entry(second.clone()).or_default() += 1;
+                    *component.hydrogens.entry(second.to_string()).or_default() += 1;
                 }
             }
         }
-
-        Self::with_numeric_aliases(components)
-    }
-
-    /// Register the spelling a numeric-looking component id takes on in the
-    /// coordinates, so a definition that is present cannot be unreachable.
-    fn with_numeric_aliases(mut components: HashMap<String, Component>) -> Self {
-        let aliases: Vec<(String, Component)> = components
-            .iter()
-            .filter_map(|(id, component)| {
-                let alias = numeric_alias(id)?;
-                (!components.contains_key(&alias)).then(|| (alias, component.clone()))
-            })
-            .collect();
-        components.extend(aliases);
 
         Self { components }
     }
@@ -238,13 +234,8 @@ impl Dictionary {
     }
 }
 
-/// How a component id reads back after a numeric parse, or nothing when it is
-/// not a number or already reads as itself.
-fn numeric_alias(component_id: &str) -> Option<String> {
-    let value: f64 = component_id.parse().ok()?;
-    let rendered = format!("{value}");
-
-    (rendered != component_id).then_some(rendered)
+fn text<'a>(column: &Column<'a>, row: usize) -> Option<&'a str> {
+    column.get(row)?.as_str()
 }
 
 #[cfg(test)]
@@ -333,61 +324,6 @@ LIG C2 H4  sing N 6
         // needs to know.
         let attached: Vec<&str> = ligand.neighbours("BR3").collect();
         assert_eq!(attached, vec!["C1"]);
-    }
-
-    /// A component whose id reads as a number is reachable under both spellings,
-    /// because the coordinates and the definitions are read by different parsers
-    /// that disagree about it.
-    #[test]
-    fn a_numeric_looking_component_id_is_reachable_from_the_coordinates() {
-        let text = "\
-loop_
-_chem_comp_atom.comp_id
-_chem_comp_atom.atom_id
-_chem_comp_atom.type_symbol
-4E2 C1  C
-4E2 CL2 CL
-#
-loop_
-_chem_comp_bond.comp_id
-_chem_comp_bond.atom_id_1
-_chem_comp_bond.atom_id_2
-4E2 C1 CL2
-#
-";
-        let dictionary = Dictionary::parse(text);
-
-        // Under the name the file writes.
-        assert!(dictionary.get("4E2").is_some());
-        // And under the name a numeric parse leaves, which is what the
-        // coordinates carry.
-        let aliased = dictionary.get("400").expect("reachable as 400 too");
-        assert_eq!(aliased.neighbours("CL2").collect::<Vec<_>>(), vec!["C1"]);
-    }
-
-    #[test]
-    fn a_real_component_keeps_a_name_an_alias_would_take() {
-        let text = "\
-loop_
-_chem_comp_atom.comp_id
-_chem_comp_atom.atom_id
-_chem_comp_atom.type_symbol
-4E2 C1  C
-400 O1  O
-#
-";
-        let dictionary = Dictionary::parse(text);
-
-        // The alias must not overwrite a component genuinely named 400.
-        assert_eq!(dictionary.get("400").unwrap().element_of("O1"), Some("O"));
-    }
-
-    #[test]
-    fn an_ordinary_component_id_gains_no_alias() {
-        let dictionary = Dictionary::parse(SAMPLE);
-
-        // ALA and LIG read as no number, so nothing extra is registered.
-        assert_eq!(dictionary.len(), 2);
     }
 
     #[test]

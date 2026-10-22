@@ -4,6 +4,48 @@ All notable changes to PixelFold are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Structures load through `mmcif-model` and `mmcif-cif`** in place of pdbtbx.
+  One parse now serves the coordinates, the component definitions and the
+  assembly records, so the hand-written CIF reader and the space-group retry are
+  gone. Reports list residues in label-chain order (polymer chains, then
+  ligands, then waters, as an mmCIF file writes them) rather than grouped by
+  author chain, and an atom group lists its atoms in file order. Gzipped files
+  and RCSB's numbered assembly files (`.pdb1`) still load, and a file whose
+  assembly or entity records cannot be read loads its coordinates with a
+  warning instead of failing.
+
+### Fixed
+
+- **The default altloc policy kept the minor conformer** wherever a side chain
+  was split and the backbone was not. pdbtbx copied the shared atoms into every
+  conformer at a fraction of their occupancy, so the backbone vote always tied
+  and the first label won: 76 residues across 18 of the 206 benchmark entries
+  kept the less occupied side chain (1GCI SER 3 kept A at 0.47 over B at 0.53).
+  Shared atoms now stay unlabelled at their own occupancy, `--altloc b` no
+  longer drops the backbone of a residue modelled only in A, and `--altloc all`
+  no longer reports shared atoms twice.
+- **Negative residue numbers wrapped** to 4294967295 and up, so those residues
+  printed wrong, could not be selected, and never matched a reference in
+  `pixelfold-validate`. Residue numbers are signed, and `resi` takes negative
+  numbers and ranges (`resi -5--1`).
+- **Unknown atoms (UNX) were typed as uranium**, the element inferred from the
+  name `UNK` because the `X` element could not be read. They keep element `X`.
+- **A numeric-looking component id was rewritten** (`4E2` read as `400`), so the
+  ligand printed under the wrong name. Component ids are kept verbatim.
+- **A legacy PDB file's insertion-code residues were re-sorted**, so a chain
+  numbered `1C, 1B, 1A, 1` (thrombin's light chain) was read as `1, 1A, 1B, 1C`,
+  and secondary structure and the bond graph saw the wrong neighbours. The PDB
+  and mmCIF files of one entry now give the same result (3PTB, 5JZY, 5LCE,
+  6T3Q, 6T4A did not).
+- **Two kinds of partial biological assembly went unflagged**: an asymmetric
+  unit copied whole across separate generation records (7AEW) and a chain group
+  placed by a crystal operator (3BOG). An assembly is now partial when it places
+  a chain more than once or places its chains by different operators.
+
 ## [1.0.0] (2026-08-02)
 
 The rendering and network milestone. The viewer stops drawing an approximation of

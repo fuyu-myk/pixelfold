@@ -76,7 +76,7 @@ impl AtomSet {
     }
 }
 
-type ResidueKey = (FixedStr<4>, u32, Option<char>);
+type ResidueKey = (FixedStr<4>, i32, Option<char>);
 
 fn residue_key(atom: &Atom) -> ResidueKey {
     (atom.chain_id, atom.residue_seq, atom.insertion_code)
@@ -189,7 +189,7 @@ mod tests {
     use crate::select::select as run;
     use crate::structure::SecondaryStructure;
 
-    fn atom(residue: &str, seq: u32, name: &str, element: &str, position: Vec3) -> Atom {
+    fn atom(residue: &str, seq: i32, name: &str, element: &str, position: Vec3) -> Atom {
         Atom {
             serial: 0,
             name: FixedStr::new(name),

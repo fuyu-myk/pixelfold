@@ -720,6 +720,7 @@ mod tests {
     /// way a structure file states them.
     fn typed(atom_name: &str) -> bool {
         const DEFINITION: &str = "\
+data_TEST
 loop_
 _chem_comp_atom.comp_id
 _chem_comp_atom.atom_id
@@ -823,6 +824,7 @@ LIG F1  CF   sing
     #[test]
     fn a_nitrogen_bonded_outside_its_own_component_does_not_accept() {
         const HYDROXYPROLINE: &str = "\
+data_TEST
 loop_
 _chem_comp_atom.comp_id
 _chem_comp_atom.atom_id
@@ -867,6 +869,7 @@ HYP N  CD
     #[test]
     fn phosphate_and_carboxylate_oxygens_are_acid_oxygens_but_a_hydroxyl_is_not() {
         const ACIDS: &str = "\
+data_TEST
 loop_
 _chem_comp_atom.comp_id
 _chem_comp_atom.atom_id
@@ -917,6 +920,7 @@ LIG C2 O3  sing
     /// and a two-nitrogen carbon that is a ring atom of a base.
     fn charges(atom_name: &str) -> Option<(Charge, Vec<String>)> {
         const DEFINITION: &str = "\
+data_TEST
 loop_
 _chem_comp_atom.comp_id
 _chem_comp_atom.atom_id
@@ -1067,6 +1071,7 @@ LIG CR3 CR1  arom
     #[test]
     fn a_ring_carbon_with_an_exocyclic_first_neighbour_is_still_in_the_ring() {
         const CHROMOPHORE: &str = "\
+data_TEST
 loop_
 _chem_comp_atom.comp_id
 _chem_comp_atom.atom_id

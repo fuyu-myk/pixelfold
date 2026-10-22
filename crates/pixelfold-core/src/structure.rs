@@ -17,7 +17,7 @@ pub struct Atom {
     /// element column so a calcium ion is distinct from a C-alpha carbon.
     pub element: FixedStr<2>,
     pub residue_name: FixedStr<6>,
-    pub residue_seq: u32,
+    pub residue_seq: i32,
     pub chain_id: FixedStr<4>,
     pub is_hetatm: bool,
     pub altloc: Option<char>,
@@ -140,7 +140,7 @@ pub fn get_calpha_connections(protein: &Protein, ca_indices: &[usize]) -> Vec<(u
     let distance_threshold = 4.2; // Angstroms (typical CA-CA distance is ~3.8Å)
 
     // Sort C-alphas by chain first, then by residue sequence
-    let mut sorted_cas: Vec<(FixedStr<4>, u32, usize)> = ca_indices
+    let mut sorted_cas: Vec<(FixedStr<4>, i32, usize)> = ca_indices
         .iter()
         .map(|&idx| {
             let atom = &protein.atoms[idx];
@@ -202,7 +202,7 @@ pub fn filter_altlocs(atoms: Vec<Atom>, policy: AltlocPolicy) -> Vec<Atom> {
     }
 }
 
-type ResidueKey = (FixedStr<4>, u32, Option<char>);
+type ResidueKey = (FixedStr<4>, i32, Option<char>);
 
 fn residue_of(atom: &Atom) -> ResidueKey {
     (atom.chain_id, atom.residue_seq, atom.insertion_code)

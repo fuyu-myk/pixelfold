@@ -5,7 +5,7 @@
 
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while1};
-use nom::character::complete::{char, multispace0, u32 as u32_of, u64 as u64_of};
+use nom::character::complete::{char, i32 as i32_of, multispace0, u64 as u64_of};
 use nom::combinator::{all_consuming, opt, value, verify};
 use nom::multi::many1;
 use nom::number::complete::float;
@@ -237,8 +237,8 @@ fn resi(input: &str) -> IResult<&str, Selection> {
 }
 
 fn resi_range(input: &str) -> IResult<&str, ResiRange> {
-    let (rest, lo) = u32_of(input)?;
-    let (rest, hi) = opt(preceded(char('-'), u32_of)).parse(rest)?;
+    let (rest, lo) = i32_of(input)?;
+    let (rest, hi) = opt(preceded(char('-'), i32_of)).parse(rest)?;
     Ok((
         rest,
         ResiRange {
@@ -344,6 +344,18 @@ mod tests {
                 ResiRange { lo: 1, hi: 10 },
                 ResiRange { lo: 20, hi: 20 },
                 ResiRange { lo: 30, hi: 40 },
+            ])
+        );
+    }
+
+    #[test]
+    fn residue_numbers_can_be_negative() {
+        assert_eq!(
+            parsed("resi -3 -1-2 -9--5"),
+            Selection::Resi(vec![
+                ResiRange { lo: -3, hi: -3 },
+                ResiRange { lo: -1, hi: 2 },
+                ResiRange { lo: -9, hi: -5 },
             ])
         );
     }
