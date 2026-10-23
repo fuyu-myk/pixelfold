@@ -175,7 +175,10 @@ pub fn get_calpha_connections(protein: &Protein, ca_indices: &[usize]) -> Vec<(u
 /// Policy for resolving atoms modelled in multiple alternate locations.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum AltlocPolicy {
-    /// Keep the highest-occupancy conformer per atom; ties prefer altloc 'A'.
+    /// Keep one conformer per residue: the label with the greatest summed
+    /// backbone occupancy, or summed over the whole residue when only its side
+    /// chain is split; ties prefer the earlier label. An atom the chosen
+    /// conformer omits keeps its most occupied copy.
     #[default]
     Occupancy,
     /// Keep only altloc 'A' and atoms with no altloc.

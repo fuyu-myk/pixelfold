@@ -301,11 +301,11 @@ impl From<ProtocolArg> for pixelfold_tui::ViewProtocol {
 /// Alternate-location handling policy for the CLI.
 #[derive(Clone, Copy, Debug, ValueEnum)]
 enum AltlocArg {
-    /// Keep the highest-occupancy conformer per atom (default)
+    /// Keep one conformer per residue, the most occupied (default)
     Occupancy,
     /// Keep only altloc A (and atoms with no altloc)
     A,
-    /// Keep only altloc B
+    /// Keep only altloc B (and atoms with no altloc)
     B,
     /// Keep every conformer
     All,
