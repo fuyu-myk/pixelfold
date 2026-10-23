@@ -279,32 +279,17 @@ fn assign_from_hbonds(hbonds: &[HBond], residues: &[Residue]) -> Vec<SecondarySt
     }
 
     // Beta bridges -> sheet, over coil only (alpha wins ties).
-    let bridge = |i: usize, j: usize| -> bool {
-        let prev = |x: usize| (x > 0 && same_chain(x - 1, x)).then(|| x - 1);
-        let next = |x: usize| (x + 1 < n && same_chain(x, x + 1)).then_some(x + 1);
-        let (pi, ni, pj, nj) = (prev(i), next(i), prev(j), next(j));
+    for (i, j) in bridge_candidates(hbonds, n) {
+        if same_chain(i, j) && j - i < 3 {
+            continue; // too close in one chain to be a genuine bridge
+        }
 
-        let parallel = matches!((pi, ni), (Some(p), Some(q)) if bonded(p, j) && bonded(j, q))
-            || matches!((pj, nj), (Some(p), Some(q)) if bonded(p, i) && bonded(i, q));
-        let antiparallel = (bonded(i, j) && bonded(j, i))
-            || matches!((pi, nj, pj, ni), (Some(a), Some(b), Some(c), Some(d))
-                if bonded(a, b) && bonded(c, d));
-
-        parallel || antiparallel
-    };
-    for i in 0..n {
-        for j in (i + 1)..n {
-            if same_chain(i, j) && j - i < 3 {
-                continue; // too close in one chain to be a genuine bridge
+        if is_bridge(i, j, n, &bonded, &same_chain) {
+            if ss[i] == SecondaryStructure::Coil {
+                ss[i] = SecondaryStructure::Sheet;
             }
-
-            if bridge(i, j) {
-                if ss[i] == SecondaryStructure::Coil {
-                    ss[i] = SecondaryStructure::Sheet;
-                }
-                if ss[j] == SecondaryStructure::Coil {
-                    ss[j] = SecondaryStructure::Sheet;
-                }
+            if ss[j] == SecondaryStructure::Coil {
+                ss[j] = SecondaryStructure::Sheet;
             }
         }
     }
@@ -338,6 +323,52 @@ fn assign_from_hbonds(hbonds: &[HBond], residues: &[Residue]) -> Vec<SecondarySt
     }
 
     ss
+}
+
+/// Whether residues `i` and `j` pair as a parallel or antiparallel bridge.
+fn is_bridge(
+    i: usize,
+    j: usize,
+    n: usize,
+    bonded: &impl Fn(usize, usize) -> bool,
+    same_chain: &impl Fn(usize, usize) -> bool,
+) -> bool {
+    let prev = |x: usize| (x > 0 && same_chain(x - 1, x)).then(|| x - 1);
+    let next = |x: usize| (x + 1 < n && same_chain(x, x + 1)).then_some(x + 1);
+    let (pi, ni, pj, nj) = (prev(i), next(i), prev(j), next(j));
+
+    let parallel = matches!((pi, ni), (Some(p), Some(q)) if bonded(p, j) && bonded(j, q))
+        || matches!((pj, nj), (Some(p), Some(q)) if bonded(p, i) && bonded(i, q));
+    let antiparallel = (bonded(i, j) && bonded(j, i))
+        || matches!((pi, nj, pj, ni), (Some(a), Some(b), Some(c), Some(d))
+            if bonded(a, b) && bonded(c, d));
+
+    parallel || antiparallel
+}
+
+/// The residue pairs `(i, j)`, `i < j`, that could form a bridge, sorted. Every
+/// bridge pattern needs a hydrogen bond between a residue at most one along from
+/// `i` and one at most one along from `j`, so the pairs within a step of some
+/// bond's two ends are the only candidates: linear in the bonds, where trying
+/// every pair is quadratic in the residues.
+fn bridge_candidates(hbonds: &[HBond], n: usize) -> Vec<(usize, usize)> {
+    if n == 0 {
+        return Vec::new();
+    }
+
+    let near = |x: usize| x.saturating_sub(1)..=(x + 1).min(n - 1);
+    let mut pairs: Vec<(usize, usize)> = hbonds
+        .iter()
+        .flat_map(|hb| {
+            near(hb.acceptor_residue)
+                .flat_map(move |a| near(hb.donor_residue).map(move |b| (a.min(b), a.max(b))))
+        })
+        .filter(|&(i, j)| i != j)
+        .collect();
+    pairs.sort_unstable();
+    pairs.dedup();
+
+    pairs
 }
 
 #[cfg(test)]
@@ -563,5 +594,53 @@ mod tests {
             b_factor: 0.0,
             secondary_structure: SecondaryStructure::Coil,
         }
+    }
+
+    // Every bridge pattern needs a bond near both of its residues, so the
+    // candidates drawn from the bonds must hold every pair that a scan of all
+    // pairs finds. Pseudo-random bond sets over three chains, seeded.
+    #[test]
+    fn bridge_candidates_hold_every_bridge() {
+        let n = 40;
+        let same_chain = |a: usize, b: usize| a / 15 == b / 15;
+        let mut state: u64 = 0x9E37_79B9_7F4A_7C15;
+        let mut draw = move || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (state >> 33) as usize % n
+        };
+
+        let mut bridges = 0;
+        for _ in 0..200 {
+            let hbonds: Vec<HBond> = (0..60)
+                .map(|_| HBond {
+                    acceptor_residue: draw(),
+                    donor_residue: draw(),
+                    donor_atom_idx: 0,
+                    acceptor_atom_idx: 0,
+                    energy: -1.0,
+                })
+                .collect();
+            let bonds: HashSet<(usize, usize)> = hbonds
+                .iter()
+                .map(|hb| (hb.acceptor_residue, hb.donor_residue))
+                .collect();
+            let bonded = |a: usize, b: usize| bonds.contains(&(a, b));
+            let candidates = bridge_candidates(&hbonds, n);
+
+            for i in 0..n {
+                for j in (i + 1)..n {
+                    if is_bridge(i, j, n, &bonded, &same_chain) {
+                        bridges += 1;
+                        assert!(candidates.contains(&(i, j)), "bridge ({i}, {j}) missed");
+                    }
+                }
+            }
+        }
+        assert!(
+            bridges > 100,
+            "the bond sets form too few bridges to test: {bridges}"
+        );
     }
 }

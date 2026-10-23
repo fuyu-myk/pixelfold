@@ -1,3 +1,5 @@
+use pixelfold_core::FixedStr;
+
 /// Map B-factor value to RGB color using blue –> cyan –> yellow –> red gradient
 /// Normalizes B-factors using percentile-based scaling
 pub fn bfactor_to_color(b_factor: f32, b_min: f32, b_max: f32) -> (u8, u8, u8) {
@@ -43,7 +45,7 @@ pub fn bfactor_to_color(b_factor: f32, b_min: f32, b_max: f32) -> (u8, u8, u8) {
 /// calcium ion is green, not carbon grey). Values are the Jmol defaults; an
 /// unrecognised element falls back to the Jmol "unknown" pink.
 pub fn element_to_color(element: &str) -> (u8, u8, u8) {
-    match element.to_uppercase().as_str() {
+    match FixedStr::<2>::uppercased(element).as_str() {
         "H" => (255, 255, 255),
         "C" => (144, 144, 144),
         "N" => (48, 80, 248),

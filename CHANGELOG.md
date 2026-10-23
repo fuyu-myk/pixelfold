@@ -26,6 +26,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Loading a large structure is about 30 times faster.** Secondary-structure
+  assignment tried every pair of residues for a beta bridge; it now tries only
+  the pairs within a step of some hydrogen bond's two ends, the only pairs a
+  bridge pattern can match. On 1AON (58,870 atoms) the pass fell from 1.7 s to
+  11 ms and the whole load from about 1.8 s to 60 ms, with every assignment
+  across the benchmark corpus unchanged.
+- **Element symbols are matched without allocating.** Radii, colours, metal
+  tests and ligand atom typing upper-cased each symbol into a new string, on
+  every atom and every frame; building a frame's scene for 1AON fell from
+  2.4 ms to 0.6 ms.
+
 - **Structures load through `mmcif-model` and `mmcif-cif`** in place of pdbtbx.
   One parse now serves the coordinates, the component definitions and the
   assembly records, so the hand-written CIF reader and the space-group retry are

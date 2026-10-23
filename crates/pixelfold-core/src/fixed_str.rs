@@ -26,6 +26,20 @@ impl<const N: usize> FixedStr<N> {
         Self { bytes }
     }
 
+    /// `s` with its ASCII letters upper-cased, for matching a code in any case
+    /// without allocating. Empty when `s` is longer than `N` bytes, so an
+    /// over-long value matches nothing rather than its truncation.
+    pub fn uppercased(s: &str) -> Self {
+        if s.len() > N {
+            return Self { bytes: [0u8; N] };
+        }
+
+        let Self { bytes } = Self::new(s);
+        Self {
+            bytes: bytes.map(|b| b.to_ascii_uppercase()),
+        }
+    }
+
     /// The stored value as a string slice (empty if truncation split a
     /// multi-byte character, which cannot happen for ASCII structure data).
     pub fn as_str(&self) -> &str {
@@ -111,5 +125,15 @@ mod tests {
         map.insert((FixedStr::new("A"), 10), 1);
         assert_eq!(map.get(&(FixedStr::<2>::new("A"), 10)), Some(&1));
         assert_eq!(map.get(&(FixedStr::<2>::new("B"), 10)), None);
+    }
+
+    #[test]
+    fn uppercased_matches_any_case_and_refuses_an_overlong_value() {
+        assert_eq!(FixedStr::<2>::uppercased("fe").as_str(), "FE");
+        assert_eq!(FixedStr::<2>::uppercased("Ca").as_str(), "CA");
+        assert_eq!(FixedStr::<2>::uppercased("C").as_str(), "C");
+        assert_eq!(FixedStr::<2>::uppercased("").as_str(), "");
+        // Truncating would read "CAL" as calcium.
+        assert_eq!(FixedStr::<2>::uppercased("CAL").as_str(), "");
     }
 }

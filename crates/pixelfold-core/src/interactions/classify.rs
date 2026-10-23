@@ -12,6 +12,7 @@
 
 use std::collections::HashMap;
 
+use crate::fixed_str::FixedStr;
 use crate::structure::{Atom, Molecule, Protein};
 
 use crate::components::{BondOrder, Component};
@@ -45,8 +46,7 @@ pub fn is_ligand(atom: &Atom) -> bool {
 /// True when the atom is a coordinating metal ion, decided on the element
 /// column rather than the atom name.
 pub fn is_metal(atom: &Atom) -> bool {
-    let element = atom.element.as_str().to_uppercase();
-    METAL_ELEMENTS.contains(&element.as_str())
+    METAL_ELEMENTS.contains(&FixedStr::<2>::uppercased(atom.element.as_str()).as_str())
 }
 
 /// True when the atom can donate a lone pair to a metal ion.
@@ -143,7 +143,7 @@ pub(super) fn component_charged_groups(component: &Component) -> Vec<ChargedSite
             continue;
         };
 
-        let site = match element.to_ascii_uppercase().as_str() {
+        let site = match FixedStr::<2>::uppercased(element).as_str() {
             "C" => carbon_cation(component, name).or_else(|| carboxylate(component, name)),
             "P" => oxyanion(component, name, 2),
             "S" => oxyanion(component, name, 3),
@@ -390,7 +390,7 @@ fn accepts(component: &Component, name: &str) -> bool {
         return false;
     };
 
-    match element.to_ascii_uppercase().as_str() {
+    match FixedStr::<2>::uppercased(element).as_str() {
         "O" => accepts_at_oxygen(component, name),
         "N" => accepts_at_nitrogen(component, name),
         // Organic fluorine does not accept; a bare fluoride would.
@@ -465,7 +465,7 @@ pub(super) fn hybridisation(component: &Component, name: &str) -> u8 {
         let Some(element) = component.element_of(neighbour) else {
             return false;
         };
-        let organic = matches!(element.to_ascii_uppercase().as_str(), "C" | "N" | "O");
+        let organic = matches!(FixedStr::<2>::uppercased(element).as_str(), "C" | "N" | "O");
 
         organic
             && component

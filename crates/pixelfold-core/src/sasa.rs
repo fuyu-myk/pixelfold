@@ -1,3 +1,4 @@
+use crate::fixed_str::FixedStr;
 use crate::structure::Atom;
 use nalgebra::Point3;
 use rust_sasa::Atom as SasaAtom;
@@ -65,7 +66,7 @@ fn to_sasa_atoms(atoms: &[Atom]) -> Vec<SasaAtom> {
 /// not the atom name, so a calcium ion ("Ca") and a C-alpha carbon ("C") get
 /// their correct, different radii.
 pub fn get_vdw_radius(element: &str) -> f32 {
-    match element.to_uppercase().as_str() {
+    match FixedStr::<2>::uppercased(element).as_str() {
         "C" => 1.70,
         "N" => 1.55,
         "O" => 1.52,
