@@ -1591,7 +1591,7 @@ dependencies = [
 [[package]]
 name = "mmcif-cif"
 version = "0.2.3"
-source = "git+https://github.com/fuyu-myk/mmcif?rev=309f2c9#309f2c9d2d97b23d278fb4f373be2748c384d3e2"
+source = "git+https://github.com/fuyu-myk/mmcif?rev=d1150ed#d1150edabd631d01f667cada43ef050ab9d34683"
 dependencies = [
  "flate2",
  "memchr",
@@ -1602,7 +1602,7 @@ dependencies = [
 [[package]]
 name = "mmcif-model"
 version = "0.2.3"
-source = "git+https://github.com/fuyu-myk/mmcif?rev=309f2c9#309f2c9d2d97b23d278fb4f373be2748c384d3e2"
+source = "git+https://github.com/fuyu-myk/mmcif?rev=d1150ed#d1150edabd631d01f667cada43ef050ab9d34683"
 dependencies = [
  "mmcif-cif",
  "thiserror 2.0.17",
