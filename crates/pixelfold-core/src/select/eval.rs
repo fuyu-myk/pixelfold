@@ -7,7 +7,7 @@ use glam::Vec3;
 
 use super::Selection;
 use crate::fixed_str::FixedStr;
-use crate::interactions::classify::{is_metal, is_water};
+use crate::interactions::classify::{is_ligand, is_metal, is_water};
 use crate::interactions::topology::{is_standard_nucleotide, is_standard_residue};
 use crate::spatial::Grid;
 use crate::structure::{Atom, Molecule, Protein};
@@ -132,14 +132,7 @@ fn evaluate(selection: &Selection, protein: &Protein) -> AtomSet {
         }),
         Selection::Metal => select(protein, is_metal),
         Selection::Hetatm => select(protein, |atom| atom.is_hetatm),
-        Selection::Ligand => select(protein, |atom| {
-            let ligand = match atom.molecule {
-                Molecule::NonPolymer | Molecule::Branched => true,
-                Molecule::Unknown => atom.is_hetatm && !is_water(atom.residue_name.as_str()),
-                _ => false,
-            };
-            ligand && !is_metal(atom)
-        }),
+        Selection::Ligand => select(protein, |atom| is_ligand(atom) && !is_metal(atom)),
     }
 }
 

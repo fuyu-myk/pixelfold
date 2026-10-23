@@ -12,7 +12,7 @@
 
 use std::collections::HashMap;
 
-use crate::structure::{Atom, Protein};
+use crate::structure::{Atom, Molecule, Protein};
 
 use crate::components::{BondOrder, Component};
 
@@ -30,6 +30,16 @@ pub enum Charge {
 /// True when the residue name denotes a water molecule.
 pub fn is_water(residue_name: &str) -> bool {
     matches!(residue_name, "HOH" | "WAT" | "H2O" | "DOD" | "TIP")
+}
+
+/// True when the atom belongs to a ligand: a non-polymer or branched entity, or,
+/// when the file names no entity, a HETATM record that is not water.
+pub fn is_ligand(atom: &Atom) -> bool {
+    match atom.molecule {
+        Molecule::NonPolymer | Molecule::Branched => true,
+        Molecule::Unknown => atom.is_hetatm && !is_water(atom.residue_name.as_str()),
+        _ => false,
+    }
 }
 
 /// True when the atom is a coordinating metal ion, decided on the element

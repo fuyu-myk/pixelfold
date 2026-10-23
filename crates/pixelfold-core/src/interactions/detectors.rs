@@ -11,8 +11,8 @@ use crate::spatial::Grid;
 use crate::structure::{Atom, Protein};
 
 use super::classify::{
-    Charge, charged_group, is_apolar_carbon, is_cysteine_sulfur, is_hbond_acceptor, is_metal,
-    is_metal_donor, is_water,
+    Charge, charged_group, is_apolar_carbon, is_cysteine_sulfur, is_hbond_acceptor, is_ligand,
+    is_metal, is_metal_donor, is_water,
 };
 use super::params::{
     DISULFIDE_DIST_MAX, HALOGEN_ACCEPTOR_ANGLE, HALOGEN_ACCEPTOR_ELEMENTS, HALOGEN_ANGLE_DEV,
@@ -63,10 +63,11 @@ pub fn disulfides(protein: &Protein) -> Vec<Interaction> {
                 return;
             }
 
+            let (first, second) = oriented(protein, atom_a, sulfurs[b]);
             out.push(Interaction {
                 kind: InteractionKind::Disulfide,
-                atoms_a: vec![atom_a],
-                atoms_b: vec![sulfurs[b]],
+                atoms_a: vec![first],
+                atoms_b: vec![second],
                 distance,
                 angle: None,
                 bridge: None,
@@ -516,15 +517,41 @@ pub fn hydrophobic_contacts(protein: &Protein, bonds: &connectivity::Bonds) -> V
         .collect()
 }
 
-/// Reduce each side in turn: first the closest carbon of each residue reaching a
-/// given atom, then the same with the sides swapped. One pass alone would only
-/// thin one direction, leaving the other side's carbons all reported.
+/// Reduce each side in turn, from the side [`side_order`] puts first: first the
+/// closest carbon of each residue reaching a given atom, then the same with the
+/// sides swapped. One pass alone would only thin one direction, leaving the
+/// other side's carbons all reported, and the two passes in the other order can
+/// keep a different number of contacts.
 fn reduce_to_closest(protein: &Protein, contacts: Vec<Contact>) -> Vec<Contact> {
+    let contacts = contacts
+        .into_iter()
+        .map(|contact| {
+            let (a, b) = oriented(protein, contact.a, contact.b);
+            Contact { a, b, ..contact }
+        })
+        .collect();
     let once = keep_shortest(contacts, |c| (c.a, residue_key(&protein.atoms[c.b])));
     let mut twice = keep_shortest(once, |c| (residue_key(&protein.atoms[c.a]), c.b));
     twice.sort_unstable_by_key(|c| (c.a, c.b));
 
     twice
+}
+
+/// The order a symmetric contact's two sides are reduced and reported in, so
+/// neither follows atom order: a ligand side first, as PLIP reduces from the
+/// ligand, then the earlier residue.
+fn side_order(protein: &Protein, atom: usize) -> (bool, ResidueKey) {
+    let atom = &protein.atoms[atom];
+    (!is_ligand(atom), residue_key(atom))
+}
+
+/// `a` and `b` in [`side_order`].
+fn oriented(protein: &Protein, a: usize, b: usize) -> (usize, usize) {
+    if side_order(protein, b) < side_order(protein, a) {
+        (b, a)
+    } else {
+        (a, b)
+    }
 }
 
 /// Keep the shortest contact per key. Ties keep the contact seen first, as PLIP
@@ -727,10 +754,16 @@ pub fn pi_stacking(protein: &Protein) -> Vec<Interaction> {
                 return;
             }
 
+            let (first, second) =
+                if side_order(protein, ring_b.atoms[0]) < side_order(protein, ring_a.atoms[0]) {
+                    (ring_b, ring_a)
+                } else {
+                    (ring_a, ring_b)
+                };
             out.push(Interaction {
                 kind: InteractionKind::PiStacking,
-                atoms_a: ring_a.atoms.clone(),
-                atoms_b: ring_b.atoms.clone(),
+                atoms_a: first.atoms.clone(),
+                atoms_b: second.atoms.clone(),
                 distance,
                 angle: Some(angle),
                 bridge: None,
@@ -1785,5 +1818,57 @@ LIG O8 H8
             atom("GLY", 8, "O", "O", Vec3::new(5.0, 2.0, 0.0)),
         ]);
         assert!(bridges(&dry).is_empty());
+    }
+
+    // Two ligand carbons against three of a leucine's, distances from a case
+    // where reducing from the protein side first keeps one contact more than
+    // reducing from the ligand, as PLIP does.
+    #[test]
+    fn hydrophobic_reduction_starts_from_the_ligand_whatever_the_atom_order() {
+        let mut atoms: Vec<Atom> = ["CB", "CG", "CD1"]
+            .iter()
+            .map(|name| atom("LEU", 10, name, "C", Vec3::ZERO))
+            .collect();
+        for name in ["C1", "C2"] {
+            let mut carbon = atom("LIG", 301, name, "C", Vec3::ZERO);
+            carbon.is_hetatm = true;
+            atoms.push(carbon);
+        }
+        let structure = Protein {
+            atoms,
+            title: String::new(),
+            hbonds: Vec::new(),
+            assembly: None,
+            components: Default::default(),
+        };
+        let distances = [
+            ((3, 0), 3.13),
+            ((3, 1), 3.85),
+            ((3, 2), 3.76),
+            ((4, 0), 3.26),
+            ((4, 1), 3.5),
+            ((4, 2), 3.45),
+        ];
+        let contacts = |ligand_first: bool| -> Vec<Contact> {
+            distances
+                .iter()
+                .map(|&((ligand, carbon), distance)| {
+                    let (a, b) = if ligand_first {
+                        (ligand, carbon)
+                    } else {
+                        (carbon, ligand)
+                    };
+                    Contact { a, b, distance }
+                })
+                .collect()
+        };
+
+        for ligand_first in [true, false] {
+            let kept: Vec<(usize, usize)> = reduce_to_closest(&structure, contacts(ligand_first))
+                .iter()
+                .map(|contact| (contact.a, contact.b))
+                .collect();
+            assert_eq!(kept, [(3, 0)], "ligand first: {ligand_first}");
+        }
     }
 }

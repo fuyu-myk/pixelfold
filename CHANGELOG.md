@@ -56,6 +56,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `ligand` and `water` now follow the file's entities, recorded on each atom as
   `Atom::molecule`; a free amino acid declared as a non-polymer stays a ligand.
   A file without entity records keeps the old name and record-type rules.
+- **Hydrophobic contacts depended on atom order.** The reduction that keeps
+  the closest contact per atom and residue ran from whichever side came first
+  in the file, and the two directions can keep different numbers of contacts,
+  so a residue network's summed energies followed atom order. It now runs from
+  the ligand side, as PLIP's does, then from the earlier residue: in 1IEP,
+  imatinib's contacts with Lys 271 count 2 instead of 1. Hydrophobic contacts,
+  pi-stacking and disulfides list their sides in that order too. No residue
+  pair gains or loses an interaction across the benchmark corpus, and the
+  validation report is unchanged.
 - **Residues differing only by insertion code were merged** in two places.
   Selecting an atom highlighted every residue with its chain and number, so
   clicking thrombin's `1A` lit up `1C`, `1B`, `1A` and `1` together; and
