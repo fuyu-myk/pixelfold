@@ -28,8 +28,29 @@ pub enum Format {
 /// result still prints its header and a consumer can tell "nothing found" from
 /// "wrong command".
 pub trait Row {
-    fn columns() -> &'static [&'static str];
+    fn columns() -> Vec<&'static str>;
     fn cells(&self) -> Vec<String>;
+}
+
+/// A record from one model of several, written with the model's number as its
+/// first column.
+#[derive(Serialize)]
+pub struct InModel<R> {
+    pub model: usize,
+    #[serde(flatten)]
+    pub record: R,
+}
+
+impl<R: Row> Row for InModel<R> {
+    fn columns() -> Vec<&'static str> {
+        std::iter::once("model").chain(R::columns()).collect()
+    }
+
+    fn cells(&self) -> Vec<String> {
+        std::iter::once(self.model.to_string())
+            .chain(self.record.cells())
+            .collect()
+    }
 }
 
 /// Write `records` to `out` in `format`.
@@ -152,8 +173,8 @@ mod tests {
     }
 
     impl Row for Sample {
-        fn columns() -> &'static [&'static str] {
-            &["chain", "distance"]
+        fn columns() -> Vec<&'static str> {
+            vec!["chain", "distance"]
         }
 
         fn cells(&self) -> Vec<String> {
@@ -223,8 +244,8 @@ mod tests {
         }
 
         impl Row for Sparse {
-            fn columns() -> &'static [&'static str] {
-                &["name", "angle"]
+            fn columns() -> Vec<&'static str> {
+                vec!["name", "angle"]
             }
 
             fn cells(&self) -> Vec<String> {

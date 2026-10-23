@@ -43,8 +43,8 @@ pub struct InteractionRecord {
 }
 
 impl Row for InteractionRecord {
-    fn columns() -> &'static [&'static str] {
-        &[
+    fn columns() -> Vec<&'static str> {
+        vec![
             "kind", "chain_a", "resi_a", "icode_a", "resn_a", "atoms_a", "chain_b", "resi_b",
             "icode_b", "resn_b", "atoms_b", "distance", "angle",
         ]
@@ -166,8 +166,8 @@ pub struct SecondaryRecord {
 }
 
 impl Row for SecondaryRecord {
-    fn columns() -> &'static [&'static str] {
-        &["chain", "resi", "icode", "resn", "ss"]
+    fn columns() -> Vec<&'static str> {
+        vec!["chain", "resi", "icode", "resn", "ss"]
     }
 
     fn cells(&self) -> Vec<String> {
@@ -218,8 +218,8 @@ pub struct SasaRecord {
 }
 
 impl Row for SasaRecord {
-    fn columns() -> &'static [&'static str] {
-        &["chain", "resi", "icode", "resn", "sasa", "rsa"]
+    fn columns() -> Vec<&'static str> {
+        vec!["chain", "resi", "icode", "resn", "sasa", "rsa"]
     }
 
     fn cells(&self) -> Vec<String> {

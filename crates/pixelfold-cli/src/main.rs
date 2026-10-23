@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
-use pixelfold_core::InteractionKind;
+use pixelfold_core::{AtomSet, InteractionKind, Protein};
 
 mod analyse;
 mod graph;
@@ -54,10 +54,42 @@ struct Common {
     #[arg(long, value_enum, default_value_t = AltlocArg::Occupancy, global = true)]
     altloc: AltlocArg,
 
-    /// Which model of a multi-model file (an NMR ensemble, say) to load, by its
-    /// number (default: the first)
-    #[arg(long, value_name = "N", global = true)]
-    model: Option<usize>,
+    /// Which model of a multi-model file (an NMR ensemble, say) to load: its
+    /// number, or `all` for ss, sasa and interactions to report on every model
+    /// (default: the first)
+    #[arg(long, value_name = "N|all", value_parser = model_choice, global = true)]
+    model: Option<ModelChoice>,
+}
+
+impl Common {
+    /// The model a command that works on one model at a time loads.
+    fn one_model(&self) -> Result<Option<usize>> {
+        match self.model {
+            Some(ModelChoice::All) => {
+                anyhow::bail!("this command works on one model at a time; pass --model N")
+            }
+            Some(ModelChoice::One(number)) => Ok(Some(number)),
+            None => Ok(None),
+        }
+    }
+}
+
+/// Which model of a multi-model file `--model` asks for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ModelChoice {
+    One(usize),
+    All,
+}
+
+fn model_choice(value: &str) -> Result<ModelChoice, String> {
+    if value.eq_ignore_ascii_case("all") {
+        return Ok(ModelChoice::All);
+    }
+
+    value
+        .parse()
+        .map(ModelChoice::One)
+        .map_err(|_| format!("expected a model number or `all`, not `{value}`"))
 }
 
 /// Options every headless analysis shares.
@@ -361,15 +393,12 @@ fn run(command: Command) -> Result<()> {
         } => {
             let query = ligand
                 .map(|code| format!("resn {code}"))
-                .or(analysis.select);
-            let protein = loaded(&analysis.structure, &analysis.common)?;
-            let chosen = load::chosen(&protein, query.as_deref())?;
+                .or_else(|| analysis.select.clone());
             let kinds: Vec<InteractionKind> = types.into_iter().map(Into::into).collect();
 
-            emit(
-                &analyse::interactions(&protein, &chosen, &kinds),
-                analysis.format,
-            )
+            emit_analysis(&analysis, query.as_deref(), |protein, chosen| {
+                analyse::interactions(protein, chosen, &kinds)
+            })
         }
 
         Command::Rin {
@@ -435,17 +464,11 @@ fn run(command: Command) -> Result<()> {
         }
 
         Command::Ss { analysis } => {
-            let protein = loaded(&analysis.structure, &analysis.common)?;
-            let chosen = load::chosen(&protein, analysis.select.as_deref())?;
-
-            emit(&analyse::secondary(&protein, &chosen), analysis.format)
+            emit_analysis(&analysis, analysis.select.as_deref(), analyse::secondary)
         }
 
         Command::Sasa { analysis } => {
-            let protein = loaded(&analysis.structure, &analysis.common)?;
-            let chosen = load::chosen(&protein, analysis.select.as_deref())?;
-
-            emit(&analyse::sasa(&protein, &chosen), analysis.format)
+            emit_analysis(&analysis, analysis.select.as_deref(), analyse::sasa)
         }
 
         Command::Render {
@@ -512,16 +535,57 @@ fn search(query: Option<String>, common: &Common) -> Result<()> {
 }
 
 fn view(structure: &str, protocol: ProtocolArg, common: &Common) -> Result<()> {
+    let model = common.one_model()?;
     let dir = cache_dir(common)?;
     let path = load::structure_path(structure, &dir)?;
 
-    pixelfold_tui::view(&path, common.altloc.into(), common.model, protocol.into())
+    pixelfold_tui::view(&path, common.altloc.into(), model, protocol.into())
 }
 
-fn loaded(structure: &str, common: &Common) -> Result<pixelfold_core::Protein> {
+fn loaded(structure: &str, common: &Common) -> Result<Protein> {
+    let model = common.one_model()?;
     let dir = cache_dir(common)?;
 
-    load::analysis_structure(structure, &dir, common.altloc.into(), common.model)
+    load::analysis_structure(structure, &dir, common.altloc.into(), model)
+}
+
+/// Write `analysis` for the model `--model` names, or for every model, with a
+/// `model` column, when it names `all`. Under `all` the file is parsed once and
+/// each model built in turn, so an ensemble is never held whole, and a
+/// selection is an error only when it matches nothing in any model.
+fn emit_analysis<R, F>(analysis: &Analysis, query: Option<&str>, report: F) -> Result<()>
+where
+    R: report::Row + serde::Serialize,
+    F: Fn(&Protein, &AtomSet) -> Vec<R>,
+{
+    if analysis.common.model != Some(ModelChoice::All) {
+        let protein = loaded(&analysis.structure, &analysis.common)?;
+        let chosen = load::chosen(&protein, query)?;
+        return emit(&report(&protein, &chosen), analysis.format);
+    }
+
+    let dir = cache_dir(&analysis.common)?;
+    let parsed = load::parsed(&analysis.structure, &dir)?;
+    let mut records = Vec::new();
+    let mut matched = false;
+    for model in parsed.model_numbers() {
+        let protein = parsed.protein(Some(model), analysis.common.altloc.into())?;
+        let chosen = load::selection(&protein, query)?;
+        matched |= !chosen.is_empty();
+        records.extend(
+            report(&protein, &chosen)
+                .into_iter()
+                .map(|record| report::InModel { model, record }),
+        );
+    }
+    if !matched {
+        anyhow::bail!(
+            "the selection `{}` matched no atoms in any model",
+            query.unwrap_or("all")
+        );
+    }
+
+    emit(&records, analysis.format)
 }
 
 /// The URL and parse format a MolViewSpec scene should load the structure from.

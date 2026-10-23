@@ -38,15 +38,29 @@ pub fn analysis_structure(
         .with_context(|| format!("failed to load {}", path.display()))
 }
 
+/// Read and parse a structure once, for a command that works through its models.
+pub fn parsed(input: &str, cache_dir: &Path) -> Result<ParsedStructure> {
+    let path = structure_path(input, cache_dir)?;
+
+    ParsedStructure::read(&path).with_context(|| format!("failed to load {}", path.display()))
+}
+
+/// The atoms a query chooses, or every atom when there is no query. The set may
+/// be empty.
+pub fn selection(protein: &Protein, query: Option<&str>) -> Result<AtomSet> {
+    select(query.unwrap_or("all"), protein).map_err(|error| anyhow::anyhow!("{error}"))
+}
+
 /// The atoms a query chooses, or every atom when there is no query.
 ///
 /// An empty result throws an error.
 pub fn chosen(protein: &Protein, query: Option<&str>) -> Result<AtomSet> {
-    let query = query.unwrap_or("all");
-
-    let set = select(query, protein).map_err(|error| anyhow::anyhow!("{error}"))?;
+    let set = selection(protein, query)?;
     if set.is_empty() {
-        anyhow::bail!("the selection `{query}` matched no atoms");
+        anyhow::bail!(
+            "the selection `{}` matched no atoms",
+            query.unwrap_or("all")
+        );
     }
 
     Ok(set)

@@ -8,10 +8,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- **`--model N`**, a global option choosing which model of a multi-model file
-  (an NMR ensemble, say) every subcommand and the viewer load; the first model
-  remains the default, and an absent one is an error naming the models the
-  file has. `select model N` now has something to match.
+- **`--model N|all`**, a global option choosing which model of a multi-model
+  file (an NMR ensemble, say) every subcommand and the viewer load; the first
+  model remains the default, and an absent one is an error naming the models
+  the file has. `select model N` now has something to match. `--model all`
+  makes `ss`, `sasa` and `interactions` report every model, with a leading
+  `model` column in the table and TSV and a `model` field in the JSON; output
+  for a single model keeps its shape. A selection is then an error only when it
+  matches nothing in any model. `rin`, `render` and the viewer work on one model
+  at a time and refuse `all`.
 - **Model stepping in the viewer**: `m` and `M` show the next and previous
   model, wrapping at either end, without re-reading the file. The camera stays
   put, the info bar names the model, and the selection and network pane start

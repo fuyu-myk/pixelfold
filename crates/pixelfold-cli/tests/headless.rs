@@ -597,3 +597,86 @@ fn model_chooses_which_model_of_a_file_is_analysed() {
         absent.stderr
     );
 }
+
+fn two_model_file(dir: &tempfile::TempDir) -> PathBuf {
+    let path = dir.path().join("nmr.cif");
+    std::fs::write(&path, TWO_MODELS).unwrap();
+    path
+}
+
+#[test]
+fn model_all_reports_every_model_with_its_number() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = two_model_file(&dir);
+
+    let tsv = run_on(&path, &["ss", "--format", "tsv", "--model", "all"]);
+    assert!(tsv.ok, "command failed: {}", tsv.stderr);
+    assert!(tsv.stdout.starts_with("model\tchain\t"), "{}", tsv.stdout);
+    let models: Vec<&str> = tsv
+        .rows()
+        .iter()
+        .map(|row| row.split('\t').next().unwrap())
+        .collect();
+    assert_eq!(models, ["1", "1", "2", "2"]);
+
+    let json = run_on(&path, &["sasa", "--format", "json", "--model", "all"]);
+    assert!(json.ok, "command failed: {}", json.stderr);
+    let records: serde_json::Value = serde_json::from_str(&json.stdout).unwrap();
+    assert_eq!(records[2]["model"], 2);
+    assert_eq!(records[2]["resi"], 1);
+}
+
+// A selection may match in some models and not others; only a selection that
+// matches nowhere is an error.
+#[test]
+fn model_all_errors_only_when_no_model_matches() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = two_model_file(&dir);
+
+    let second = run_on(
+        &path,
+        &[
+            "ss", "--format", "tsv", "--model", "all", "--select", "model 2",
+        ],
+    );
+    assert!(second.ok, "command failed: {}", second.stderr);
+    assert_eq!(second.rows().len(), 2);
+
+    let nowhere = run_on(&path, &["ss", "--model", "all", "--select", "resn TRP"]);
+    assert!(!nowhere.ok);
+    assert!(
+        nowhere.stderr.contains("matched no atoms in any model"),
+        "{}",
+        nowhere.stderr
+    );
+}
+
+#[test]
+fn single_model_commands_refuse_every_model() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = two_model_file(&dir);
+    let png = dir.path().join("out.png");
+
+    for args in [
+        vec!["rin", "--model", "all"],
+        vec!["render", "--model", "all", "-o", png.to_str().unwrap()],
+    ] {
+        let run = run_on(&path, &args);
+        assert!(!run.ok, "{args:?} should refuse --model all");
+        assert!(run.stderr.contains("one model at a time"), "{}", run.stderr);
+    }
+}
+
+#[test]
+fn model_takes_a_number_or_all() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = two_model_file(&dir);
+
+    let run = run_on(&path, &["ss", "--model", "first"]);
+    assert!(!run.ok);
+    assert!(
+        run.stderr.contains("a model number or `all`"),
+        "{}",
+        run.stderr
+    );
+}
