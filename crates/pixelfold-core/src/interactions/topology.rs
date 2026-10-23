@@ -128,6 +128,14 @@ pub fn is_standard_residue(residue_name: &str) -> bool {
     side_chain_bonds(residue_name).is_some()
 }
 
+/// The standard nucleotide residue names, DNA and RNA.
+pub fn is_standard_nucleotide(residue_name: &str) -> bool {
+    matches!(
+        residue_name,
+        "DA" | "DC" | "DG" | "DT" | "DU" | "DI" | "A" | "C" | "G" | "U" | "I"
+    )
+}
+
 /// The heavy atoms bonded to `atom_name` within its own residue.
 ///
 /// A residue outside the standard 20 has no known connectivity and so no

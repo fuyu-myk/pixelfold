@@ -20,6 +20,8 @@ pub struct Atom {
     pub residue_seq: i32,
     pub chain_id: FixedStr<4>,
     pub is_hetatm: bool,
+    /// The kind of molecule the atom belongs to, from the file's entities.
+    pub molecule: Molecule,
     pub altloc: Option<char>,
     pub occupancy: f32,
     pub insertion_code: Option<char>,
@@ -27,6 +29,24 @@ pub struct Atom {
     pub position: Vec3,
     pub b_factor: f32,
     pub secondary_structure: SecondaryStructure,
+}
+
+/// The kind of molecule an atom belongs to, as the file's entity records state
+/// it. `Unknown` when the file names no entity, which leaves callers to judge by
+/// residue name and record type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Molecule {
+    Protein,
+    NucleicAcid,
+    /// A polymer of another kind, such as a polysaccharide or a peptide nucleic
+    /// acid.
+    OtherPolymer,
+    /// A branched entity, such as an oligosaccharide.
+    Branched,
+    /// A ligand or an ion.
+    NonPolymer,
+    Water,
+    Unknown,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -314,6 +334,7 @@ mod tests {
             residue_seq: 1,
             chain_id: FixedStr::new("A"),
             is_hetatm: false,
+            molecule: crate::structure::Molecule::Unknown,
             altloc: None,
             occupancy: 1.0,
             insertion_code: None,
@@ -353,6 +374,7 @@ mod tests {
             residue_seq: 1,
             chain_id: FixedStr::new("A"),
             is_hetatm: false,
+            molecule: crate::structure::Molecule::Unknown,
             altloc,
             occupancy,
             insertion_code: None,

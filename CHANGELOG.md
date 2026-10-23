@@ -31,6 +31,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the same number, so in a multi-chain structure chain B's residue 10 showed
   chain A's residue 10 secondary structure. Each connection now takes its own
   residue's.
+- **Modified residues were selected as ligands.** `protein` matched only the 20
+  standard amino acid names and `ligand` any non-water, non-metal HETATM, so a
+  selenomethionine or phosphotyrosine inside a chain was a ligand and not
+  protein (3G5S's 14 MSE, 9I24's PTR, 8OW6's HYP). `protein`, `nucleic`,
+  `ligand` and `water` now follow the file's entities, recorded on each atom as
+  `Atom::molecule`; a free amino acid declared as a non-polymer stays a ligand.
+  A file without entity records keeps the old name and record-type rules.
 - **Residues differing only by insertion code were merged** in two places.
   Selecting an atom highlighted every residue with its chain and number, so
   clicking thrombin's `1A` lit up `1C`, `1B`, `1A` and `1` together; and

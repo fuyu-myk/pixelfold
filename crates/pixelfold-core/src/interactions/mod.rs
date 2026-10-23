@@ -150,6 +150,7 @@ mod tests {
             residue_seq: seq,
             chain_id: FixedStr::new("A"),
             is_hetatm: false,
+            molecule: crate::structure::Molecule::Unknown,
             altloc,
             occupancy: 1.0,
             insertion_code: None,

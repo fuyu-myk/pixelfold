@@ -171,6 +171,7 @@ mod tests {
             residue_seq: seq,
             chain_id: FixedStr::new("A"),
             is_hetatm,
+            molecule: pixelfold_core::Molecule::Unknown,
             altloc: None,
             occupancy: 1.0,
             insertion_code: None,

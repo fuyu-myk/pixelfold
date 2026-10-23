@@ -8,9 +8,9 @@ use glam::Vec3;
 use super::Selection;
 use crate::fixed_str::FixedStr;
 use crate::interactions::classify::{is_metal, is_water};
-use crate::interactions::topology::is_standard_residue;
+use crate::interactions::topology::{is_standard_nucleotide, is_standard_residue};
 use crate::spatial::Grid;
-use crate::structure::{Atom, Protein};
+use crate::structure::{Atom, Molecule, Protein};
 
 /// A set of atom indices into a structure, held as a bitset so the boolean
 /// operators are word-parallel over large structures.
@@ -118,15 +118,27 @@ fn evaluate(selection: &Selection, protein: &Protein) -> AtomSet {
         Selection::BFactor(cmp, bound) | Selection::Plddt(cmp, bound) => {
             select(protein, |atom| cmp.test(atom.b_factor, *bound))
         }
-        Selection::Protein => select(protein, |atom| {
-            is_standard_residue(atom.residue_name.as_str())
+        Selection::Protein => select(protein, |atom| match atom.molecule {
+            Molecule::Unknown => is_standard_residue(atom.residue_name.as_str()),
+            molecule => molecule == Molecule::Protein,
         }),
-        Selection::Nucleic => select(protein, |atom| is_nucleic(atom.residue_name.as_str())),
-        Selection::Water => select(protein, |atom| is_water(atom.residue_name.as_str())),
+        Selection::Nucleic => select(protein, |atom| match atom.molecule {
+            Molecule::Unknown => is_standard_nucleotide(atom.residue_name.as_str()),
+            molecule => molecule == Molecule::NucleicAcid,
+        }),
+        Selection::Water => select(protein, |atom| match atom.molecule {
+            Molecule::Unknown => is_water(atom.residue_name.as_str()),
+            molecule => molecule == Molecule::Water,
+        }),
         Selection::Metal => select(protein, is_metal),
         Selection::Hetatm => select(protein, |atom| atom.is_hetatm),
         Selection::Ligand => select(protein, |atom| {
-            atom.is_hetatm && !is_water(atom.residue_name.as_str()) && !is_metal(atom)
+            let ligand = match atom.molecule {
+                Molecule::NonPolymer | Molecule::Branched => true,
+                Molecule::Unknown => atom.is_hetatm && !is_water(atom.residue_name.as_str()),
+                _ => false,
+            };
+            ligand && !is_metal(atom)
         }),
     }
 }
@@ -175,14 +187,6 @@ fn within(distance: f32, seed: &AtomSet, protein: &Protein) -> AtomSet {
     out
 }
 
-/// The standard nucleotide residue names, DNA and RNA.
-fn is_nucleic(residue_name: &str) -> bool {
-    matches!(
-        residue_name,
-        "DA" | "DC" | "DG" | "DT" | "DU" | "DI" | "A" | "C" | "G" | "U" | "I"
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -198,6 +202,7 @@ mod tests {
             residue_seq: seq,
             chain_id: FixedStr::new("A"),
             is_hetatm: false,
+            molecule: Molecule::Unknown,
             altloc: None,
             occupancy: 1.0,
             insertion_code: None,

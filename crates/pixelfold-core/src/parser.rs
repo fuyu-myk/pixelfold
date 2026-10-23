@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use flate2::read::MultiGzDecoder;
 use glam::Vec3;
 use mmcif_cif::{Block, BuildError, Document, DocumentBuilder, Entry};
-use mmcif_model::{AtomRef, Model, Structure};
+use mmcif_model::{AtomRef, ChainRef, EntityKind, Model, PolymerType, Structure};
 use std::{collections::BTreeSet, io::Read, path::Path};
 
 use crate::{
@@ -10,7 +10,8 @@ use crate::{
     components::Dictionary,
     dssp,
     fixed_str::FixedStr,
-    structure::{AltlocPolicy, Atom, Protein, SecondaryStructure, filter_altlocs},
+    interactions::topology::{is_standard_nucleotide, is_standard_residue},
+    structure::{AltlocPolicy, Atom, Molecule, Protein, SecondaryStructure, filter_altlocs},
 };
 
 /// A structure file as read from disk. An mmCIF document is kept whole: the
@@ -89,7 +90,8 @@ impl StructureFile {
     /// biological assembly and the component definitions the file declares.
     fn protein(&self, altloc: AltlocPolicy) -> Result<Protein> {
         let structure = self.structure()?;
-        let mut atoms = filter_altlocs(atoms_of(first_model(&structure)?, |_| true), altloc);
+        let model = first_model(&structure)?;
+        let mut atoms = filter_altlocs(atoms_of(&structure, model, |_| true), altloc);
         let hbonds = dssp::assign(&mut atoms);
 
         let block = self.block();
@@ -116,7 +118,7 @@ impl StructureFile {
     /// included, without assembly or component definitions.
     fn subset(&self, keep: impl Fn(&str) -> bool) -> Result<Protein> {
         let structure = self.structure()?;
-        let mut atoms = atoms_of(first_model(&structure)?, keep);
+        let mut atoms = atoms_of(&structure, first_model(&structure)?, keep);
         let hbonds = dssp::assign(&mut atoms);
 
         Ok(Protein {
@@ -176,8 +178,47 @@ fn first_model(structure: &Structure) -> Result<&Model> {
         .ok_or_else(|| anyhow::anyhow!("the file contains no atoms"))
 }
 
+/// What a chain's entity says it is. A polymer whose type the file does not
+/// state, as a legacy PDB file's never is, is judged by its residue names.
+fn molecule_of(structure: &Structure, chain: ChainRef<'_>) -> Molecule {
+    let Some(entity) = chain.entity().and_then(|id| structure.entity(id.as_str())) else {
+        return Molecule::Unknown;
+    };
+
+    match entity.kind() {
+        EntityKind::Polymer => match entity.polymer().map(|polymer| polymer.kind()) {
+            Some(PolymerType::PeptideL | PolymerType::PeptideD) => Molecule::Protein,
+            Some(PolymerType::Dna | PolymerType::Rna | PolymerType::DnaRnaHybrid) => {
+                Molecule::NucleicAcid
+            }
+            Some(PolymerType::Other(_)) | None => polymer_by_residue_names(chain),
+            Some(_) => Molecule::OtherPolymer,
+        },
+        EntityKind::Branched => Molecule::Branched,
+        EntityKind::NonPolymer | EntityKind::Macrolide => Molecule::NonPolymer,
+        EntityKind::Water => Molecule::Water,
+        EntityKind::Other(_) => Molecule::Unknown,
+    }
+}
+
+fn polymer_by_residue_names(chain: ChainRef<'_>) -> Molecule {
+    let (amino, nucleic) = chain.residues().fold((0, 0), |(amino, nucleic), residue| {
+        let name = residue.comp().as_str();
+        (
+            amino + usize::from(is_standard_residue(name)),
+            nucleic + usize::from(is_standard_nucleotide(name)),
+        )
+    });
+
+    match (amino, nucleic) {
+        (0, 0) => Molecule::Unknown,
+        _ if amino >= nucleic => Molecule::Protein,
+        _ => Molecule::NucleicAcid,
+    }
+}
+
 /// Build `Atom` from one atom of a model, under author numbering.
-fn build_atom(model: &Model, atom: AtomRef<'_>) -> Atom {
+fn build_atom(model: &Model, atom: AtomRef<'_>, molecule: Molecule) -> Atom {
     let residue = atom.residue();
     let [x, y, z] = atom.position();
 
@@ -192,6 +233,7 @@ fn build_atom(model: &Model, atom: AtomRef<'_>) -> Atom {
         residue_seq: residue.auth_seq().get(),
         chain_id: FixedStr::new(residue.chain().auth_asym().as_str()),
         is_hetatm: residue.is_hetero(),
+        molecule,
         altloc: atom.altloc().get(),
         occupancy: atom.occupancy() as f32,
         insertion_code: residue.ins_code().get(),
@@ -204,13 +246,18 @@ fn build_atom(model: &Model, atom: AtomRef<'_>) -> Atom {
 
 /// Every atom of `model` whose name `keep` accepts, warning once when an
 /// identifier overflowed its fixed field.
-fn atoms_of(model: &Model, keep: impl Fn(&str) -> bool) -> Vec<Atom> {
+fn atoms_of(structure: &Structure, model: &Model, keep: impl Fn(&str) -> bool) -> Vec<Atom> {
+    let molecules: Vec<Molecule> = model
+        .chains()
+        .map(|chain| molecule_of(structure, chain))
+        .collect();
     let mut truncated: BTreeSet<(&'static str, String)> = BTreeSet::new();
     let atoms = model
         .atoms()
         .filter(|source| keep(source.name().as_str()))
         .map(|source| {
-            let atom = build_atom(model, source);
+            let molecule = molecules[source.residue().chain().index().get()];
+            let atom = build_atom(model, source, molecule);
             let residue = source.residue();
             let fields = [
                 ("atom name", atom.name.as_str(), source.name().as_str()),
@@ -710,5 +757,109 @@ _pdbx_struct_assembly_gen.asym_id_list
 
         assert_eq!(protein.atoms.len(), 1);
         assert_eq!(protein.atoms[0].name, "CA");
+    }
+
+    fn selected_residues(protein: &Protein, query: &str) -> Vec<String> {
+        let set = crate::select::select(query, protein).unwrap();
+        let names: BTreeSet<String> = set
+            .iter()
+            .map(|i| protein.atoms[i].residue_name.as_str().to_string())
+            .collect();
+        names.into_iter().collect()
+    }
+
+    // Selenomethionine is a HETATM record inside the polymer chain: the file's
+    // entities say it is protein, its record type and name would say ligand.
+    #[test]
+    fn entities_classify_a_modified_residue_as_protein() {
+        let cif = "\
+data_TEST
+loop_
+_entity.id
+_entity.type
+1 polymer
+2 non-polymer
+3 water
+#
+_entity_poly.entity_id 1
+_entity_poly.type 'polypeptide(L)'
+#
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.label_entity_id
+_atom_site.label_seq_id
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+_atom_site.auth_seq_id
+_atom_site.auth_asym_id
+ATOM 1 C CA ALA A 1 1 0.0 0.0 0.0 1 A
+HETATM 2 C CA MSE A 1 2 3.8 0.0 0.0 2 A
+ATOM 3 C CA GLY A 1 3 7.6 0.0 0.0 3 A
+HETATM 4 C C1 LIG B 2 . 0.0 9.0 0.0 101 A
+HETATM 5 O O HOH C 3 . 0.0 0.0 9.0 201 A
+";
+        let protein = load_cif("entities", cif, AltlocPolicy::Occupancy);
+
+        assert_eq!(
+            selected_residues(&protein, "protein"),
+            ["ALA", "GLY", "MSE"]
+        );
+        assert_eq!(selected_residues(&protein, "ligand"), ["LIG"]);
+        assert_eq!(selected_residues(&protein, "water"), ["HOH"]);
+    }
+
+    fn pdb_line(record: &str, serial: u32, name: &str, residue: &str, seq: i32, x: f32) -> String {
+        let element = &name.trim()[..1];
+        format!(
+            "{record:<6}{serial:>5} {name:<4} {residue:>3} A{seq:>4}    {x:>8.3}{:>8.3}{:>8.3}  1.00  5.00          {element:>2}\n",
+            0.0, 0.0
+        )
+    }
+
+    // A legacy PDB file names no entities; everything before a chain's last ATOM
+    // record is its polymer, and the residue names decide what kind.
+    #[test]
+    fn a_pdb_files_polymer_keeps_its_modified_residues() {
+        let pdb = [
+            pdb_line("ATOM", 1, " CA ", "ALA", 1, 0.0),
+            pdb_line("HETATM", 2, " CA ", "MSE", 2, 3.8),
+            pdb_line("ATOM", 3, " CA ", "GLY", 3, 7.6),
+            "TER\n".to_string(),
+            pdb_line("HETATM", 4, " C1 ", "LIG", 101, 20.0),
+            pdb_line("HETATM", 5, " O  ", "HOH", 201, 30.0),
+        ]
+        .concat();
+        let path = std::env::temp_dir().join("pf_entities.pdb");
+        std::fs::write(&path, pdb).unwrap();
+        let protein = load_protein_with_options(&path, AltlocPolicy::Occupancy).unwrap();
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(
+            selected_residues(&protein, "protein"),
+            ["ALA", "GLY", "MSE"]
+        );
+        assert_eq!(selected_residues(&protein, "ligand"), ["LIG"]);
+        assert_eq!(selected_residues(&protein, "water"), ["HOH"]);
+    }
+
+    // Without entity records the residue names and record types still decide.
+    #[test]
+    fn without_entities_a_hetatm_residue_is_a_ligand() {
+        let cif = format!(
+            "{ATOM_SITE_HEADER}\
+ATOM 1 C CA . ALA A 1 0.0 0.0 0.0 1.00 5.0 1 A
+HETATM 2 C CA . MSE A 2 3.8 0.0 0.0 1.00 5.0 2 A
+"
+        );
+        let protein = load_cif("no_entities", &cif, AltlocPolicy::Occupancy);
+
+        assert_eq!(selected_residues(&protein, "protein"), ["ALA"]);
+        assert_eq!(selected_residues(&protein, "ligand"), ["MSE"]);
     }
 }

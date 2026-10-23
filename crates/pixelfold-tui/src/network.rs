@@ -633,6 +633,7 @@ mod tests {
             residue_seq: seq,
             chain_id: FixedStr::new(chain),
             is_hetatm: false,
+            molecule: pixelfold_core::Molecule::Unknown,
             altloc: None,
             occupancy: 1.0,
             insertion_code: None,
