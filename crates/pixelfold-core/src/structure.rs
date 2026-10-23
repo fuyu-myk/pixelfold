@@ -111,7 +111,7 @@ pub struct Protein {
 /// A biological assembly whose symmetry expansion differs from the deposited
 /// asymmetric unit. Present only when the primary assembly applies more than the
 /// identity operator, so the deposited coordinates are a partial view of the
-/// functional unit. Assembly generation itself is not yet performed.
+/// functional unit. `parser::Load::assembly` builds the assembly itself.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BiologicalAssembly {
     /// Number of symmetry operators the primary assembly applies. Greater than

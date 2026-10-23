@@ -2,8 +2,8 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use pixelfold_core::parser::ParsedStructure;
-use pixelfold_core::{AltlocPolicy, DisplayMode, Protein, get_calpha_connections};
+use pixelfold_core::parser::{AssemblyChoice, Load, ParsedStructure};
+use pixelfold_core::{DisplayMode, Protein, get_calpha_connections};
 use pixelfold_render::Framebuffer;
 use pixelfold_render::renderer::{self, Camera};
 use ratatui::layout::Rect;
@@ -61,10 +61,13 @@ pub struct App {
     /// The parsed file the shown model came from, kept so stepping between
     /// models never re-reads it.
     pub(crate) source: Option<ParsedStructure>,
-    pub(crate) altloc: AltlocPolicy,
+    /// The model, assembly, and altloc policy of what is shown.
+    pub(crate) load: Load,
     /// The file's model numbers, and the position of the shown one among them.
     pub(crate) models: Vec<usize>,
     pub(crate) model_position: usize,
+    /// The ids of the biological assemblies the file declares.
+    pub(crate) assemblies: Vec<String>,
 }
 
 impl Default for App {
@@ -99,30 +102,25 @@ impl App {
             network_build: None,
             network_area: None,
             source: None,
-            altloc: AltlocPolicy::default(),
+            load: Load::default(),
             models: Vec::new(),
             model_position: 0,
+            assemblies: Vec::new(),
         }
     }
 
-    /// Load model `model` of the file at `path`, or its first model when `None`,
-    /// and frame it.
-    pub fn load_protein(
-        &mut self,
-        path: &Path,
-        width: f32,
-        height: f32,
-        altloc: AltlocPolicy,
-        model: Option<usize>,
-    ) -> Result<()> {
+    /// Load what `load` names from the file at `path` and frame it.
+    pub fn load_protein(&mut self, path: &Path, width: f32, height: f32, load: Load) -> Result<()> {
         let source = ParsedStructure::read(path)?;
-        let protein = source.protein(model, altloc)?;
+        let protein = source.protein(&load)?;
         self.models = source.model_numbers();
-        self.model_position = model
+        self.model_position = load
+            .model
             .and_then(|number| self.models.iter().position(|&m| m == number))
             .unwrap_or(0);
+        self.assemblies = source.assembly_ids();
         self.source = Some(source);
-        self.altloc = altloc;
+        self.load = load;
 
         renderer::auto_frame_protein(&protein, &mut self.camera, width, height);
         self.protein = Some(protein);
@@ -132,17 +130,69 @@ impl App {
     }
 
     /// Show the next model of a multi-model file (`delta` 1) or the previous one
-    /// (-1), wrapping at either end. The camera stays put; the selection and the
-    /// network pane, which index the old model's atoms, start over.
+    /// (-1), wrapping at either end. The camera stays put.
     pub fn step_model(&mut self, delta: isize) -> Result<()> {
         let count = self.models.len();
-        let Some(source) = self.source.as_ref().filter(|_| count > 1) else {
+        if count < 2 {
+            return Ok(());
+        }
+
+        let position = (self.model_position as isize + delta).rem_euclid(count as isize) as usize;
+        self.show(Load {
+            model: Some(self.models[position]),
+            ..self.load.clone()
+        })?;
+        self.model_position = position;
+
+        Ok(())
+    }
+
+    /// Switch between the deposited coordinates and the primary biological
+    /// assembly, framing the result in `frame` (width, height) when given, since
+    /// the extent changes. Does nothing for a file that declares no assembly.
+    pub fn toggle_assembly(&mut self, frame: Option<(f32, f32)>) -> Result<()> {
+        if self.assemblies.is_empty() {
+            return Ok(());
+        }
+
+        let assembly = match self.load.assembly {
+            Some(_) => None,
+            None => Some(AssemblyChoice::Primary),
+        };
+        self.show(Load {
+            assembly,
+            ..self.load.clone()
+        })?;
+        if let (Some((width, height)), Some(protein)) = (frame, self.protein.as_ref()) {
+            renderer::auto_frame_protein(protein, &mut self.camera, width, height);
+        }
+
+        Ok(())
+    }
+
+    /// The assembly shown, by id, or `None` for the deposited coordinates.
+    pub fn shown_assembly(&self) -> Option<&str> {
+        match self.load.assembly.as_ref()? {
+            AssemblyChoice::Id(id) => Some(id.as_str()),
+            AssemblyChoice::Primary => self
+                .assemblies
+                .iter()
+                .find(|id| *id == "1")
+                .or_else(|| self.assemblies.first())
+                .map(String::as_str),
+        }
+    }
+
+    /// Build what `load` names from the kept file in place of what is shown.
+    /// The selection and the network pane, which index the old atoms, start
+    /// over.
+    fn show(&mut self, load: Load) -> Result<()> {
+        let Some(source) = self.source.as_ref() else {
             return Ok(());
         };
 
-        let position = (self.model_position as isize + delta).rem_euclid(count as isize) as usize;
-        self.protein = Some(source.protein(Some(self.models[position]), self.altloc)?);
-        self.model_position = position;
+        self.protein = Some(source.protein(&load)?);
+        self.load = load;
         self.compute_static_geometry();
 
         self.selected_atom_idx = None;
@@ -206,17 +256,12 @@ pub enum ViewProtocol {
 }
 
 /// Load a structure and run the interactive viewer.
-pub fn view(
-    path: &Path,
-    altloc: AltlocPolicy,
-    model: Option<usize>,
-    protocol: ViewProtocol,
-) -> Result<()> {
+pub fn view(path: &Path, load: Load, protocol: ViewProtocol) -> Result<()> {
     let mut terminal = ratatui::init();
 
     let picker = build_picker(protocol);
 
-    let result = run_view(&mut terminal, &picker, path, altloc, model);
+    let result = run_view(&mut terminal, &picker, path, load);
 
     let _ = crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture);
     ratatui::restore();
@@ -246,8 +291,7 @@ fn run_view(
     terminal: &mut ratatui::DefaultTerminal,
     picker: &Picker,
     path: &Path,
-    altloc: AltlocPolicy,
-    model: Option<usize>,
+    load: Load,
 ) -> Result<()> {
     crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture)?;
 
@@ -258,7 +302,7 @@ fn run_view(
     let height = (rows as u32 * font_h as u32).max(1) as f32;
 
     let mut app = App::new();
-    app.load_protein(path, width, height, altloc, model)?;
+    app.load_protein(path, width, height, load)?;
 
     crate::app::run_app(terminal, &mut app, picker)
 }
@@ -408,7 +452,7 @@ ATOM 4 C CA GLY A 2 4.3 0.0 0.0 2
         let path = std::env::temp_dir().join("pf_tui_two_models.cif");
         std::fs::write(&path, cif).unwrap();
         let mut app = App::new();
-        app.load_protein(&path, 64.0, 64.0, AltlocPolicy::Occupancy, None)
+        app.load_protein(&path, 64.0, 64.0, Load::default())
             .unwrap();
         let _ = std::fs::remove_file(&path);
         let shown = |app: &App| app.protein.as_ref().unwrap().atoms[0].model_number;
@@ -422,5 +466,93 @@ ATOM 4 C CA GLY A 2 4.3 0.0 0.0 2
         assert_eq!(shown(&app), 1);
         app.step_model(-1).unwrap();
         assert_eq!(shown(&app), 2);
+    }
+
+    #[test]
+    fn the_assembly_toggles_on_and_off_and_starts_the_selection_over() {
+        let cif = "\
+data_ASM
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.label_seq_id
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+_atom_site.auth_seq_id
+_atom_site.auth_asym_id
+ATOM 1 C CA GLY A 1 1.0 0.0 0.0 1 A
+ATOM 2 C CA GLY A 2 4.8 0.0 0.0 2 A
+#
+_pdbx_struct_oper_list.id 1
+_pdbx_struct_oper_list.type 'identity operation'
+_pdbx_struct_oper_list.matrix[1][1] 1
+_pdbx_struct_oper_list.matrix[1][2] 0
+_pdbx_struct_oper_list.matrix[1][3] 0
+_pdbx_struct_oper_list.vector[1] 0
+_pdbx_struct_oper_list.matrix[2][1] 0
+_pdbx_struct_oper_list.matrix[2][2] 1
+_pdbx_struct_oper_list.matrix[2][3] 0
+_pdbx_struct_oper_list.vector[2] 0
+_pdbx_struct_oper_list.matrix[3][1] 0
+_pdbx_struct_oper_list.matrix[3][2] 0
+_pdbx_struct_oper_list.matrix[3][3] 1
+_pdbx_struct_oper_list.vector[3] 0
+#
+_pdbx_struct_assembly_gen.assembly_id 1
+_pdbx_struct_assembly_gen.oper_expression 1,1
+_pdbx_struct_assembly_gen.asym_id_list A
+#
+";
+        let path = std::env::temp_dir().join("pf_tui_assembly.cif");
+        std::fs::write(&path, cif).unwrap();
+        let mut app = App::new();
+        app.load_protein(&path, 64.0, 64.0, Load::default())
+            .unwrap();
+        let _ = std::fs::remove_file(&path);
+        let chains = |app: &App| -> Vec<String> {
+            let protein = app.protein.as_ref().unwrap();
+            protein
+                .atoms
+                .iter()
+                .map(|a| a.chain_id.to_string())
+                .collect()
+        };
+        assert_eq!(app.shown_assembly(), None);
+
+        app.selected_atom_idx = Some(0);
+        app.toggle_assembly(Some((64.0, 64.0))).unwrap();
+        assert_eq!(chains(&app), ["A", "A", "A-2", "A-2"]);
+        assert_eq!(app.shown_assembly(), Some("1"));
+        assert_eq!(app.selected_atom_idx, None);
+
+        app.toggle_assembly(None).unwrap();
+        assert_eq!(chains(&app), ["A", "A"]);
+    }
+
+    #[test]
+    fn a_file_without_assemblies_ignores_the_toggle() {
+        let mut app = App::new();
+        let path = std::env::temp_dir().join("pf_tui_no_assembly.cif");
+        std::fs::write(
+            &path,
+            "data_X\nloop_\n_atom_site.group_PDB\n_atom_site.id\n_atom_site.type_symbol\n\
+             _atom_site.label_atom_id\n_atom_site.label_comp_id\n_atom_site.label_asym_id\n\
+             _atom_site.label_seq_id\n_atom_site.Cartn_x\n_atom_site.Cartn_y\n_atom_site.Cartn_z\n\
+             ATOM 1 C CA GLY A 1 0.0 0.0 0.0\n",
+        )
+        .unwrap();
+        app.load_protein(&path, 64.0, 64.0, Load::default())
+            .unwrap();
+        let _ = std::fs::remove_file(&path);
+
+        app.toggle_assembly(None).unwrap();
+
+        assert_eq!(app.protein.as_ref().unwrap().atoms.len(), 1);
+        assert_eq!(app.shown_assembly(), None);
     }
 }

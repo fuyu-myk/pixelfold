@@ -9,7 +9,7 @@
 use std::collections::{HashMap, HashSet};
 
 use mmcif_cif::Block;
-use mmcif_model::{AssemblyId, OperatorId, Structure, Transform};
+use mmcif_model::{Assembly, AssemblyId, OperatorId, Structure, Transform};
 
 use crate::structure::BiologicalAssembly;
 
@@ -17,19 +17,13 @@ use crate::structure::BiologicalAssembly;
 /// operators differ by far more than this.
 const TRANSFORM_TOLERANCE: f64 = 1e-3;
 
-/// Detect a primary assembly the deposited coordinates do not already show:
+/// Detect a [`primary`] assembly the deposited coordinates do not already show:
 /// one that places a chain more than once, or places its chains by different
 /// transforms. One transform for every chain, identity or not, moves the whole
-/// unit rigidly and leaves its arrangement as deposited. The primary assembly
-/// is "1", the id RCSB gives the preferred one, or else the first declared.
-/// `None` when the coordinates are the biological unit or no assembly is
-/// declared.
+/// unit rigidly and leaves its arrangement as deposited. `None` when the
+/// coordinates are the biological unit or no assembly is declared.
 pub fn detect_mmcif(structure: &Structure, block: &Block<'_>) -> Option<BiologicalAssembly> {
-    let assemblies = structure.assemblies();
-    let primary = assemblies
-        .iter()
-        .find(|assembly| assembly.id().as_str() == "1")
-        .or_else(|| assemblies.first())?;
+    let primary = primary(structure)?;
 
     let mut placements: HashMap<&str, usize> = HashMap::new();
     let mut combinations: HashSet<Vec<OperatorId>> = HashSet::new();
@@ -58,6 +52,16 @@ pub fn detect_mmcif(structure: &Structure, block: &Block<'_>) -> Option<Biologic
         operator_count: combinations.len(),
         oligomer: oligomeric_details(block, primary.id()),
     })
+}
+
+/// The primary assembly: "1", the id RCSB gives the preferred one, or else the
+/// first declared.
+pub(crate) fn primary(structure: &Structure) -> Option<&Assembly> {
+    let assemblies = structure.assemblies();
+    assemblies
+        .iter()
+        .find(|assembly| assembly.id().as_str() == "1")
+        .or_else(|| assemblies.first())
 }
 
 /// The transform a combination applies, its last operator first. An operator

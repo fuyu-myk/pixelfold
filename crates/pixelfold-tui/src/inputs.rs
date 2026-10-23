@@ -132,6 +132,15 @@ pub(crate) fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers
         KeyCode::Char('m') => app.step_model(1)?,
         KeyCode::Char('M') => app.step_model(-1)?,
 
+        // Switch between the deposited coordinates and the biological assembly.
+        KeyCode::Char('u') => {
+            let frame = app
+                .last_frame
+                .as_ref()
+                .map(|frame| (frame.fb.width() as f32, frame.fb.height() as f32));
+            app.toggle_assembly(frame)?;
+        }
+
         // Switch the network layout between force-directed and spatial.
         KeyCode::Char('l') => {
             if app.show_network

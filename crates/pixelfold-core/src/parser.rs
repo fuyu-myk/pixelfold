@@ -2,8 +2,14 @@ use anyhow::{Context, Result};
 use flate2::read::MultiGzDecoder;
 use glam::Vec3;
 use mmcif_cif::{Block, BuildError, Document, DocumentBuilder, Entry};
-use mmcif_model::{AtomRef, ChainRef, EntityKind, Model, PolymerType, Structure};
-use std::{collections::BTreeSet, io::Read, path::Path};
+use mmcif_model::{
+    AssemblyId, AtomRef, ChainRef, EntityKind, Model, OperatorId, PolymerType, Structure,
+};
+use std::{
+    collections::{BTreeSet, HashMap},
+    io::Read,
+    path::Path,
+};
 
 use crate::{
     assembly,
@@ -87,6 +93,26 @@ impl StructureFile {
     }
 }
 
+/// Which biological assembly to build.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AssemblyChoice {
+    /// The primary assembly: "1", the id RCSB gives the preferred one, or else
+    /// the first declared.
+    Primary,
+    Id(String),
+}
+
+/// What to build from a parsed file.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Load {
+    /// The model, by number; the first when `None`.
+    pub model: Option<usize>,
+    /// The biological assembly to build from that model; the deposited
+    /// coordinates when `None`.
+    pub assembly: Option<AssemblyChoice>,
+    pub altloc: AltlocPolicy,
+}
+
 /// A structure file read and parsed once, from which any of its models can be
 /// built. The viewer keeps one to step between models without re-reading.
 pub struct ParsedStructure {
@@ -116,21 +142,39 @@ impl ParsedStructure {
             .collect()
     }
 
-    /// Model `number`, or the first when `None`, its alternate locations
-    /// resolved by `altloc`, with the biological assembly and the component
-    /// definitions the file declares.
-    pub fn protein(&self, number: Option<usize>, altloc: AltlocPolicy) -> Result<Protein> {
-        let model = self.model(number)?;
-        let mut atoms = filter_altlocs(atoms_of(&self.structure, model, |_| true), altloc);
+    /// The ids of the biological assemblies the file declares; none for a
+    /// legacy PDB file, whose `REMARK 350` is not read.
+    pub fn assembly_ids(&self) -> Vec<String> {
+        self.structure
+            .assemblies()
+            .iter()
+            .map(|assembly| assembly.id().as_str().to_string())
+            .collect()
+    }
+
+    /// The model and assembly `load` names, its alternate locations resolved,
+    /// with the component definitions the file declares. The partial-assembly
+    /// note is set only for deposited coordinates, since an assembly shows the
+    /// biological unit itself.
+    pub fn protein(&self, load: &Load) -> Result<Protein> {
+        let model = self.model(load.model)?;
+        let assembled = load
+            .assembly
+            .as_ref()
+            .map(|choice| self.assemble(choice, model))
+            .transpose()?;
+        let shown = assembled.as_ref().unwrap_or(model);
+        let mut atoms = filter_altlocs(atoms_of(&self.structure, shown, |_| true), load.altloc);
         let hbonds = dssp::assign(&mut atoms);
 
         let block = self.file.block();
-        let assembly = match (&self.file, &block) {
-            (StructureFile::Pdb(text), _) => assembly::detect_pdb(text),
-            (StructureFile::Mmcif(_), Some(block)) => {
+        let assembly = match (&self.file, &block, &assembled) {
+            (_, _, Some(_)) => None,
+            (StructureFile::Pdb(text), _, None) => assembly::detect_pdb(text),
+            (StructureFile::Mmcif(_), Some(block), None) => {
                 assembly::detect_mmcif(&self.structure, block)
             }
-            (StructureFile::Mmcif(_), None) => None,
+            (StructureFile::Mmcif(_), None, None) => None,
         };
         let components = block
             .as_ref()
@@ -144,6 +188,32 @@ impl ParsedStructure {
             assembly,
             components,
         })
+    }
+
+    fn assemble(&self, choice: &AssemblyChoice, model: &Model) -> Result<Model> {
+        if let StructureFile::Pdb(_) = self.file {
+            anyhow::bail!(
+                "assemblies are built from mmCIF files only; a legacy PDB file's REMARK 350 is not read"
+            );
+        }
+
+        let id = match choice {
+            AssemblyChoice::Primary => assembly::primary(&self.structure)
+                .map(|assembly| assembly.id().clone())
+                .ok_or_else(|| anyhow::anyhow!("the file declares no biological assembly"))?,
+            AssemblyChoice::Id(id) => {
+                let ids = self.assembly_ids();
+                if !ids.contains(id) {
+                    anyhow::bail!(
+                        "there is no assembly {id}; the file has {}",
+                        describe_assemblies(&ids)
+                    );
+                }
+                AssemblyId::new(id.as_str())
+            }
+        };
+
+        Ok(self.structure.assemble(&id, model)?)
     }
 
     /// The first model's atoms that `keep` accepts by name, every conformer
@@ -182,6 +252,15 @@ impl ParsedStructure {
 
 fn model_number(model: &Model) -> usize {
     usize::try_from(model.number().get()).unwrap_or_default()
+}
+
+/// `assembly 1`, `assemblies 1, 2`, or `no assemblies`.
+fn describe_assemblies(ids: &[String]) -> String {
+    match ids {
+        [] => "no assemblies".to_string(),
+        [only] => format!("assembly {only}"),
+        _ => format!("assemblies {}", ids.join(", ")),
+    }
 }
 
 /// `model 1`, `models 1-10`, or `models 1, 3, 4` where the numbers skip.
@@ -285,8 +364,44 @@ fn polymer_by_residue_names(chain: ChainRef<'_>) -> Molecule {
     }
 }
 
+/// Each chain's id as shown: its author id, numbered from the second copy on
+/// (`A`, `A-2`, `A-3`) when a biological assembly places the chain more than
+/// once. A copy is an author chain under one operator combination, so a ligand
+/// or water sharing the author chain takes its protein copy's number; an
+/// expression that repeats an operator still makes a new copy, so two names
+/// never collide.
+fn chain_names(model: &Model) -> Vec<String> {
+    let mut placements: HashMap<(&str, &[OperatorId]), usize> = HashMap::new();
+    let mut copies: HashMap<(&str, &[OperatorId], usize), usize> = HashMap::new();
+    let mut counts: HashMap<&str, usize> = HashMap::new();
+
+    model
+        .chains()
+        .map(|chain| {
+            let auth = chain.auth_asym().as_str();
+            let placement = placements
+                .entry((chain.label_asym().as_str(), chain.operators()))
+                .or_default();
+            let repeat = *placement;
+            *placement += 1;
+            let copy = *copies
+                .entry((auth, chain.operators(), repeat))
+                .or_insert_with(|| {
+                    let count = counts.entry(auth).or_default();
+                    *count += 1;
+                    *count
+                });
+            if copy == 1 {
+                auth.to_string()
+            } else {
+                format!("{auth}-{copy}")
+            }
+        })
+        .collect()
+}
+
 /// Build `Atom` from one atom of a model, under author numbering.
-fn build_atom(model: &Model, atom: AtomRef<'_>, molecule: Molecule) -> Atom {
+fn build_atom(model: &Model, atom: AtomRef<'_>, molecule: Molecule, chain: &str) -> Atom {
     let residue = atom.residue();
     let [x, y, z] = atom.position();
 
@@ -299,7 +414,7 @@ fn build_atom(model: &Model, atom: AtomRef<'_>, molecule: Molecule) -> Atom {
         element: FixedStr::new(atom.element().symbol()),
         residue_name: FixedStr::new(residue.comp().as_str()),
         residue_seq: residue.auth_seq().get(),
-        chain_id: FixedStr::new(residue.chain().auth_asym().as_str()),
+        chain_id: FixedStr::new(chain),
         is_hetatm: residue.is_hetero(),
         molecule,
         altloc: atom.altloc().get(),
@@ -319,14 +434,15 @@ fn atoms_of(structure: &Structure, model: &Model, keep: impl Fn(&str) -> bool) -
         .chains()
         .map(|chain| molecule_of(structure, chain))
         .collect();
+    let names = chain_names(model);
     let mut truncated: BTreeSet<(&'static str, String)> = BTreeSet::new();
     let atoms = model
         .atoms()
         .filter(|source| keep(source.name().as_str()))
         .map(|source| {
-            let molecule = molecules[source.residue().chain().index().get()];
-            let atom = build_atom(model, source, molecule);
             let residue = source.residue();
+            let chain = residue.chain().index().get();
+            let atom = build_atom(model, source, molecules[chain], &names[chain]);
             let fields = [
                 ("atom name", atom.name.as_str(), source.name().as_str()),
                 (
@@ -334,11 +450,7 @@ fn atoms_of(structure: &Structure, model: &Model, keep: impl Fn(&str) -> bool) -
                     atom.residue_name.as_str(),
                     residue.comp().as_str(),
                 ),
-                (
-                    "chain id",
-                    atom.chain_id.as_str(),
-                    residue.chain().auth_asym().as_str(),
-                ),
+                ("chain id", atom.chain_id.as_str(), names[chain].as_str()),
             ];
             for (field, kept, read) in fields {
                 if kept != read {
@@ -383,7 +495,10 @@ pub fn load_protein<P: AsRef<Path>>(path: P) -> Result<Protein> {
 pub fn load_protein_with_options<P: AsRef<Path>>(path: P, altloc: AltlocPolicy) -> Result<Protein> {
     let path = path.as_ref();
     ParsedStructure::read(path)?
-        .protein(None, altloc)
+        .protein(&Load {
+            altloc,
+            ..Load::default()
+        })
         .with_context(|| format!("failed to read {}", path.display()))
 }
 
@@ -433,7 +548,10 @@ HETATM 2 Ca CA CA B 2 5.0 0.0 0.0 1.0 0.0
         let file = StructureFile::Mmcif(Document::parse(cif).expect("minimal mmCIF should parse"));
         let atoms = ParsedStructure::from_file(file)
             .unwrap()
-            .protein(None, AltlocPolicy::All)
+            .protein(&Load {
+                altloc: AltlocPolicy::All,
+                ..Load::default()
+            })
             .unwrap()
             .atoms;
         assert_eq!(atoms.len(), 2);
@@ -964,8 +1082,13 @@ ATOM 4 C CA GLY A 2 4.3 0.0 0.0 2
         let file = parsed("two_models", TWO_MODELS);
         assert_eq!(file.model_numbers(), [1, 2]);
 
-        let first = file.protein(None, AltlocPolicy::Occupancy).unwrap();
-        let second = file.protein(Some(2), AltlocPolicy::Occupancy).unwrap();
+        let first = file.protein(&Load::default()).unwrap();
+        let second = file
+            .protein(&Load {
+                model: Some(2),
+                ..Load::default()
+            })
+            .unwrap();
 
         assert!(first.atoms.iter().all(|a| a.model_number == 1));
         assert!(second.atoms.iter().all(|a| a.model_number == 2));
@@ -977,7 +1100,10 @@ ATOM 4 C CA GLY A 2 4.3 0.0 0.0 2
     fn an_absent_model_is_an_error_naming_the_models_there() {
         let file = parsed("absent_model", TWO_MODELS);
 
-        let Err(error) = file.protein(Some(5), AltlocPolicy::Occupancy) else {
+        let Err(error) = file.protein(&Load {
+            model: Some(5),
+            ..Load::default()
+        }) else {
             panic!("model 5 is not in the file");
         };
 
@@ -992,5 +1118,155 @@ ATOM 4 C CA GLY A 2 4.3 0.0 0.0 2
         assert_eq!(describe_models(&[1]), "model 1");
         assert_eq!(describe_models(&[1, 2, 3]), "models 1-3");
         assert_eq!(describe_models(&[1, 3, 4]), "models 1, 3, 4");
+    }
+
+    fn assembly_file(name: &str) -> ParsedStructure {
+        let cif = format!(
+            "\
+data_ASM
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.label_seq_id
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+_atom_site.auth_seq_id
+_atom_site.auth_asym_id
+ATOM 1 C CA GLY A 1 1.0 0.0 0.0 1 A
+ATOM 2 C CA GLY A 2 4.8 0.0 0.0 2 A
+HETATM 3 C C1 LIG B . 1.0 5.0 0.0 101 A
+ATOM 4 C CA GLY C 1 1.0 20.0 0.0 1 C
+#
+{OPERATORS}\
+loop_
+_pdbx_struct_assembly.id
+_pdbx_struct_assembly.oligomeric_details
+1 dimeric
+2 monomeric
+#
+loop_
+_pdbx_struct_assembly_gen.assembly_id
+_pdbx_struct_assembly_gen.oper_expression
+_pdbx_struct_assembly_gen.asym_id_list
+1 1,2 A,B
+2 1 C
+#
+"
+        );
+        parsed(name, &cif)
+    }
+
+    fn with_assembly(choice: AssemblyChoice) -> Load {
+        Load {
+            assembly: Some(choice),
+            ..Load::default()
+        }
+    }
+
+    // A copy is an author chain under one operator: the ligand in label chain B
+    // shares author chain A, so it takes its protein copy's name.
+    #[test]
+    fn an_assembly_names_each_copy_of_a_chain() {
+        let file = assembly_file("assembly_copies_named");
+        assert_eq!(file.assembly_ids(), ["1", "2"]);
+
+        let protein = file
+            .protein(&with_assembly(AssemblyChoice::Primary))
+            .unwrap();
+
+        let chains: Vec<&str> = protein.atoms.iter().map(|a| a.chain_id.as_str()).collect();
+        assert_eq!(chains, ["A", "A", "A", "A-2", "A-2", "A-2"]);
+        assert_eq!(protein.atoms[3].position.x, 9.0);
+        assert_eq!(protein.assembly, None);
+        let copy = crate::select::select("chain A-2", &protein).unwrap();
+        assert_eq!(copy.count(), 3);
+    }
+
+    // The deposited coordinates can hold more than one biological unit, and an
+    // assembly keeps only its own chains.
+    #[test]
+    fn an_assembly_can_be_a_subset_of_the_deposited_chains() {
+        let file = assembly_file("assembly_subset");
+
+        let protein = file
+            .protein(&with_assembly(AssemblyChoice::Id("2".into())))
+            .unwrap();
+
+        let chains: Vec<&str> = protein.atoms.iter().map(|a| a.chain_id.as_str()).collect();
+        assert_eq!(chains, ["C"]);
+    }
+
+    #[test]
+    fn deposited_coordinates_stay_the_default() {
+        let protein = assembly_file("assembly_default")
+            .protein(&Load::default())
+            .unwrap();
+
+        assert_eq!(protein.atoms.len(), 4);
+        assert!(
+            protein
+                .atoms
+                .iter()
+                .all(|a| !a.chain_id.as_str().contains('-'))
+        );
+    }
+
+    #[test]
+    fn an_absent_assembly_is_an_error_naming_those_there() {
+        let file = assembly_file("assembly_absent");
+        let Err(error) = file.protein(&with_assembly(AssemblyChoice::Id("7".into()))) else {
+            panic!("assembly 7 is not in the file");
+        };
+        assert_eq!(
+            error.to_string(),
+            "there is no assembly 7; the file has assemblies 1, 2"
+        );
+
+        let none = parsed("no_assemblies", TWO_MODELS);
+        let Err(error) = none.protein(&with_assembly(AssemblyChoice::Primary)) else {
+            panic!("the file declares no assembly");
+        };
+        assert_eq!(
+            error.to_string(),
+            "the file declares no biological assembly"
+        );
+    }
+
+    #[test]
+    fn a_legacy_pdb_file_cannot_build_an_assembly_yet() {
+        let path = std::env::temp_dir().join("pf_assembly.pdb");
+        std::fs::write(&path, pdb_line("ATOM", 1, " CA ", "GLY", 1, 0.0)).unwrap();
+        let file = ParsedStructure::read(&path).unwrap();
+        let _ = std::fs::remove_file(&path);
+
+        let Err(error) = file.protein(&with_assembly(AssemblyChoice::Primary)) else {
+            panic!("a PDB file has no assemblies to build");
+        };
+        assert!(error.to_string().contains("REMARK 350"), "{error}");
+    }
+
+    #[test]
+    fn a_repeated_operator_still_makes_a_distinct_copy() {
+        let cif = format!(
+            "{ATOM_SITE_HEADER}{TWO_CHAINS}{OPERATORS}\
+loop_
+_pdbx_struct_assembly_gen.assembly_id
+_pdbx_struct_assembly_gen.oper_expression
+_pdbx_struct_assembly_gen.asym_id_list
+1 1,1 A
+#
+"
+        );
+        let protein = parsed("repeated_operator", &cif)
+            .protein(&with_assembly(AssemblyChoice::Primary))
+            .unwrap();
+
+        let chains: Vec<&str> = protein.atoms.iter().map(|a| a.chain_id.as_str()).collect();
+        assert_eq!(chains, ["A", "A-2"]);
     }
 }

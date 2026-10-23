@@ -3,8 +3,8 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use pixelfold_core::parser::ParsedStructure;
-use pixelfold_core::{AltlocPolicy, AtomSet, Protein, select};
+use pixelfold_core::parser::{Load, ParsedStructure};
+use pixelfold_core::{AtomSet, Protein, select};
 
 use crate::resolve::{self, Resolution};
 
@@ -24,17 +24,12 @@ pub fn structure_path(input: &str, cache_dir: &Path) -> Result<PathBuf> {
 }
 
 /// Load a structure for analysis, without the surface, i.e. nothing here renders:
-/// model `model`, or the first when `None`.
-pub fn analysis_structure(
-    input: &str,
-    cache_dir: &Path,
-    altloc: AltlocPolicy,
-    model: Option<usize>,
-) -> Result<Protein> {
+/// the model and assembly `load` names.
+pub fn analysis_structure(input: &str, cache_dir: &Path, load: &Load) -> Result<Protein> {
     let path = structure_path(input, cache_dir)?;
 
     ParsedStructure::read(&path)
-        .and_then(|parsed| parsed.protein(model, altloc))
+        .and_then(|parsed| parsed.protein(load))
         .with_context(|| format!("failed to load {}", path.display()))
 }
 

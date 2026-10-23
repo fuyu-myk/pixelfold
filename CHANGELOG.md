@@ -8,6 +8,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Biological assemblies**, built on request with `--assembly` (the primary
+  assembly) or `--assembly=ID`, on every subcommand and in the viewer, where `u`
+  switches between the deposited coordinates and the primary assembly. Copies
+  of a chain are named `A`, `A-2`, `A-3`, with a ligand or water following its
+  protein copy, so `select chain A-2` picks one copy and the residue network
+  shows the interfaces between copies (6ZPA's hexamer, 7AEW's two copies of
+  its asymmetric unit). Where the deposited coordinates hold more than one
+  biological unit, the assembly keeps only its own chains. An unknown id is an
+  error naming those the file declares; a legacy PDB file builds none yet,
+  since `REMARK 350` is not read, and `rin --mvsj` refuses `--assembly`, since
+  Mol* names copies by operator. Library users name what to build with
+  `parser::Load` (model, assembly, altloc policy), which
+  `ParsedStructure::protein`, `App::load_protein` and `pixelfold_tui::view`
+  now take.
 - **`--model N|all`**, a global option choosing which model of a multi-model
   file (an NMR ensemble, say) every subcommand and the viewer load; the first
   model remains the default, and an absent one is an error naming the models
@@ -26,6 +40,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Chain ids hold eight bytes**, as `ChainId`, so a four-character author id
+  keeps room for a copy number (`AAA-2`); atom names stay four.
 - **Loading a large structure is about 30 times faster.** Secondary-structure
   assignment tried every pair of residues for a beta bridge; it now tries only
   the pairs within a step of some hydrogen bond's two ends, the only pairs a

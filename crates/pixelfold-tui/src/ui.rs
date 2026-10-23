@@ -151,11 +151,14 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App, picker: &Picker) {
     frame.render_widget(
         Paragraph::new(format!(
             "WASD rotate  ·  +/- zoom  ·  arrows pan  ·  i inspect  ·  g network  ·  l layout  ·  e color  ·  t/y filter  ·  1/2 atoms/Cα  ·  c b h  ·  k [ ] , . slab{}  ·  f reset  ·  q quit",
-            if app.models.len() > 1 {
-                "  ·  m/M model"
-            } else {
-                ""
-            }
+            [
+                (app.models.len() > 1, "  ·  m/M model"),
+                (!app.assemblies.is_empty(), "  ·  u assembly"),
+            ]
+            .iter()
+            .filter(|(shown, _)| *shown)
+            .map(|(_, keys)| *keys)
+            .collect::<String>()
         ))
         .alignment(Alignment::Center)
         .style(Style::default().fg(Color::DarkGray)),
@@ -184,17 +187,24 @@ fn render_network_building(frame: &mut Frame, area: Rect) {
     }
 }
 
-/// A header line for a structure whose biological assembly differs from the
-/// deposited coordinates, so the partial view is not mistaken for complete.
+/// A header line naming the biological assembly shown, or saying so when the
+/// deposited coordinates are only part of one, so the partial view is not
+/// mistaken for complete.
 fn assembly_note(app: &App) -> Option<String> {
+    if let Some(id) = app.shown_assembly() {
+        return Some(format!(
+            " Showing biological assembly {id}; press u for the deposited coordinates "
+        ));
+    }
+
     let assembly = app.protein.as_ref()?.assembly.as_ref()?;
     Some(match &assembly.oligomer {
         Some(oligomer) => format!(
-            " Showing asymmetric unit; biological assembly is {} ({} symmetry operators, not yet generated) ",
+            " Showing asymmetric unit; biological assembly is {} ({} symmetry operators; press u to build it) ",
             oligomer, assembly.operator_count
         ),
         None => format!(
-            " Showing asymmetric unit; biological assembly applies {} symmetry operators (not yet generated) ",
+            " Showing asymmetric unit; biological assembly applies {} symmetry operators (press u to build it) ",
             assembly.operator_count
         ),
     })

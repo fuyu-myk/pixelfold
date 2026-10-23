@@ -718,3 +718,114 @@ fn pdb_and_mmcif_files_of_one_entry_report_alike() {
         }
     }
 }
+
+const ASSEMBLY: &str = "\
+data_ASM
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.label_seq_id
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+_atom_site.auth_seq_id
+_atom_site.auth_asym_id
+ATOM 1 C CA GLY A 1 1.0 0.0 0.0 1 A
+ATOM 2 C CA GLY A 2 4.8 0.0 0.0 2 A
+ATOM 3 C CA GLY C 1 1.0 20.0 0.0 1 C
+#
+loop_
+_pdbx_struct_oper_list.id
+_pdbx_struct_oper_list.type
+_pdbx_struct_oper_list.matrix[1][1]
+_pdbx_struct_oper_list.matrix[1][2]
+_pdbx_struct_oper_list.matrix[1][3]
+_pdbx_struct_oper_list.vector[1]
+_pdbx_struct_oper_list.matrix[2][1]
+_pdbx_struct_oper_list.matrix[2][2]
+_pdbx_struct_oper_list.matrix[2][3]
+_pdbx_struct_oper_list.vector[2]
+_pdbx_struct_oper_list.matrix[3][1]
+_pdbx_struct_oper_list.matrix[3][2]
+_pdbx_struct_oper_list.matrix[3][3]
+_pdbx_struct_oper_list.vector[3]
+1 'identity operation' 1 0 0 0 0 1 0 0 0 0 1 0
+2 'crystal symmetry operation' -1 0 0 10 0 -1 0 0 0 0 1 0
+#
+loop_
+_pdbx_struct_assembly_gen.assembly_id
+_pdbx_struct_assembly_gen.oper_expression
+_pdbx_struct_assembly_gen.asym_id_list
+1 1,2 A
+2 1 C
+#
+";
+
+fn assembly_file(dir: &tempfile::TempDir) -> PathBuf {
+    let path = dir.path().join("assembly.cif");
+    std::fs::write(&path, ASSEMBLY).unwrap();
+    path
+}
+
+fn chains(run: &Run) -> Vec<String> {
+    run.rows()
+        .iter()
+        .map(|row| row.split('\t').next().unwrap().to_string())
+        .collect()
+}
+
+#[test]
+fn assembly_reports_each_copy_under_its_own_chain() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = assembly_file(&dir);
+
+    let deposited = run_on(&path, &["ss", "--format", "tsv"]);
+    assert!(deposited.ok, "command failed: {}", deposited.stderr);
+    assert_eq!(chains(&deposited), ["A", "A", "C"]);
+
+    let primary = run_on(&path, &["ss", "--format", "tsv", "--assembly"]);
+    assert!(primary.ok, "command failed: {}", primary.stderr);
+    assert_eq!(chains(&primary), ["A", "A", "A-2", "A-2"]);
+
+    let second = run_on(&path, &["ss", "--format", "tsv", "--assembly=2"]);
+    assert!(second.ok, "command failed: {}", second.stderr);
+    assert_eq!(chains(&second), ["C"]);
+
+    let copy = run_on(
+        &path,
+        &[
+            "ss",
+            "--format",
+            "tsv",
+            "--assembly",
+            "--select",
+            "chain A-2",
+        ],
+    );
+    assert!(copy.ok, "command failed: {}", copy.stderr);
+    assert_eq!(copy.rows().len(), 2);
+}
+
+#[test]
+fn an_unknown_assembly_and_an_assembly_scene_are_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = assembly_file(&dir);
+
+    let unknown = run_on(&path, &["ss", "--assembly=9"]);
+    assert!(!unknown.ok);
+    assert!(
+        unknown
+            .stderr
+            .contains("there is no assembly 9; the file has assemblies 1, 2"),
+        "{}",
+        unknown.stderr
+    );
+
+    let scene = run_on(&path, &["rin", "--mvsj", "--assembly"]);
+    assert!(!scene.ok);
+    assert!(scene.stderr.contains("--mvsj"), "{}", scene.stderr);
+}

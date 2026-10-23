@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
+use pixelfold_core::parser::{AssemblyChoice, Load};
 use pixelfold_core::{AtomSet, InteractionKind, Protein};
 
 mod analyse;
@@ -59,9 +60,33 @@ struct Common {
     /// (default: the first)
     #[arg(long, value_name = "N|all", value_parser = model_choice, global = true)]
     model: Option<ModelChoice>,
+
+    /// Build a biological assembly instead of the deposited coordinates: the
+    /// primary one with a bare --assembly, another with --assembly=ID. Copies of
+    /// a chain are named A, A-2, A-3, ...
+    #[arg(
+        long,
+        value_name = "ID",
+        num_args = 0..=1,
+        require_equals = true,
+        global = true
+    )]
+    assembly: Option<Option<String>>,
 }
 
 impl Common {
+    /// What to build: model `model` and the assembly `--assembly` names.
+    fn load(&self, model: Option<usize>) -> Load {
+        Load {
+            model,
+            assembly: self.assembly.as_ref().map(|id| match id {
+                Some(id) => AssemblyChoice::Id(id.clone()),
+                None => AssemblyChoice::Primary,
+            }),
+            altloc: self.altloc.into(),
+        }
+    }
+
     /// The model a command that works on one model at a time loads.
     fn one_model(&self) -> Result<Option<usize>> {
         match self.model {
@@ -412,6 +437,9 @@ fn run(command: Command) -> Result<()> {
             output,
             common,
         } => {
+            if mvsj && common.assembly.is_some() {
+                anyhow::bail!("--mvsj cannot show a biological assembly yet; drop --assembly");
+            }
             let protein = loaded(&structure, &common)?;
             let chosen = load::chosen(&protein, select.as_deref())?;
             let kinds: Vec<InteractionKind> = types.into_iter().map(Into::into).collect();
@@ -539,14 +567,14 @@ fn view(structure: &str, protocol: ProtocolArg, common: &Common) -> Result<()> {
     let dir = cache_dir(common)?;
     let path = load::structure_path(structure, &dir)?;
 
-    pixelfold_tui::view(&path, common.altloc.into(), model, protocol.into())
+    pixelfold_tui::view(&path, common.load(model), protocol.into())
 }
 
 fn loaded(structure: &str, common: &Common) -> Result<Protein> {
     let model = common.one_model()?;
     let dir = cache_dir(common)?;
 
-    load::analysis_structure(structure, &dir, common.altloc.into(), model)
+    load::analysis_structure(structure, &dir, &common.load(model))
 }
 
 /// Write `analysis` for the model `--model` names, or for every model, with a
@@ -569,7 +597,7 @@ where
     let mut records = Vec::new();
     let mut matched = false;
     for model in parsed.model_numbers() {
-        let protein = parsed.protein(Some(model), analysis.common.altloc.into())?;
+        let protein = parsed.protein(&analysis.common.load(Some(model)))?;
         let chosen = load::selection(&protein, query)?;
         matched |= !chosen.is_empty();
         records.extend(

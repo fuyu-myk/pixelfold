@@ -70,12 +70,17 @@ fn is_keyword(word: &str) -> bool {
     )
 }
 
-/// A bare token: letters, digits, and the primes and stars of nucleic atom
-/// names. Ranges and comparisons are parsed elsewhere, so no punctuation here.
+/// A bare token: letters, digits, the primes and stars of nucleic atom names,
+/// and, after the first character, the hyphen of an assembly's chain copy
+/// (`A-2`). Ranges and comparisons are parsed elsewhere, so no other
+/// punctuation here.
 fn token(input: &str) -> IResult<&str, &str> {
     preceded(
         multispace0,
-        take_while1(|c: char| c.is_alphanumeric() || c == '\'' || c == '*'),
+        verify(
+            take_while1(|c: char| c.is_alphanumeric() || matches!(c, '\'' | '*' | '-')),
+            |token: &str| !token.starts_with('-'),
+        ),
     )
     .parse(input)
 }
@@ -323,6 +328,18 @@ mod tests {
         assert_eq!(parsed("resn ALA"), Selection::Resn(vec!["ALA".into()]));
         assert_eq!(parsed("model 2"), Selection::Model(2));
         assert_eq!(parsed("ss H"), Selection::Ss(SecondaryStructure::Helix));
+    }
+
+    #[test]
+    fn a_chain_copy_in_an_assembly_is_one_name() {
+        assert_eq!(
+            parsed("chain A-2 B"),
+            Selection::Chain(vec!["A-2".into(), "B".into()])
+        );
+        assert_eq!(
+            parsed("resi 1-3"),
+            Selection::Resi(vec![ResiRange { lo: 1, hi: 3 }])
+        );
     }
 
     #[test]
