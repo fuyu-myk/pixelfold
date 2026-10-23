@@ -1,17 +1,17 @@
 use crate::fixed_str::FixedStr;
-use crate::structure::{Protein, SecondaryStructure};
+use crate::structure::{ChainId, Protein, SecondaryStructure};
 use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::visit::EdgeRef;
 use std::collections::HashMap;
 
-type ResidueKey = (FixedStr<4>, i32, Option<char>);
+type ResidueKey = (ChainId, i32, Option<char>);
 
 /// Residue node in the H-bond network graph
 #[derive(Clone, Debug)]
 pub struct ResidueNode {
     pub residue_seq: i32,
     pub insertion_code: Option<char>,
-    pub chain_id: FixedStr<4>,
+    pub chain_id: ChainId,
     pub residue_name: FixedStr<6>,
     pub secondary_structure: SecondaryStructure,
     pub atom_indices: Vec<usize>,

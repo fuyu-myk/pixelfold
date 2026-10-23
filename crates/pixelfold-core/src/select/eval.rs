@@ -6,7 +6,6 @@ use fixedbitset::FixedBitSet;
 use glam::Vec3;
 
 use super::Selection;
-use crate::fixed_str::FixedStr;
 use crate::interactions::classify::{is_ligand, is_metal, is_water};
 use crate::interactions::topology::{is_standard_nucleotide, is_standard_residue};
 use crate::spatial::Grid;
@@ -76,7 +75,7 @@ impl AtomSet {
     }
 }
 
-type ResidueKey = (FixedStr<4>, i32, Option<char>);
+type ResidueKey = (crate::structure::ChainId, i32, Option<char>);
 
 fn residue_key(atom: &Atom) -> ResidueKey {
     (atom.chain_id, atom.residue_seq, atom.insertion_code)
@@ -183,6 +182,7 @@ fn within(distance: f32, seed: &AtomSet, protein: &Protein) -> AtomSet {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fixed_str::FixedStr;
     use crate::select::select as run;
     use crate::structure::SecondaryStructure;
 

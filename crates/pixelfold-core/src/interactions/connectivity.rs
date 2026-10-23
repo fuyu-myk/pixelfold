@@ -103,7 +103,7 @@ pub fn bonds(protein: &Protein) -> Bonds {
     };
 
     // The carbonyl carbon of the residue before, for the peptide bond.
-    let mut preceding: Option<(usize, crate::fixed_str::FixedStr<4>)> = None;
+    let mut preceding: Option<(usize, crate::structure::ChainId)> = None;
 
     let mut index = 0;
     while index < protein.atoms.len() {
@@ -220,7 +220,7 @@ fn bonded_names(protein: &Protein, residue_name: &str, name: &str) -> Vec<String
         .unwrap_or_default()
 }
 
-type ResidueKey = (crate::fixed_str::FixedStr<4>, i32, Option<char>);
+type ResidueKey = (crate::structure::ChainId, i32, Option<char>);
 
 fn residue_key(atom: &Atom) -> ResidueKey {
     (atom.chain_id, atom.residue_seq, atom.insertion_code)

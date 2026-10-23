@@ -14,9 +14,8 @@ use std::collections::{HashMap, HashSet};
 
 use glam::Vec3;
 
-use crate::fixed_str::FixedStr;
 use crate::spatial::Grid;
-use crate::structure::{Atom, SecondaryStructure};
+use crate::structure::{Atom, ChainId, SecondaryStructure};
 
 /// Below this energy (kcal/mol) a backbone N-H...O=C pair counts as bonded.
 const HBOND_ENERGY_THRESHOLD: f32 = -0.5;
@@ -43,7 +42,7 @@ pub struct HBond {
 
 /// One residue's backbone geometry, in chain then sequence order.
 struct Residue {
-    chain_id: FixedStr<4>,
+    chain_id: ChainId,
     residue_seq: i32,
     insertion_code: Option<char>,
     is_proline: bool,
@@ -64,8 +63,7 @@ pub fn assign(atoms: &mut [Atom]) -> Vec<HBond> {
     let hbonds = compute_hbonds(&residues);
     let ss = assign_from_hbonds(&hbonds, &residues);
 
-    let mut ss_by_key: HashMap<(FixedStr<4>, i32, Option<char>), SecondaryStructure> =
-        HashMap::new();
+    let mut ss_by_key: HashMap<(ChainId, i32, Option<char>), SecondaryStructure> = HashMap::new();
     for (res, &s) in residues.iter().zip(ss.iter()) {
         ss_by_key.insert((res.chain_id, res.residue_seq, res.insertion_code), s);
     }
@@ -83,7 +81,7 @@ pub fn assign(atoms: &mut [Atom]) -> Vec<HBond> {
 /// (chain, sequence, insertion code) key changes.
 fn build_residues(atoms: &[Atom]) -> Vec<Residue> {
     let mut residues: Vec<Residue> = Vec::new();
-    let mut current: Option<(FixedStr<4>, i32, Option<char>)> = None;
+    let mut current: Option<(ChainId, i32, Option<char>)> = None;
 
     for (idx, atom) in atoms.iter().enumerate() {
         let key = (atom.chain_id, atom.residue_seq, atom.insertion_code);
@@ -374,6 +372,7 @@ fn bridge_candidates(hbonds: &[HBond], n: usize) -> Vec<(usize, usize)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fixed_str::FixedStr;
 
     fn residue(chain: &str, seq: i32, proline: bool) -> Residue {
         Residue {

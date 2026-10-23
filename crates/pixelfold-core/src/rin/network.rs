@@ -12,11 +12,10 @@
 
 use std::collections::BTreeMap;
 
-use crate::fixed_str::FixedStr;
 use crate::interactions::{Interaction, InteractionKind};
 use crate::structure::{Atom, Protein};
 
-type ResidueKey = (FixedStr<4>, i32, Option<char>);
+type ResidueKey = (crate::structure::ChainId, i32, Option<char>);
 
 fn residue_key(atom: &Atom) -> ResidueKey {
     (atom.chain_id, atom.residue_seq, atom.insertion_code)
@@ -187,6 +186,7 @@ fn nodes(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fixed_str::FixedStr;
     use crate::structure::SecondaryStructure;
     use glam::Vec3;
 

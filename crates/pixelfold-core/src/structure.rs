@@ -9,6 +9,10 @@ pub enum DisplayMode {
     Backbone,
 }
 
+/// A chain id: the author's, qualified with a copy number (`A-2`) when a
+/// biological assembly places the chain more than once.
+pub type ChainId = FixedStr<8>;
+
 #[derive(Clone)]
 pub struct Atom {
     pub serial: u32,
@@ -18,7 +22,7 @@ pub struct Atom {
     pub element: FixedStr<2>,
     pub residue_name: FixedStr<6>,
     pub residue_seq: i32,
-    pub chain_id: FixedStr<4>,
+    pub chain_id: ChainId,
     pub is_hetatm: bool,
     /// The kind of molecule the atom belongs to, from the file's entities.
     pub molecule: Molecule,
@@ -160,7 +164,7 @@ pub fn get_calpha_connections(protein: &Protein, ca_indices: &[usize]) -> Vec<(u
     let distance_threshold = 4.2; // Angstroms (typical CA-CA distance is ~3.8Å)
 
     // Sort C-alphas by chain first, then by residue sequence
-    let mut sorted_cas: Vec<(FixedStr<4>, i32, usize)> = ca_indices
+    let mut sorted_cas: Vec<(ChainId, i32, usize)> = ca_indices
         .iter()
         .map(|&idx| {
             let atom = &protein.atoms[idx];
@@ -225,7 +229,7 @@ pub fn filter_altlocs(atoms: Vec<Atom>, policy: AltlocPolicy) -> Vec<Atom> {
     }
 }
 
-type ResidueKey = (FixedStr<4>, i32, Option<char>);
+type ResidueKey = (ChainId, i32, Option<char>);
 
 fn residue_of(atom: &Atom) -> ResidueKey {
     (atom.chain_id, atom.residue_seq, atom.insertion_code)

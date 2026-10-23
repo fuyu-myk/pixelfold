@@ -6,7 +6,6 @@ use std::hash::Hash;
 
 use glam::Vec3;
 
-use crate::fixed_str::FixedStr;
 use crate::spatial::Grid;
 use crate::structure::{Atom, Protein};
 
@@ -24,7 +23,7 @@ use super::params::{
 };
 use super::{Interaction, InteractionKind, aromatic, connectivity, hydrogens};
 
-type ResidueKey = (FixedStr<4>, i32, Option<char>);
+type ResidueKey = (crate::structure::ChainId, i32, Option<char>);
 
 fn residue_key(atom: &Atom) -> ResidueKey {
     (atom.chain_id, atom.residue_seq, atom.insertion_code)
@@ -828,6 +827,7 @@ pub fn pi_cation(protein: &Protein, bonds: &connectivity::Bonds) -> Vec<Interact
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fixed_str::FixedStr;
     use crate::structure::SecondaryStructure;
 
     fn atom(residue: &str, seq: i32, name: &str, element: &str, position: Vec3) -> Atom {

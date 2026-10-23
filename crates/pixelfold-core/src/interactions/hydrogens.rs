@@ -264,7 +264,7 @@ fn planar_pair(donor: Vec3, neighbour: Vec3, beyond: Vec3) -> Option<[Vec3; 2]> 
 
 /// The preceding residue's carbonyl, which fixes the next amide hydrogen.
 struct Carbonyl {
-    chain: crate::fixed_str::FixedStr<4>,
+    chain: crate::structure::ChainId,
     c: Vec3,
     /// The carbonyl oxygen, absent when the model left it out.
     o: Option<Vec3>,
@@ -521,7 +521,7 @@ fn position_of(
         .map(|atom| atom.position)
 }
 
-type ResidueKey = (crate::fixed_str::FixedStr<4>, i32, Option<char>);
+type ResidueKey = (crate::structure::ChainId, i32, Option<char>);
 
 fn residue_key(atom: &Atom) -> ResidueKey {
     (atom.chain_id, atom.residue_seq, atom.insertion_code)

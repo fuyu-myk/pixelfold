@@ -20,6 +20,6 @@ pub use interactions::{Interaction, InteractionKind};
 pub use rin::Network;
 pub use select::{AtomSet, Selection, select};
 pub use structure::{
-    AltlocPolicy, Atom, BiologicalAssembly, DisplayMode, Molecule, Protein, SecondaryStructure,
-    calculate_bfactor_range, get_calpha_connections, get_calpha_indices,
+    AltlocPolicy, Atom, BiologicalAssembly, ChainId, DisplayMode, Molecule, Protein,
+    SecondaryStructure, calculate_bfactor_range, get_calpha_connections, get_calpha_indices,
 };

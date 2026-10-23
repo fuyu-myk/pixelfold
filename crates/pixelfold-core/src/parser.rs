@@ -465,7 +465,7 @@ HETATM 2 Ca CA CA B 2 5.0 0.0 0.0 1.0 0.0
 
     #[test]
     fn loader_truncates_overlong_chain_id_without_crashing() {
-        // A 5-character chain id exceeds the 4-byte field and must truncate
+        // A 9-character chain id exceeds the 8-byte field and must truncate
         // rather than panic; the loader still returns both atoms.
         let cif = "\
 data_test
@@ -483,15 +483,15 @@ _atom_site.Cartn_y
 _atom_site.Cartn_z
 _atom_site.occupancy
 _atom_site.B_iso_or_equiv
-ATOM 1 C CA ALA AAAAA AAAAA 1 0.0 0.0 0.0 1.0 0.0
-ATOM 2 C CA ALA AAAAA AAAAA 2 3.8 0.0 0.0 1.0 0.0
+ATOM 1 C CA ALA AAAAAAAAA AAAAAAAAA 1 0.0 0.0 0.0 1.0 0.0
+ATOM 2 C CA ALA AAAAAAAAA AAAAAAAAA 2 3.8 0.0 0.0 1.0 0.0
 ";
         let path = std::env::temp_dir().join("pf_truncation_test.cif");
         std::fs::write(&path, cif).unwrap();
         let protein = load_protein_with_options(&path, AltlocPolicy::All).unwrap();
 
         assert_eq!(protein.atoms.len(), 2);
-        assert_eq!(protein.atoms[0].chain_id.as_str(), "AAAA"); // truncated from "AAAAA"
+        assert_eq!(protein.atoms[0].chain_id.as_str(), "AAAAAAAA"); // truncated from 9
         let _ = std::fs::remove_file(&path);
     }
 

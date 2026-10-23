@@ -40,7 +40,7 @@ use super::topology;
 /// Ring sizes a pi interaction is defined for, following PLIP.
 const RING_SIZES: std::ops::RangeInclusive<usize> = 5..=6;
 
-type ResidueKey = (FixedStr<4>, i32, Option<char>);
+type ResidueKey = (crate::structure::ChainId, i32, Option<char>);
 
 fn residue_key(atom: &Atom) -> ResidueKey {
     (atom.chain_id, atom.residue_seq, atom.insertion_code)

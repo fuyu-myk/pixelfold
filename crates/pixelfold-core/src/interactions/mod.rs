@@ -89,7 +89,7 @@ pub fn detect(protein: &Protein) -> Vec<Interaction> {
 
 /// An atom's residue-and-name identity, ignoring its alternate-location label.
 type AtomIdentity = (
-    crate::fixed_str::FixedStr<4>,
+    crate::structure::ChainId,
     i32,
     Option<char>,
     crate::fixed_str::FixedStr<4>,
