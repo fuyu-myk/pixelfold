@@ -135,7 +135,7 @@ impl Dictionary {
 
     /// Read the `_chem_comp_atom` and `_chem_comp_bond` categories of one data
     /// block. A block without them yields an empty dictionary.
-    pub fn from_block(block: &Block<'_>) -> Self {
+    pub(crate) fn from_block(block: &Block<'_>) -> Self {
         let mut components: HashMap<String, Component> = HashMap::new();
         // Hydrogen names per component.
         let mut hydrogen_names: HashMap<String, HashSet<String>> = HashMap::new();

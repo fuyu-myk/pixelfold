@@ -3,7 +3,9 @@
 //! hydrogen-bond overlays are depth-tested lines on top. The atom-id buffer the
 //! rasteriser fills is what mouse picking reads back.
 
-use pixelfold_core::{DisplayMode, Protein, calculate_bfactor_range};
+use pixelfold_core::{Protein, calculate_bfactor_range};
+
+use crate::DisplayMode;
 use pixelfold_render::renderer::Camera;
 use pixelfold_render::{
     Coloring, Framebuffer, NO_ID, RenderOptions, Scene, bfactor_to_color, draw_segment,

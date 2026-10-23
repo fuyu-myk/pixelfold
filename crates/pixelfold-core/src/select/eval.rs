@@ -20,7 +20,7 @@ pub struct AtomSet {
 
 impl AtomSet {
     /// Evaluate `selection` against `protein`.
-    pub fn of(selection: &Selection, protein: &Protein) -> Self {
+    pub(crate) fn of(selection: &Selection, protein: &Protein) -> Self {
         evaluate(selection, protein)
     }
 

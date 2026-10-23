@@ -2,7 +2,7 @@
 //!
 //! A query string names a set of atoms, which is what makes the viewer, the
 //! network filter, the CLI, and every export composable: each takes the same
-//! selection. A query parses to a [`Selection`] tree and evaluates against a
+//! selection. A query parses to a `Selection` tree and evaluates against a
 //! [`Protein`] to an [`AtomSet`], a bitset over atom indices.
 //!
 //! ```text
@@ -37,7 +37,7 @@ pub use eval::AtomSet;
 
 /// A parsed selection, evaluated against a structure by [`AtomSet::of`].
 #[derive(Clone, Debug, PartialEq)]
-pub enum Selection {
+pub(crate) enum Selection {
     All,
     None,
     Chain(Vec<String>),
@@ -68,7 +68,7 @@ pub enum Selection {
 
 /// A numeric comparison for the `bfactor` and `plddt` predicates.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Cmp {
+pub(crate) enum Cmp {
     Lt,
     Le,
     Gt,
@@ -95,7 +95,7 @@ impl Cmp {
 
 /// An inclusive residue-number range; a single number has equal ends.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ResiRange {
+pub(crate) struct ResiRange {
     pub lo: i32,
     pub hi: i32,
 }

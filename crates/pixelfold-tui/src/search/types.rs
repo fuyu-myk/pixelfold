@@ -6,7 +6,6 @@ use pixelfold_fetch::types::SearchResult;
 pub struct FoundProtein {
     pub pdb_id: String,
     pub title: String,
-    pub resolution: Option<f64>,
     pub date: String,
     pub selected: bool,
 }
@@ -16,22 +15,8 @@ impl FoundProtein {
         Self {
             pdb_id: result.identifier,
             title: String::new(),
-            resolution: None,
             date: String::new(),
             selected: false,
-        }
-    }
-
-    pub fn fmt_for_display(&self) -> String {
-        if self.title.is_empty() {
-            self.pdb_id.to_string()
-        } else {
-            let res = self
-                .resolution
-                .map(|r| format!(" - {:.2}Å", r))
-                .unwrap_or_else(|| " - N/A".to_string());
-
-            format!("{}: {}{} ({})", self.pdb_id, self.title, res, self.date)
         }
     }
 }
@@ -68,13 +53,5 @@ impl PageState {
         } else {
             self.current_page = self.total_pages - 1;
         }
-    }
-
-    pub fn get_range(&self) -> (usize, usize) {
-        let start = self.current_page * self.items_per_page;
-        let end = ((self.current_page + 1) * self.items_per_page)
-            .min(self.current_page * self.items_per_page + self.items_per_page);
-
-        (start, end)
     }
 }

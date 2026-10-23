@@ -4,21 +4,19 @@
 //! protein-protein, protein-ligand, and docking all fall out of the same
 //! detectors rather than being separate features.
 //!
-//! Geometric thresholds live in [`params`] and are taken from PLIP's source;
-//! atom roles live in [`classify`] and follow explicit residue tables.
+//! Geometric thresholds live in `params` and are taken from PLIP's source;
+//! atom roles live in `classify` and follow explicit residue tables.
 
-pub mod aromatic;
-pub mod classify;
-pub mod connectivity;
+pub(crate) mod aromatic;
+pub(crate) mod classify;
+pub(crate) mod connectivity;
 mod detectors;
 mod energy;
-pub mod hydrogens;
-pub mod params;
-pub mod topology;
+pub(crate) mod hydrogens;
+pub(crate) mod params;
+pub(crate) mod topology;
 
 use crate::structure::Protein;
-
-pub use classify::Charge;
 
 /// The kind of a detected interaction.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]

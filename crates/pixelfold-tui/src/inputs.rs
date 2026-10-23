@@ -1,10 +1,9 @@
 use anyhow::Result;
 use crossterm::event::{self, KeyCode, KeyModifiers};
 
-use pixelfold_core::DisplayMode;
 use pixelfold_render::renderer;
 
-use crate::App;
+use crate::{App, DisplayMode};
 
 const SLAB_DEFAULT: (f32, f32) = (0.3, 0.7);
 const SLAB_STEP: f32 = 0.05;

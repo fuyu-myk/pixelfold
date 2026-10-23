@@ -107,9 +107,6 @@ pub const METAL_DIST_MAX: f32 = 3.0;
 /// disulfides; this is RING's SSBOND cutoff (nominal S-S bond length ~2.05 A).
 pub const DISULFIDE_DIST_MAX: f32 = 2.5;
 
-/// The cell size for the interaction spatial grid; the largest interaction cutoff.
-pub const GRID_CELL_SIZE: f32 = PICATION_DIST_MAX;
-
 /// Element symbols treated as coordinating metal ions, from PLIP `METAL_IONS`
 /// (reduced to element symbols; matched case-insensitively against the element
 /// column, which is why a calcium ion "CA" is distinct from a C-alpha "C").

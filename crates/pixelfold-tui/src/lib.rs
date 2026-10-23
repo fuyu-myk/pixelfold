@@ -3,13 +3,13 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use pixelfold_core::parser::{AssemblyChoice, Load, ParsedStructure};
-use pixelfold_core::{DisplayMode, Protein, get_calpha_connections};
+use pixelfold_core::{Protein, get_calpha_connections};
 use pixelfold_render::Framebuffer;
 use pixelfold_render::renderer::{self, Camera};
 use ratatui::layout::Rect;
 use ratatui_image::picker::{Picker, ProtocolType};
 
-pub mod search;
+mod search;
 
 mod app;
 mod inputs;
@@ -22,42 +22,49 @@ mod ui;
 /// straight to the atom under it through the id buffer. `area` is where the image
 /// was placed; the framebuffer may be a lower resolution that the terminal scaled
 /// to fill it, so picking maps proportionally rather than by a fixed cell size.
-pub struct RenderedFrame {
-    pub fb: Framebuffer,
-    pub area: Rect,
+/// Which atoms the viewer draws.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum DisplayMode {
+    AllAtoms,
+    Backbone,
 }
 
-pub struct App {
-    pub protein: Option<Protein>,
-    pub camera: Camera,
-    pub redraw_needed: bool,
-    pub ca_indices: Vec<usize>,
-    pub backbone_connections: Vec<(usize, usize)>,
-    pub inspect_mode: bool,
-    pub residue_highlight: bool,
-    pub selected_atom_idx: Option<usize>,
+pub(crate) struct RenderedFrame {
+    pub(crate) fb: Framebuffer,
+    pub(crate) area: Rect,
+}
+
+pub(crate) struct App {
+    pub(crate) protein: Option<Protein>,
+    pub(crate) camera: Camera,
+    pub(crate) redraw_needed: bool,
+    pub(crate) ca_indices: Vec<usize>,
+    pub(crate) backbone_connections: Vec<(usize, usize)>,
+    pub(crate) inspect_mode: bool,
+    pub(crate) residue_highlight: bool,
+    pub(crate) selected_atom_idx: Option<usize>,
     /// Every atom sharing the selected atom's chain, residue number, and
     /// insertion code.
-    pub highlighted_atom_indices: HashSet<usize>,
-    pub display_mode: DisplayMode,
-    pub show_connections: bool,
-    pub use_bfactor_colors: bool,
-    pub show_hydrogen_bonds: bool,
-    pub hbond_energy_threshold: f32,
+    pub(crate) highlighted_atom_indices: HashSet<usize>,
+    pub(crate) display_mode: DisplayMode,
+    pub(crate) show_connections: bool,
+    pub(crate) use_bfactor_colors: bool,
+    pub(crate) show_hydrogen_bonds: bool,
+    pub(crate) hbond_energy_threshold: f32,
     /// Multiplies van der Waals radii; 1.0 is full space-filling.
-    pub radius_scale: f32,
-    pub show_depth_cue: bool,
+    pub(crate) radius_scale: f32,
+    pub(crate) show_depth_cue: bool,
     /// Depth-band clip `(far, near)` in `0..1`, or `None` for the whole depth.
-    pub slab: Option<(f32, f32)>,
-    pub last_frame: Option<RenderedFrame>,
+    pub(crate) slab: Option<(f32, f32)>,
+    pub(crate) last_frame: Option<RenderedFrame>,
     /// The linked network pane: shown beside the structure, built on first open.
-    pub show_network: bool,
+    pub(crate) show_network: bool,
     pub(crate) network_view: Option<network::NetworkView>,
     /// A network build running on a worker thread, delivering its result here.
     /// Set while the pane is computing to prevent blocking of the event loop.
     pub(crate) network_build: Option<std::sync::mpsc::Receiver<network::NetworkView>>,
     /// Where the network pane last drew, for routing clicks to it.
-    pub network_area: Option<Rect>,
+    pub(crate) network_area: Option<Rect>,
     /// The parsed file the shown model came from, kept so stepping between
     /// models never re-reads it.
     pub(crate) source: Option<ParsedStructure>,
@@ -77,7 +84,7 @@ impl Default for App {
 }
 
 impl App {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             protein: None,
             camera: Camera::new(),
@@ -110,7 +117,13 @@ impl App {
     }
 
     /// Load what `load` names from the file at `path` and frame it.
-    pub fn load_protein(&mut self, path: &Path, width: f32, height: f32, load: Load) -> Result<()> {
+    pub(crate) fn load_protein(
+        &mut self,
+        path: &Path,
+        width: f32,
+        height: f32,
+        load: Load,
+    ) -> Result<()> {
         let source = ParsedStructure::read(path)?;
         let protein = source.protein(&load)?;
         self.models = source.model_numbers();
@@ -131,7 +144,7 @@ impl App {
 
     /// Show the next model of a multi-model file (`delta` 1) or the previous one
     /// (-1), wrapping at either end. The camera stays put.
-    pub fn step_model(&mut self, delta: isize) -> Result<()> {
+    pub(crate) fn step_model(&mut self, delta: isize) -> Result<()> {
         let count = self.models.len();
         if count < 2 {
             return Ok(());
@@ -150,7 +163,7 @@ impl App {
     /// Switch between the deposited coordinates and the primary biological
     /// assembly, framing the result in `frame` (width, height) when given, since
     /// the extent changes. Does nothing for a file that declares no assembly.
-    pub fn toggle_assembly(&mut self, frame: Option<(f32, f32)>) -> Result<()> {
+    pub(crate) fn toggle_assembly(&mut self, frame: Option<(f32, f32)>) -> Result<()> {
         if self.assemblies.is_empty() {
             return Ok(());
         }
@@ -171,7 +184,7 @@ impl App {
     }
 
     /// The assembly shown, by id, or `None` for the deposited coordinates.
-    pub fn shown_assembly(&self) -> Option<&str> {
+    pub(crate) fn shown_assembly(&self) -> Option<&str> {
         match self.load.assembly.as_ref()? {
             AssemblyChoice::Id(id) => Some(id.as_str()),
             AssemblyChoice::Primary => self
@@ -225,7 +238,7 @@ impl App {
     }
 
     /// Pre-compute geometry that does not change as the camera moves.
-    pub fn compute_static_geometry(&mut self) {
+    pub(crate) fn compute_static_geometry(&mut self) {
         if let Some(ref protein) = self.protein {
             self.ca_indices = protein
                 .atoms
@@ -330,7 +343,7 @@ where
 /// Recompute the highlighted set as every atom in the selected atom's residue
 /// (same chain, residue number, and insertion code). Cleared when nothing is
 /// selected.
-pub fn update_highlighted_atoms(app: &mut App) {
+pub(crate) fn update_highlighted_atoms(app: &mut App) {
     app.highlighted_atom_indices.clear();
 
     let (Some(protein), Some(selected)) = (&app.protein, app.selected_atom_idx) else {
@@ -356,7 +369,7 @@ pub fn update_highlighted_atoms(app: &mut App) {
 /// Returns `None` for a click outside the image or on background. The click's
 /// position within the image area is mapped proportionally onto the framebuffer,
 /// so it is correct whatever resolution that frame was drawn at.
-pub fn pick_at(app: &App, column: u16, row: u16) -> Option<usize> {
+pub(crate) fn pick_at(app: &App, column: u16, row: u16) -> Option<usize> {
     let frame = app.last_frame.as_ref()?;
     let area = frame.area;
     if column < area.x || row < area.y || area.width == 0 || area.height == 0 {

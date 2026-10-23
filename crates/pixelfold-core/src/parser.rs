@@ -164,7 +164,7 @@ impl ParsedStructure {
             .map(|choice| self.assemble(choice, model))
             .transpose()?;
         let shown = assembled.as_ref().unwrap_or(model);
-        let mut atoms = filter_altlocs(atoms_of(&self.structure, shown, |_| true), load.altloc);
+        let mut atoms = filter_altlocs(atoms_of(&self.structure, shown), load.altloc);
         let hbonds = dssp::assign(&mut atoms);
 
         let block = self.file.block();
@@ -214,21 +214,6 @@ impl ParsedStructure {
         };
 
         Ok(self.structure.assemble(&id, model)?)
-    }
-
-    /// The first model's atoms that `keep` accepts by name, every conformer
-    /// included, without assembly or component definitions.
-    fn subset(&self, keep: impl Fn(&str) -> bool) -> Result<Protein> {
-        let mut atoms = atoms_of(&self.structure, first_model(&self.structure)?, keep);
-        let hbonds = dssp::assign(&mut atoms);
-
-        Ok(Protein {
-            atoms,
-            title: self.file.title(&self.structure),
-            hbonds,
-            assembly: None,
-            components: Default::default(),
-        })
     }
 
     fn model(&self, number: Option<usize>) -> Result<&Model> {
@@ -427,9 +412,9 @@ fn build_atom(model: &Model, atom: AtomRef<'_>, molecule: Molecule, chain: &str)
     }
 }
 
-/// Every atom of `model` whose name `keep` accepts, warning once when an
-/// identifier overflowed its fixed field.
-fn atoms_of(structure: &Structure, model: &Model, keep: impl Fn(&str) -> bool) -> Vec<Atom> {
+/// Every atom of `model`, warning once when an identifier overflowed its fixed
+/// field.
+fn atoms_of(structure: &Structure, model: &Model) -> Vec<Atom> {
     let molecules: Vec<Molecule> = model
         .chains()
         .map(|chain| molecule_of(structure, chain))
@@ -438,7 +423,6 @@ fn atoms_of(structure: &Structure, model: &Model, keep: impl Fn(&str) -> bool) -
     let mut truncated: BTreeSet<(&'static str, String)> = BTreeSet::new();
     let atoms = model
         .atoms()
-        .filter(|source| keep(source.name().as_str()))
         .map(|source| {
             let residue = source.residue();
             let chain = residue.chain().index().get();
@@ -499,22 +483,6 @@ pub fn load_protein_with_options<P: AsRef<Path>>(path: P, altloc: AltlocPolicy) 
             altloc,
             ..Load::default()
         })
-        .with_context(|| format!("failed to read {}", path.display()))
-}
-
-/// Load only backbone atoms (CA, C, N, O) for simplified rendering
-pub fn load_protein_backbone<P: AsRef<Path>>(path: P) -> Result<Protein> {
-    let path = path.as_ref();
-    ParsedStructure::read(path)?
-        .subset(|name| matches!(name, "CA" | "C" | "N" | "O"))
-        .with_context(|| format!("failed to read {}", path.display()))
-}
-
-/// Load only CA (alpha carbon) atoms for minimal rendering of large proteins
-pub fn load_protein_ca_only<P: AsRef<Path>>(path: P) -> Result<Protein> {
-    let path = path.as_ref();
-    ParsedStructure::read(path)?
-        .subset(|name| name == "CA")
         .with_context(|| format!("failed to read {}", path.display()))
 }
 

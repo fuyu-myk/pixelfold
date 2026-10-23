@@ -3,12 +3,6 @@ use glam::Vec3;
 use crate::dssp::HBond;
 use crate::fixed_str::FixedStr;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum DisplayMode {
-    AllAtoms,
-    Backbone,
-}
-
 /// A chain id: the author's, qualified with a copy number (`A-2`) when a
 /// biological assembly places the chain more than once.
 pub type ChainId = FixedStr<8>;
@@ -79,15 +73,6 @@ impl SecondaryStructure {
             SecondaryStructure::Sheet => (100, 100, 255), // Blue
             SecondaryStructure::Turn => (255, 255, 100),  // Yellow
             SecondaryStructure::Coil => (100, 255, 100),  // Green
-        }
-    }
-
-    pub fn color_256(&self) -> u8 {
-        match self {
-            SecondaryStructure::Helix => 196, // Red
-            SecondaryStructure::Sheet => 33,  // Blue
-            SecondaryStructure::Turn => 226,  // Yellow
-            SecondaryStructure::Coil => 46,   // Green
         }
     }
 }
@@ -214,7 +199,7 @@ pub enum AltlocPolicy {
 }
 
 /// Apply an alternate-location policy. Atoms with no altloc are always kept.
-pub fn filter_altlocs(atoms: Vec<Atom>, policy: AltlocPolicy) -> Vec<Atom> {
+pub(crate) fn filter_altlocs(atoms: Vec<Atom>, policy: AltlocPolicy) -> Vec<Atom> {
     match policy {
         AltlocPolicy::All => atoms,
         AltlocPolicy::A => atoms

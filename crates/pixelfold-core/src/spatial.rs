@@ -40,13 +40,6 @@ impl Grid {
         }
     }
 
-    /// Collect the indices of points within `radius` of `center`.
-    pub fn within(&self, center: Vec3, radius: f32) -> Vec<usize> {
-        let mut out = Vec::new();
-        self.for_each_within(center, radius, |i| out.push(i));
-        out
-    }
-
     /// Invoke `f` with the index of each point within `radius` of `center`, in
     /// no particular order.
     pub fn for_each_within(&self, center: Vec3, radius: f32, mut f: impl FnMut(usize)) {
@@ -91,6 +84,12 @@ mod tests {
         v
     }
 
+    fn within(grid: &Grid, center: Vec3, radius: f32) -> Vec<usize> {
+        let mut out = Vec::new();
+        grid.for_each_within(center, radius, |i| out.push(i));
+        out
+    }
+
     #[test]
     fn finds_points_inside_and_excludes_points_outside() {
         let points = vec![
@@ -101,14 +100,14 @@ mod tests {
             Vec3::new(20.0, 20.0, 0.0), // far away
         ];
         let grid = Grid::build(&points, 4.0);
-        assert_eq!(sorted(grid.within(Vec3::ZERO, 4.0)), vec![0, 1, 3]);
+        assert_eq!(sorted(within(&grid, Vec3::ZERO, 4.0)), vec![0, 1, 3]);
     }
 
     #[test]
     fn boundary_distance_is_inclusive() {
         let points = vec![Vec3::ZERO, Vec3::new(4.0, 0.0, 0.0)];
         let grid = Grid::build(&points, 4.0);
-        assert_eq!(sorted(grid.within(Vec3::ZERO, 4.0)), vec![0, 1]);
+        assert_eq!(sorted(within(&grid, Vec3::ZERO, 4.0)), vec![0, 1]);
     }
 
     #[test]
@@ -120,7 +119,7 @@ mod tests {
         ];
         let grid = Grid::build(&points, 6.0);
         assert_eq!(
-            sorted(grid.within(Vec3::new(-10.0, -10.0, -10.0), 3.0)),
+            sorted(within(&grid, Vec3::new(-10.0, -10.0, -10.0), 3.0)),
             vec![0, 1]
         );
     }
@@ -130,13 +129,13 @@ mod tests {
         // Points 9 A away must be found even with a 3 A cell size.
         let points = vec![Vec3::ZERO, Vec3::new(9.0, 0.0, 0.0)];
         let grid = Grid::build(&points, 3.0);
-        assert_eq!(sorted(grid.within(Vec3::ZERO, 10.0)), vec![0, 1]);
-        assert_eq!(grid.within(Vec3::ZERO, 8.0), vec![0]);
+        assert_eq!(sorted(within(&grid, Vec3::ZERO, 10.0)), vec![0, 1]);
+        assert_eq!(within(&grid, Vec3::ZERO, 8.0), vec![0]);
     }
 
     #[test]
     fn empty_grid_returns_nothing() {
         let grid = Grid::build(&[], 5.0);
-        assert!(grid.within(Vec3::ZERO, 100.0).is_empty());
+        assert!(within(&grid, Vec3::ZERO, 100.0).is_empty());
     }
 }

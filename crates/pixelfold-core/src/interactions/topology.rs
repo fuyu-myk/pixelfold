@@ -161,28 +161,28 @@ pub fn heavy_neighbours<'a>(
         })
 }
 
-/// The element of a standard-residue atom, read from the first character of its
-/// name. Every atom of the 20 standard residues is C, N, O, or S, and none of
-/// those collide with the two-letter element symbols a ligand could carry.
-fn element_of(atom_name: &str) -> Option<u8> {
-    atom_name.bytes().next()
-}
-
-/// True when `atom_name` has at least one bonded heavy neighbour and every one
-/// of them is a carbon.
-///
-/// This is the bond-level half of PLIP's hydrophobic test; the caller supplies
-/// the element check. An atom with no neighbours in the table is not a known
-/// atom of the residue, so it answers false rather than vacuously true.
-pub fn bonded_only_to_carbon(residue_name: &str, atom_name: &str) -> bool {
-    let mut neighbours = heavy_neighbours(residue_name, atom_name).peekable();
-
-    neighbours.peek().is_some() && neighbours.all(|n| element_of(n) == Some(b'C'))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The element of a standard-residue atom, read from the first character of its
+    /// name. Every atom of the 20 standard residues is C, N, O, or S, and none of
+    /// those collide with the two-letter element symbols a ligand could carry.
+    fn element_of(atom_name: &str) -> Option<u8> {
+        atom_name.bytes().next()
+    }
+
+    /// True when `atom_name` has at least one bonded heavy neighbour and every one
+    /// of them is a carbon.
+    ///
+    /// This is the bond-level half of PLIP's hydrophobic test; the caller supplies
+    /// the element check. An atom with no neighbours in the table is not a known
+    /// atom of the residue, so it answers false rather than vacuously true.
+    fn bonded_only_to_carbon(residue_name: &str, atom_name: &str) -> bool {
+        let mut neighbours = heavy_neighbours(residue_name, atom_name).peekable();
+
+        neighbours.peek().is_some() && neighbours.all(|n| element_of(n) == Some(b'C'))
+    }
 
     /// Every atom named by a bond must be reachable from the atom on its other
     /// end: the table is a symmetric relation, not a directed one.

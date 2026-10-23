@@ -4,7 +4,9 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui_image::picker::{Picker, ProtocolType};
 use ratatui_image::{Resize, StatefulImage};
 
-use pixelfold_core::{DisplayMode, SecondaryStructure};
+use pixelfold_core::SecondaryStructure;
+
+use crate::DisplayMode;
 use pixelfold_render::Framebuffer;
 
 use crate::{App, RenderedFrame, render};
