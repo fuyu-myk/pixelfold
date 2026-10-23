@@ -1,13 +1,11 @@
 use anyhow::{Context, Result};
-use flate2::read::MultiGzDecoder;
 use glam::Vec3;
-use mmcif_cif::{Block, BuildError, Document, DocumentBuilder, Entry};
+use mmcif_cif::{Block, Document};
 use mmcif_model::{
-    AssemblyId, AtomRef, ChainRef, EntityKind, Model, OperatorId, PolymerType, Structure,
+    AtomRef, ChainRef, EntityKind, Loaded, Model, OperatorId, PolymerType, ReadOptions, Structure,
 };
 use std::{
     collections::{BTreeSet, HashMap},
-    io::Read,
     path::Path,
 };
 
@@ -19,79 +17,6 @@ use crate::{
     interactions::topology::{is_standard_nucleotide, is_standard_residue},
     structure::{AltlocPolicy, Atom, Molecule, Protein, SecondaryStructure, filter_altlocs},
 };
-
-/// A structure file as read from disk. An mmCIF document is kept whole: the
-/// component definitions and the assembly details live in categories the
-/// typed structure does not carry.
-enum StructureFile {
-    Mmcif(Document),
-    Pdb(String),
-}
-
-impl StructureFile {
-    /// Read `path`, gunzipping a `.gz` file first. The extension underneath
-    /// picks the format: legacy PDB for `.pdb`, `.ent`, or a numbered assembly
-    /// file such as `.pdb1`, and mmCIF for anything else.
-    fn read(path: &Path) -> Result<Self> {
-        let mut bytes = std::fs::read(path)?;
-        let mut name = path;
-        if extension_of(path).as_deref() == Some("gz") {
-            let mut decompressed = Vec::new();
-            MultiGzDecoder::new(bytes.as_slice()).read_to_end(&mut decompressed)?;
-            bytes = decompressed;
-            name = Path::new(path.file_stem().unwrap_or_default());
-        }
-
-        let file = match extension_of(name) {
-            Some(extension) if is_pdb_extension(&extension) => Self::Pdb(String::from_utf8(bytes)?),
-            _ => Self::Mmcif(Document::from_bytes(bytes)?),
-        };
-
-        Ok(file)
-    }
-
-    fn block(&self) -> Option<Block<'_>> {
-        match self {
-            Self::Mmcif(document) => document.block(0),
-            Self::Pdb(_) => None,
-        }
-    }
-
-    /// The typed structure. An mmCIF file whose coordinates read but whose
-    /// assembly or entity records do not falls back to its coordinates alone,
-    /// with a warning: none of those records is needed to show the structure.
-    fn structure(&self) -> Result<Structure> {
-        let document = match self {
-            Self::Mmcif(document) => document,
-            Self::Pdb(text) => return Ok(mmcif_model::parse_pdb(text)?),
-        };
-
-        let error = match Structure::from_document(document) {
-            Ok(structure) => return Ok(structure),
-            Err(error) => error,
-        };
-        let fallback = document
-            .block(0)
-            .and_then(|block| coordinates_only(&block).ok())
-            .and_then(|reduced| Structure::from_document(&reduced).ok());
-        match fallback {
-            Some(structure) => {
-                eprintln!("Warning: {error}; the file's assembly and entity records were ignored");
-                Ok(structure)
-            }
-            None => Err(error.into()),
-        }
-    }
-
-    fn title(&self, structure: &Structure) -> String {
-        let block = self.block();
-        structure
-            .entry_id()
-            .or_else(|| block.as_ref().map(Block::name))
-            .unwrap_or("Unknown")
-            .to_string()
-    }
-}
 
 /// Which biological assembly to build.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -114,23 +39,50 @@ pub struct Load {
 }
 
 /// A structure file read and parsed once, from which any of its models can be
-/// built. The viewer keeps one to step between models without re-reading.
+/// built. The viewer keeps one to step between models without re-reading. An
+/// mmCIF or BinaryCIF document is kept too: the component definitions live in
+/// categories the typed structure does not carry.
 pub struct ParsedStructure {
-    file: StructureFile,
+    document: Option<Document>,
     structure: Structure,
 }
 
 impl ParsedStructure {
+    /// Read `path`, its format named by the extension (`.cif`, `.bcif`, `.pdb`,
+    /// `.ent`, or an assembly file such as `.pdb1`, each optionally gzipped). A
+    /// malformed assembly, operator or entity record is skipped with a warning:
+    /// none of them is needed to show the coordinates.
     pub fn read<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
-        StructureFile::read(path)
-            .and_then(Self::from_file)
-            .with_context(|| format!("failed to read {}", path.display()))
+        let options = ReadOptions::new().lenient(true);
+        let Loaded {
+            structure,
+            document,
+            skipped,
+            ..
+        } = mmcif_model::read_with(path, &options)
+            .with_context(|| format!("failed to read {}", path.display()))?;
+        for error in &skipped {
+            eprintln!("Warning: {error}; that part of the file was skipped");
+        }
+
+        Ok(Self {
+            document,
+            structure,
+        })
     }
 
-    fn from_file(file: StructureFile) -> Result<Self> {
-        let structure = file.structure()?;
-        Ok(Self { file, structure })
+    fn block(&self) -> Option<Block<'_>> {
+        self.document.as_ref()?.block(0)
+    }
+
+    fn title(&self) -> String {
+        let block = self.block();
+        self.structure
+            .entry_id()
+            .or_else(|| block.as_ref().map(Block::name))
+            .unwrap_or("Unknown")
+            .to_string()
     }
 
     /// The numbers of the file's models, in file order.
@@ -142,8 +94,8 @@ impl ParsedStructure {
             .collect()
     }
 
-    /// The ids of the biological assemblies the file declares; none for a
-    /// legacy PDB file, whose `REMARK 350` is not read.
+    /// The ids of the biological assemblies the file declares, from mmCIF's
+    /// assembly categories or a PDB file's `REMARK 350`.
     pub fn assembly_ids(&self) -> Vec<String> {
         self.structure
             .assemblies()
@@ -167,23 +119,19 @@ impl ParsedStructure {
         let mut atoms = filter_altlocs(atoms_of(&self.structure, shown), load.altloc);
         let hbonds = dssp::assign(&mut atoms);
 
-        let block = self.file.block();
-        let assembly = match (&self.file, &block, &assembled) {
-            (_, _, Some(_)) => None,
-            (StructureFile::Pdb(text), _, None) => assembly::detect_pdb(text),
-            (StructureFile::Mmcif(_), Some(block), None) => {
-                assembly::detect_mmcif(&self.structure, block)
-            }
-            (StructureFile::Mmcif(_), None, None) => None,
+        let assembly = match assembled {
+            Some(_) => None,
+            None => assembly::detect(&self.structure),
         };
-        let components = block
+        let components = self
+            .block()
             .as_ref()
             .map(Dictionary::from_block)
             .unwrap_or_default();
 
         Ok(Protein {
             atoms,
-            title: self.file.title(&self.structure),
+            title: self.title(),
             hbonds,
             assembly,
             components,
@@ -191,15 +139,9 @@ impl ParsedStructure {
     }
 
     fn assemble(&self, choice: &AssemblyChoice, model: &Model) -> Result<Model> {
-        if let StructureFile::Pdb(_) = self.file {
-            anyhow::bail!(
-                "assemblies are built from mmCIF files only; a legacy PDB file's REMARK 350 is not read"
-            );
-        }
-
         let id = match choice {
             AssemblyChoice::Primary => assembly::primary(&self.structure)
-                .map(|assembly| assembly.id().clone())
+                .map(|assembly| assembly.id().as_str())
                 .ok_or_else(|| anyhow::anyhow!("the file declares no biological assembly"))?,
             AssemblyChoice::Id(id) => {
                 let ids = self.assembly_ids();
@@ -209,11 +151,11 @@ impl ParsedStructure {
                         describe_assemblies(&ids)
                     );
                 }
-                AssemblyId::new(id.as_str())
+                id.as_str()
             }
         };
 
-        Ok(self.structure.assemble(&id, model)?)
+        Ok(self.structure.assemble(id, model)?)
     }
 
     fn model(&self, number: Option<usize>) -> Result<&Model> {
@@ -261,46 +203,6 @@ fn describe_models(numbers: &[usize]) -> String {
             format!("models {}", list.join(", "))
         }
     }
-}
-
-fn extension_of(path: &Path) -> Option<String> {
-    path.extension()
-        .and_then(|extension| extension.to_str())
-        .map(str::to_ascii_lowercase)
-}
-
-fn is_pdb_extension(extension: &str) -> bool {
-    extension == "ent"
-        || extension
-            .strip_prefix("pdb")
-            .is_some_and(|number| number.bytes().all(|b| b.is_ascii_digit()))
-}
-
-/// A copy of `block` keeping only its coordinates and entry id.
-fn coordinates_only(block: &Block<'_>) -> Result<Document, BuildError> {
-    let kept = |tag: &str| {
-        ["_atom_site.", "_entry."].iter().any(|prefix| {
-            tag.get(..prefix.len())
-                .is_some_and(|start| start.eq_ignore_ascii_case(prefix))
-        })
-    };
-
-    let mut builder = DocumentBuilder::new();
-    builder.start_block(block.name())?;
-    for entry in block.entries() {
-        match entry {
-            Entry::Pair(pair) if kept(pair.tag()) => builder.pair(pair.tag(), pair.value())?,
-            Entry::Loop(rows) if rows.tags().next().is_some_and(kept) => {
-                builder.start_loop(rows.tags())?;
-                for value in rows.values() {
-                    builder.push(value)?;
-                }
-            }
-            _ => {}
-        }
-    }
-
-    builder.finish()
 }
 
 fn first_model(structure: &Structure) -> Result<&Model> {
@@ -407,7 +309,7 @@ fn build_atom(model: &Model, atom: AtomRef<'_>, molecule: Molecule, chain: &str)
         insertion_code: residue.ins_code().get(),
         model_number: model_number(model),
         position: Vec3::new(x as f32, y as f32, z as f32),
-        b_factor: atom.b_factor() as f32,
+        b_factor: atom.b_factor().map_or(f32::NAN, |b| b as f32),
         secondary_structure: SecondaryStructure::Coil,
     }
 }
@@ -513,9 +415,7 @@ _atom_site.B_iso_or_equiv
 ATOM 1 C CA ALA A 1 0.0 0.0 0.0 1.0 0.0
 HETATM 2 Ca CA CA B 2 5.0 0.0 0.0 1.0 0.0
 ";
-        let file = StructureFile::Mmcif(Document::parse(cif).expect("minimal mmCIF should parse"));
-        let atoms = ParsedStructure::from_file(file)
-            .unwrap()
+        let atoms = parsed("element_and_hetatm", cif)
             .protein(&Load {
                 altloc: AltlocPolicy::All,
                 ..Load::default()
@@ -1205,17 +1105,54 @@ _pdbx_struct_assembly_gen.asym_id_list
         );
     }
 
+    // A legacy PDB file declares its assemblies in REMARK 350.
     #[test]
-    fn a_legacy_pdb_file_cannot_build_an_assembly_yet() {
+    fn a_legacy_pdb_file_builds_its_remark_350_assembly() {
+        let remarks = "\
+REMARK 350 BIOMOLECULE: 1
+REMARK 350 APPLY THE FOLLOWING TO CHAINS: A
+REMARK 350   BIOMT1   1  1.000000  0.000000  0.000000        0.00000
+REMARK 350   BIOMT2   1  0.000000  1.000000  0.000000        0.00000
+REMARK 350   BIOMT3   1  0.000000  0.000000  1.000000        0.00000
+REMARK 350   BIOMT1   2 -1.000000  0.000000  0.000000       10.00000
+REMARK 350   BIOMT2   2  0.000000 -1.000000  0.000000        0.00000
+REMARK 350   BIOMT3   2  0.000000  0.000000  1.000000        0.00000
+";
         let path = std::env::temp_dir().join("pf_assembly.pdb");
+        std::fs::write(
+            &path,
+            format!("{remarks}{}", pdb_line("ATOM", 1, " CA ", "GLY", 1, 1.0)),
+        )
+        .unwrap();
+        let file = ParsedStructure::read(&path).unwrap();
+        let _ = std::fs::remove_file(&path);
+
+        let protein = file
+            .protein(&with_assembly(AssemblyChoice::Primary))
+            .unwrap();
+
+        let chains: Vec<&str> = protein.atoms.iter().map(|a| a.chain_id.as_str()).collect();
+        assert_eq!(chains, ["A", "A-2"]);
+        assert_eq!(protein.atoms[1].position.x, 9.0);
+
+        let deposited = file.protein(&Load::default()).unwrap();
+        assert_eq!(deposited.assembly.map(|a| a.operator_count), Some(2));
+    }
+
+    #[test]
+    fn a_legacy_pdb_file_without_remark_350_declares_no_assembly() {
+        let path = std::env::temp_dir().join("pf_no_assembly.pdb");
         std::fs::write(&path, pdb_line("ATOM", 1, " CA ", "GLY", 1, 0.0)).unwrap();
         let file = ParsedStructure::read(&path).unwrap();
         let _ = std::fs::remove_file(&path);
 
         let Err(error) = file.protein(&with_assembly(AssemblyChoice::Primary)) else {
-            panic!("a PDB file has no assemblies to build");
+            panic!("a PDB file without REMARK 350 has no assembly to build");
         };
-        assert!(error.to_string().contains("REMARK 350"), "{error}");
+        assert_eq!(
+            error.to_string(),
+            "the file declares no biological assembly"
+        );
     }
 
     #[test]

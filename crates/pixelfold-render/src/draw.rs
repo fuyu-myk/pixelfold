@@ -3,8 +3,8 @@ use pixelfold_core::FixedStr;
 /// Map B-factor value to RGB color using blue –> cyan –> yellow –> red gradient
 /// Normalizes B-factors using percentile-based scaling
 pub fn bfactor_to_color(b_factor: f32, b_min: f32, b_max: f32) -> (u8, u8, u8) {
-    if b_max <= b_min {
-        return (128, 128, 128); // Gray for invalid range
+    if b_max <= b_min || !b_factor.is_finite() {
+        return (128, 128, 128); // Gray for an invalid range or a missing B-factor
     }
 
     let t = ((b_factor - b_min) / (b_max - b_min)).clamp(0.0, 1.0);
@@ -160,4 +160,14 @@ pub fn draw_dashed_line(
         .filter(|(i, _)| i % dash_spacing == 0)
         .map(|(_, p)| p)
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_missing_b_factor_is_grey() {
+        assert_eq!(bfactor_to_color(f32::NAN, 0.0, 100.0), (128, 128, 128));
+    }
 }

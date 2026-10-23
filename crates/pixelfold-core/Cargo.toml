@@ -14,7 +14,6 @@ rust-version.workspace = true
 [dependencies]
 anyhow.workspace = true
 fixedbitset.workspace = true
-flate2.workspace = true
 glam.workspace = true
 mmcif-cif.workspace = true
 mmcif-model.workspace = true
@@ -22,3 +21,6 @@ nalgebra.workspace = true
 nom.workspace = true
 petgraph.workspace = true
 rust-sasa.workspace = true
+
+[dev-dependencies]
+flate2.workspace = true

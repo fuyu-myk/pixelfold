@@ -29,9 +29,9 @@ single-model output keeps its shape, with residues listed in label-chain order.
   shows the interfaces between copies (6ZPA's hexamer, 7AEW's two copies of
   its asymmetric unit). Where the deposited coordinates hold more than one
   biological unit, the assembly keeps only its own chains. An unknown id is an
-  error naming those the file declares; a legacy PDB file builds none yet,
-  since `REMARK 350` is not read, and `rin --mvsj` refuses `--assembly`, since
-  Mol* names copies by operator. Library users name what to build with
+  error naming those the file declares; a legacy PDB file builds the assemblies
+  its `REMARK 350` declares; and `rin --mvsj` refuses `--assembly`, since Mol*
+  names copies by operator. Library users name what to build with
   `parser::Load` (model, assembly, altloc policy), which
   `ParsedStructure::protein`, `App::load_protein` and `pixelfold_tui::view`
   now take.
@@ -72,9 +72,11 @@ single-model output keeps its shape, with residues listed in label-chain order.
   gone. Reports list residues in label-chain order (polymer chains, then
   ligands, then waters, as an mmCIF file writes them) rather than grouped by
   author chain, and an atom group lists its atoms in file order. Gzipped files
-  and RCSB's numbered assembly files (`.pdb1`) still load, and a file whose
-  assembly or entity records cannot be read loads its coordinates with a
-  warning instead of failing.
+  and RCSB's numbered assembly files (`.pdb1`) still load, BinaryCIF (`.bcif`)
+  loads too, and a file whose assembly or entity records cannot be read loads
+  its coordinates with a warning instead of failing; a file whose extension
+  names no structure format is refused. A missing B-factor is missing, shown as
+  `n/a` and coloured grey, rather than read as 0.
 
 ### Removed
 

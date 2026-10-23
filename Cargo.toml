@@ -28,8 +28,8 @@ flate2 = "1.1.8"
 futures = "0.3.31"
 glam = "0.30.9"
 image = { version = "0.25.6", default-features = false, features = ["png"] }
-mmcif-cif = "0.2.2"
-mmcif-model = "0.2.2"
+mmcif-cif = { git = "https://github.com/fuyu-myk/mmcif", rev = "309f2c9" }
+mmcif-model = { git = "https://github.com/fuyu-myk/mmcif", rev = "309f2c9", features = ["gzip"] }
 nom = "7.1.3"
 nalgebra = { version = "0.33.2", features = ["serde-serialize"] }
 png = "0.18"

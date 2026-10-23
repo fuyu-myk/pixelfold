@@ -316,6 +316,15 @@ fn render_info_bar(frame: &mut Frame, app: &App, area: Rect) {
     );
 }
 
+/// A B-factor to two places, or `n/a` where the file gives none.
+fn b_factor_text(b_factor: f32) -> String {
+    if b_factor.is_finite() {
+        format!("{b_factor:.2}")
+    } else {
+        "n/a".to_string()
+    }
+}
+
 fn render_inspect_panel(frame: &mut Frame, app: &App, atom_idx: usize, area: Rect) {
     let Some(protein) = app.protein.as_ref() else {
         return;
@@ -388,7 +397,7 @@ fn render_inspect_panel(frame: &mut Frame, app: &App, atom_idx: usize, area: Rec
         Line::from(""),
         Line::from(vec![
             Span::styled("  B-factor: ", label),
-            Span::styled(format!("{:.2}", atom.b_factor), value),
+            Span::styled(b_factor_text(atom.b_factor), value),
         ]),
         Line::from(""),
         Line::from(vec![Span::styled(
@@ -457,7 +466,7 @@ fn render_residue_summary(frame: &mut Frame, app: &App, atom_idx: usize, area: R
         Line::from(vec![
             Span::styled("B-factor ", label),
             Span::styled(
-                format!("{:.2}", atom.b_factor),
+                b_factor_text(atom.b_factor),
                 Style::default().fg(Color::White),
             ),
         ]),
