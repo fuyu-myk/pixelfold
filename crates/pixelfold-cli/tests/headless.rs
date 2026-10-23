@@ -11,9 +11,18 @@ use std::process::{Command, Stdio};
 
 /// A structure committed under `tests/fixtures`.
 fn fixture(id: &str) -> PathBuf {
+    fixture_file(&format!("{id}.cif"))
+}
+
+/// The legacy PDB twin of a committed fixture.
+fn pdb_fixture(id: &str) -> PathBuf {
+    fixture_file(&format!("{id}.pdb"))
+}
+
+fn fixture_file(name: &str) -> PathBuf {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures")
-        .join(format!("{id}.cif"));
+        .join(name);
 
     path.canonicalize()
         .unwrap_or_else(|e| panic!("missing test fixture {}: {e}", path.display()))
@@ -679,4 +688,33 @@ fn model_takes_a_number_or_all() {
         "{}",
         run.stderr
     );
+}
+
+// The PDB and mmCIF readers must agree wherever a legacy PDB file carries the
+// same information. Thrombin's light chain runs 1H, 1G, ... 1A, 1, the order a
+// reader once re-sorted. A PDB file carries no chemical component definitions,
+// so thrombin's inhibitor stays untyped there and its interactions differ by
+// design.
+#[test]
+fn pdb_and_mmcif_files_of_one_entry_report_alike() {
+    let cases: [(&str, &[&str]); 2] = [
+        ("1UBQ", &["ss", "sasa", "interactions"]),
+        ("1PPB", &["ss", "sasa"]),
+    ];
+    for (id, reports) in cases {
+        for report in reports {
+            let sorted = |path: &Path| {
+                let run = run_on(path, &[report, "--format", "tsv"]);
+                assert!(run.ok, "{id} {report} failed: {}", run.stderr);
+                let mut rows: Vec<String> = run.stdout.lines().map(str::to_owned).collect();
+                rows.sort();
+                rows
+            };
+            assert_eq!(
+                sorted(&pdb_fixture(id)),
+                sorted(&fixture(id)),
+                "{id} {report}"
+            );
+        }
+    }
 }
