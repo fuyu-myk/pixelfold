@@ -1590,8 +1590,9 @@ dependencies = [
 
 [[package]]
 name = "mmcif-cif"
-version = "0.2.3"
-source = "git+https://github.com/fuyu-myk/mmcif?rev=d1150ed#d1150edabd631d01f667cada43ef050ab9d34683"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0a6b645083bf5ef232524f727d3b453060805365f7d61ee19da1b3d6025eaa4f"
 dependencies = [
  "flate2",
  "memchr",
@@ -1601,8 +1602,9 @@ dependencies = [
 
 [[package]]
 name = "mmcif-model"
-version = "0.2.3"
-source = "git+https://github.com/fuyu-myk/mmcif?rev=d1150ed#d1150edabd631d01f667cada43ef050ab9d34683"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "257c411a8ab693bb03fa69e33c22d53c836d954aab979c61565b081409a053eb"
 dependencies = [
  "mmcif-cif",
  "thiserror 2.0.17",
