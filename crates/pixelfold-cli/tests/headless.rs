@@ -33,7 +33,11 @@ impl Run {
 
 /// Run the binary against a committed fixture.
 fn pixelfold(id: &str, args: &[&str]) -> Run {
-    let structure = fixture(id);
+    run_on(&fixture(id), args)
+}
+
+/// Run the binary against a structure file.
+fn run_on(structure: &Path, args: &[&str]) -> Run {
     let output = Command::new(env!("CARGO_BIN_EXE_pixelfold"))
         .args(args)
         .arg(structure)
@@ -545,5 +549,51 @@ fn a_local_file_does_not_need_a_usable_cache_directory() {
     assert!(
         !Path::new("/nonexistentroot").exists(),
         "the cache directory was created for a purely local read"
+    );
+}
+
+const TWO_MODELS: &str = "\
+data_NMR
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.label_seq_id
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+_atom_site.pdbx_PDB_model_num
+ATOM 1 C CA GLY A 1 0.0 0.0 0.0 1
+ATOM 2 C CA GLY A 2 3.8 0.0 0.0 1
+ATOM 3 C CA GLY A 1 0.5 0.0 0.0 2
+ATOM 4 C CA GLY A 2 4.3 0.0 0.0 2
+";
+
+#[test]
+fn model_chooses_which_model_of_a_file_is_analysed() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("nmr.cif");
+    std::fs::write(&path, TWO_MODELS).unwrap();
+
+    let second = run_on(
+        &path,
+        &[
+            "ss", "--format", "tsv", "--model", "2", "--select", "model 2",
+        ],
+    );
+    assert!(second.ok, "command failed: {}", second.stderr);
+    assert_eq!(second.rows().len(), 2);
+
+    let absent = run_on(&path, &["ss", "--model", "5"]);
+    assert!(!absent.ok);
+    assert!(
+        absent
+            .stderr
+            .contains("there is no model 5; the file has models 1-2"),
+        "{}",
+        absent.stderr
     );
 }

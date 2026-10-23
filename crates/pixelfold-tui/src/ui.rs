@@ -149,9 +149,14 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App, picker: &Picker) {
     }
 
     frame.render_widget(
-        Paragraph::new(
-            "WASD rotate  ·  +/- zoom  ·  arrows pan  ·  i inspect  ·  g network  ·  l layout  ·  e color  ·  t/y filter  ·  1/2 atoms/Cα  ·  c b h  ·  k [ ] , . slab  ·  f reset  ·  q quit",
-        )
+        Paragraph::new(format!(
+            "WASD rotate  ·  +/- zoom  ·  arrows pan  ·  i inspect  ·  g network  ·  l layout  ·  e color  ·  t/y filter  ·  1/2 atoms/Cα  ·  c b h  ·  k [ ] , . slab{}  ·  f reset  ·  q quit",
+            if app.models.len() > 1 {
+                "  ·  m/M model"
+            } else {
+                ""
+            }
+        ))
         .alignment(Alignment::Center)
         .style(Style::default().fg(Color::DarkGray)),
         footer_area,
@@ -265,9 +270,21 @@ fn render_info_bar(frame: &mut Frame, app: &App, area: Rect) {
         DisplayMode::Backbone => app.ca_indices.len(),
     };
 
+    let model_text = if app.models.len() > 1 {
+        format!(
+            " Model {} ({}/{}) |",
+            app.models[app.model_position],
+            app.model_position + 1,
+            app.models.len()
+        )
+    } else {
+        String::new()
+    };
+
     let info_text = format!(
-        " {} | {} atoms | [{}] [{}] [{}] | Zoom: {:.1}x{}{}{}{} ",
+        " {} |{} {} atoms | [{}] [{}] [{}] | Zoom: {:.1}x{}{}{}{} ",
         protein.title,
+        model_text,
         atom_count,
         display_mode_text,
         connections_text,

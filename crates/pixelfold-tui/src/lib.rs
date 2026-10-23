@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use anyhow::{Context, Result};
+use pixelfold_core::parser::ParsedStructure;
 use pixelfold_core::{AltlocPolicy, DisplayMode, Protein, get_calpha_connections};
 use pixelfold_render::Framebuffer;
 use pixelfold_render::renderer::{self, Camera};
@@ -35,7 +36,8 @@ pub struct App {
     pub inspect_mode: bool,
     pub residue_highlight: bool,
     pub selected_atom_idx: Option<usize>,
-    /// Every atom sharing the selected atom's chain and residue number.
+    /// Every atom sharing the selected atom's chain, residue number, and
+    /// insertion code.
     pub highlighted_atom_indices: HashSet<usize>,
     pub display_mode: DisplayMode,
     pub show_connections: bool,
@@ -56,6 +58,13 @@ pub struct App {
     pub(crate) network_build: Option<std::sync::mpsc::Receiver<network::NetworkView>>,
     /// Where the network pane last drew, for routing clicks to it.
     pub network_area: Option<Rect>,
+    /// The parsed file the shown model came from, kept so stepping between
+    /// models never re-reads it.
+    pub(crate) source: Option<ParsedStructure>,
+    pub(crate) altloc: AltlocPolicy,
+    /// The file's model numbers, and the position of the shown one among them.
+    pub(crate) models: Vec<usize>,
+    pub(crate) model_position: usize,
 }
 
 impl Default for App {
@@ -89,26 +98,80 @@ impl App {
             network_view: None,
             network_build: None,
             network_area: None,
+            source: None,
+            altloc: AltlocPolicy::default(),
+            models: Vec::new(),
+            model_position: 0,
         }
     }
 
+    /// Load model `model` of the file at `path`, or its first model when `None`,
+    /// and frame it.
     pub fn load_protein(
         &mut self,
         path: &Path,
         width: f32,
         height: f32,
         altloc: AltlocPolicy,
+        model: Option<usize>,
     ) -> Result<()> {
-        self.protein = Some(pixelfold_core::parser::load_protein_with_options(
-            path, altloc,
-        )?);
+        let source = ParsedStructure::read(path)?;
+        let protein = source.protein(model, altloc)?;
+        self.models = source.model_numbers();
+        self.model_position = model
+            .and_then(|number| self.models.iter().position(|&m| m == number))
+            .unwrap_or(0);
+        self.source = Some(source);
+        self.altloc = altloc;
 
-        if let Some(ref protein) = self.protein {
-            renderer::auto_frame_protein(protein, &mut self.camera, width, height);
-            self.compute_static_geometry();
-        }
+        renderer::auto_frame_protein(&protein, &mut self.camera, width, height);
+        self.protein = Some(protein);
+        self.compute_static_geometry();
 
         Ok(())
+    }
+
+    /// Show the next model of a multi-model file (`delta` 1) or the previous one
+    /// (-1), wrapping at either end. The camera stays put; the selection and the
+    /// network pane, which index the old model's atoms, start over.
+    pub fn step_model(&mut self, delta: isize) -> Result<()> {
+        let count = self.models.len();
+        let Some(source) = self.source.as_ref().filter(|_| count > 1) else {
+            return Ok(());
+        };
+
+        let position = (self.model_position as isize + delta).rem_euclid(count as isize) as usize;
+        self.protein = Some(source.protein(Some(self.models[position]), self.altloc)?);
+        self.model_position = position;
+        self.compute_static_geometry();
+
+        self.selected_atom_idx = None;
+        self.residue_highlight = false;
+        self.highlighted_atom_indices.clear();
+        self.network_view = None;
+        self.network_build = None;
+        if self.show_network {
+            self.start_network_build();
+        }
+        self.redraw_needed = true;
+
+        Ok(())
+    }
+
+    /// Build the network pane's view on a worker thread, so a large structure's
+    /// detection, layout, and accessibility pass never freeze the event loop;
+    /// the pane shows a placeholder until the result arrives (see `run_app`).
+    pub(crate) fn start_network_build(&mut self) {
+        let Some(protein) = self.protein.clone() else {
+            return;
+        };
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let view = network::NetworkView::build(&protein);
+            tx.send(view).ok();
+        });
+        self.network_build = Some(rx);
     }
 
     /// Pre-compute geometry that does not change as the camera moves.
@@ -143,12 +206,17 @@ pub enum ViewProtocol {
 }
 
 /// Load a structure and run the interactive viewer.
-pub fn view(path: &Path, altloc: AltlocPolicy, protocol: ViewProtocol) -> Result<()> {
+pub fn view(
+    path: &Path,
+    altloc: AltlocPolicy,
+    model: Option<usize>,
+    protocol: ViewProtocol,
+) -> Result<()> {
     let mut terminal = ratatui::init();
 
     let picker = build_picker(protocol);
 
-    let result = run_view(&mut terminal, &picker, path, altloc);
+    let result = run_view(&mut terminal, &picker, path, altloc, model);
 
     let _ = crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture);
     ratatui::restore();
@@ -179,6 +247,7 @@ fn run_view(
     picker: &Picker,
     path: &Path,
     altloc: AltlocPolicy,
+    model: Option<usize>,
 ) -> Result<()> {
     crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture)?;
 
@@ -189,7 +258,7 @@ fn run_view(
     let height = (rows as u32 * font_h as u32).max(1) as f32;
 
     let mut app = App::new();
-    app.load_protein(path, width, height, altloc)?;
+    app.load_protein(path, width, height, altloc, model)?;
 
     crate::app::run_app(terminal, &mut app, picker)
 }
@@ -313,5 +382,45 @@ mod tests {
         update_highlighted_atoms(&mut app);
 
         assert_eq!(app.highlighted_atom_indices, HashSet::from([0, 1]));
+    }
+
+    #[test]
+    fn stepping_models_wraps_and_starts_the_selection_over() {
+        let cif = "\
+data_NMR
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.label_seq_id
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+_atom_site.pdbx_PDB_model_num
+ATOM 1 C CA GLY A 1 0.0 0.0 0.0 1
+ATOM 2 C CA GLY A 2 3.8 0.0 0.0 1
+ATOM 3 C CA GLY A 1 0.5 0.0 0.0 2
+ATOM 4 C CA GLY A 2 4.3 0.0 0.0 2
+";
+        let path = std::env::temp_dir().join("pf_tui_two_models.cif");
+        std::fs::write(&path, cif).unwrap();
+        let mut app = App::new();
+        app.load_protein(&path, 64.0, 64.0, AltlocPolicy::Occupancy, None)
+            .unwrap();
+        let _ = std::fs::remove_file(&path);
+        let shown = |app: &App| app.protein.as_ref().unwrap().atoms[0].model_number;
+
+        app.selected_atom_idx = Some(1);
+        app.step_model(1).unwrap();
+        assert_eq!(shown(&app), 2);
+        assert_eq!(app.selected_atom_idx, None);
+
+        app.step_model(1).unwrap();
+        assert_eq!(shown(&app), 1);
+        app.step_model(-1).unwrap();
+        assert_eq!(shown(&app), 2);
     }
 }

@@ -85,20 +85,52 @@ impl StructureFile {
             .unwrap_or("Unknown")
             .to_string()
     }
+}
 
-    /// The first model, its alternate locations resolved by `altloc`, with the
-    /// biological assembly and the component definitions the file declares.
-    fn protein(&self, altloc: AltlocPolicy) -> Result<Protein> {
-        let structure = self.structure()?;
-        let model = first_model(&structure)?;
-        let mut atoms = filter_altlocs(atoms_of(&structure, model, |_| true), altloc);
+/// A structure file read and parsed once, from which any of its models can be
+/// built. The viewer keeps one to step between models without re-reading.
+pub struct ParsedStructure {
+    file: StructureFile,
+    structure: Structure,
+}
+
+impl ParsedStructure {
+    pub fn read<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let path = path.as_ref();
+        StructureFile::read(path)
+            .and_then(Self::from_file)
+            .with_context(|| format!("failed to read {}", path.display()))
+    }
+
+    fn from_file(file: StructureFile) -> Result<Self> {
+        let structure = file.structure()?;
+        Ok(Self { file, structure })
+    }
+
+    /// The numbers of the file's models, in file order.
+    pub fn model_numbers(&self) -> Vec<usize> {
+        self.structure
+            .models()
+            .iter()
+            .map(|model| model_number(model))
+            .collect()
+    }
+
+    /// Model `number`, or the first when `None`, its alternate locations
+    /// resolved by `altloc`, with the biological assembly and the component
+    /// definitions the file declares.
+    pub fn protein(&self, number: Option<usize>, altloc: AltlocPolicy) -> Result<Protein> {
+        let model = self.model(number)?;
+        let mut atoms = filter_altlocs(atoms_of(&self.structure, model, |_| true), altloc);
         let hbonds = dssp::assign(&mut atoms);
 
-        let block = self.block();
-        let assembly = match (self, &block) {
-            (Self::Pdb(text), _) => assembly::detect_pdb(text),
-            (Self::Mmcif(_), Some(block)) => assembly::detect_mmcif(&structure, block),
-            (Self::Mmcif(_), None) => None,
+        let block = self.file.block();
+        let assembly = match (&self.file, &block) {
+            (StructureFile::Pdb(text), _) => assembly::detect_pdb(text),
+            (StructureFile::Mmcif(_), Some(block)) => {
+                assembly::detect_mmcif(&self.structure, block)
+            }
+            (StructureFile::Mmcif(_), None) => None,
         };
         let components = block
             .as_ref()
@@ -107,7 +139,7 @@ impl StructureFile {
 
         Ok(Protein {
             atoms,
-            title: self.title(&structure),
+            title: self.file.title(&self.structure),
             hbonds,
             assembly,
             components,
@@ -117,17 +149,53 @@ impl StructureFile {
     /// The first model's atoms that `keep` accepts by name, every conformer
     /// included, without assembly or component definitions.
     fn subset(&self, keep: impl Fn(&str) -> bool) -> Result<Protein> {
-        let structure = self.structure()?;
-        let mut atoms = atoms_of(&structure, first_model(&structure)?, keep);
+        let mut atoms = atoms_of(&self.structure, first_model(&self.structure)?, keep);
         let hbonds = dssp::assign(&mut atoms);
 
         Ok(Protein {
             atoms,
-            title: self.title(&structure),
+            title: self.file.title(&self.structure),
             hbonds,
             assembly: None,
             components: Default::default(),
         })
+    }
+
+    fn model(&self, number: Option<usize>) -> Result<&Model> {
+        let Some(number) = number else {
+            return first_model(&self.structure);
+        };
+
+        self.structure
+            .models()
+            .iter()
+            .map(|model| model.as_ref())
+            .find(|model| model_number(model) == number)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "there is no model {number}; the file has {}",
+                    describe_models(&self.model_numbers())
+                )
+            })
+    }
+}
+
+fn model_number(model: &Model) -> usize {
+    usize::try_from(model.number().get()).unwrap_or_default()
+}
+
+/// `model 1`, `models 1-10`, or `models 1, 3, 4` where the numbers skip.
+fn describe_models(numbers: &[usize]) -> String {
+    match numbers {
+        [] => "no models".to_string(),
+        [only] => format!("model {only}"),
+        [first, .., last] if numbers.windows(2).all(|pair| pair[1] == pair[0] + 1) => {
+            format!("models {first}-{last}")
+        }
+        _ => {
+            let list: Vec<String> = numbers.iter().map(ToString::to_string).collect();
+            format!("models {}", list.join(", "))
+        }
     }
 }
 
@@ -237,7 +305,7 @@ fn build_atom(model: &Model, atom: AtomRef<'_>, molecule: Molecule) -> Atom {
         altloc: atom.altloc().get(),
         occupancy: atom.occupancy() as f32,
         insertion_code: residue.ins_code().get(),
-        model_number: usize::try_from(model.number().get()).unwrap_or_default(),
+        model_number: model_number(model),
         position: Vec3::new(x as f32, y as f32, z as f32),
         b_factor: atom.b_factor() as f32,
         secondary_structure: SecondaryStructure::Coil,
@@ -306,10 +374,6 @@ fn truncation_warning(truncated: &BTreeSet<(&'static str, String)>) -> Option<St
     ))
 }
 
-fn read_file(path: &Path) -> Result<StructureFile> {
-    StructureFile::read(path).with_context(|| format!("failed to read {}", path.display()))
-}
-
 /// Load a protein structure from a PDB or mmCIF file
 pub fn load_protein<P: AsRef<Path>>(path: P) -> Result<Protein> {
     load_protein_with_options(path, AltlocPolicy::default())
@@ -318,15 +382,15 @@ pub fn load_protein<P: AsRef<Path>>(path: P) -> Result<Protein> {
 /// Load a protein structure with additional options
 pub fn load_protein_with_options<P: AsRef<Path>>(path: P, altloc: AltlocPolicy) -> Result<Protein> {
     let path = path.as_ref();
-    read_file(path)?
-        .protein(altloc)
+    ParsedStructure::read(path)?
+        .protein(None, altloc)
         .with_context(|| format!("failed to read {}", path.display()))
 }
 
 /// Load only backbone atoms (CA, C, N, O) for simplified rendering
 pub fn load_protein_backbone<P: AsRef<Path>>(path: P) -> Result<Protein> {
     let path = path.as_ref();
-    read_file(path)?
+    ParsedStructure::read(path)?
         .subset(|name| matches!(name, "CA" | "C" | "N" | "O"))
         .with_context(|| format!("failed to read {}", path.display()))
 }
@@ -334,7 +398,7 @@ pub fn load_protein_backbone<P: AsRef<Path>>(path: P) -> Result<Protein> {
 /// Load only CA (alpha carbon) atoms for minimal rendering of large proteins
 pub fn load_protein_ca_only<P: AsRef<Path>>(path: P) -> Result<Protein> {
     let path = path.as_ref();
-    read_file(path)?
+    ParsedStructure::read(path)?
         .subset(|name| name == "CA")
         .with_context(|| format!("failed to read {}", path.display()))
 }
@@ -367,7 +431,11 @@ ATOM 1 C CA ALA A 1 0.0 0.0 0.0 1.0 0.0
 HETATM 2 Ca CA CA B 2 5.0 0.0 0.0 1.0 0.0
 ";
         let file = StructureFile::Mmcif(Document::parse(cif).expect("minimal mmCIF should parse"));
-        let atoms = file.protein(AltlocPolicy::All).unwrap().atoms;
+        let atoms = ParsedStructure::from_file(file)
+            .unwrap()
+            .protein(None, AltlocPolicy::All)
+            .unwrap()
+            .atoms;
         assert_eq!(atoms.len(), 2);
 
         let carbon = atoms
@@ -861,5 +929,68 @@ HETATM 2 C CA . MSE A 2 3.8 0.0 0.0 1.00 5.0 2 A
 
         assert_eq!(selected_residues(&protein, "protein"), ["ALA"]);
         assert_eq!(selected_residues(&protein, "ligand"), ["MSE"]);
+    }
+
+    const TWO_MODELS: &str = "\
+data_NMR
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.label_seq_id
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+_atom_site.pdbx_PDB_model_num
+ATOM 1 C CA GLY A 1 0.0 0.0 0.0 1
+ATOM 2 C CA GLY A 2 3.8 0.0 0.0 1
+ATOM 3 C CA GLY A 1 0.5 0.0 0.0 2
+ATOM 4 C CA GLY A 2 4.3 0.0 0.0 2
+";
+
+    fn parsed(name: &str, cif: &str) -> ParsedStructure {
+        let path = std::env::temp_dir().join(format!("pf_{name}.cif"));
+        std::fs::write(&path, cif).unwrap();
+        let parsed = ParsedStructure::read(&path).unwrap();
+        let _ = std::fs::remove_file(&path);
+        parsed
+    }
+
+    #[test]
+    fn any_model_of_a_multi_model_file_loads() {
+        let file = parsed("two_models", TWO_MODELS);
+        assert_eq!(file.model_numbers(), [1, 2]);
+
+        let first = file.protein(None, AltlocPolicy::Occupancy).unwrap();
+        let second = file.protein(Some(2), AltlocPolicy::Occupancy).unwrap();
+
+        assert!(first.atoms.iter().all(|a| a.model_number == 1));
+        assert!(second.atoms.iter().all(|a| a.model_number == 2));
+        assert_eq!(second.atoms.len(), 2);
+        assert_eq!(second.atoms[0].position.x, 0.5);
+    }
+
+    #[test]
+    fn an_absent_model_is_an_error_naming_the_models_there() {
+        let file = parsed("absent_model", TWO_MODELS);
+
+        let Err(error) = file.protein(Some(5), AltlocPolicy::Occupancy) else {
+            panic!("model 5 is not in the file");
+        };
+
+        assert_eq!(
+            error.to_string(),
+            "there is no model 5; the file has models 1-2"
+        );
+    }
+
+    #[test]
+    fn model_lists_read_as_ranges_where_they_run_on() {
+        assert_eq!(describe_models(&[1]), "model 1");
+        assert_eq!(describe_models(&[1, 2, 3]), "models 1-3");
+        assert_eq!(describe_models(&[1, 3, 4]), "models 1, 3, 4");
     }
 }

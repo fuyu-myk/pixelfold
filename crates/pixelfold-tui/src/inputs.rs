@@ -122,21 +122,15 @@ pub(crate) fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers
         // result arrives (see `run_app`).
         KeyCode::Char('g') => {
             app.show_network = !app.show_network;
-            if app.show_network
-                && app.network_view.is_none()
-                && app.network_build.is_none()
-                && let Some(protein) = app.protein.clone()
-            {
-                let (tx, rx) = std::sync::mpsc::channel();
-                std::thread::spawn(move || {
-                    let view = crate::network::NetworkView::build(&protein);
-                    tx.send(view).ok();
-                });
-
-                app.network_build = Some(rx);
+            if app.show_network && app.network_view.is_none() && app.network_build.is_none() {
+                app.start_network_build();
             }
             app.redraw_needed = true;
         }
+
+        // Step through the models of a multi-model file, such as an NMR ensemble.
+        KeyCode::Char('m') => app.step_model(1)?,
+        KeyCode::Char('M') => app.step_model(-1)?,
 
         // Switch the network layout between force-directed and spatial.
         KeyCode::Char('l') => {

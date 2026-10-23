@@ -6,6 +6,19 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`--model N`**, a global option choosing which model of a multi-model file
+  (an NMR ensemble, say) every subcommand and the viewer load; the first model
+  remains the default, and an absent one is an error naming the models the
+  file has. `select model N` now has something to match.
+- **Model stepping in the viewer**: `m` and `M` show the next and previous
+  model, wrapping at either end, without re-reading the file. The camera stays
+  put, the info bar names the model, and the selection and network pane start
+  over for the new model's atoms. Library users read a file once with
+  `parser::ParsedStructure` and build any model from it; `App::load_protein`
+  and `pixelfold_tui::view` take the model to open.
+
 ### Changed
 
 - **Structures load through `mmcif-model` and `mmcif-cif`** in place of pdbtbx.

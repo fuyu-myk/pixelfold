@@ -53,6 +53,11 @@ struct Common {
     /// How to resolve atoms modelled in alternate locations
     #[arg(long, value_enum, default_value_t = AltlocArg::Occupancy, global = true)]
     altloc: AltlocArg,
+
+    /// Which model of a multi-model file (an NMR ensemble, say) to load, by its
+    /// number (default: the first)
+    #[arg(long, value_name = "N", global = true)]
+    model: Option<usize>,
 }
 
 /// Options every headless analysis shares.
@@ -510,13 +515,13 @@ fn view(structure: &str, protocol: ProtocolArg, common: &Common) -> Result<()> {
     let dir = cache_dir(common)?;
     let path = load::structure_path(structure, &dir)?;
 
-    pixelfold_tui::view(&path, common.altloc.into(), protocol.into())
+    pixelfold_tui::view(&path, common.altloc.into(), common.model, protocol.into())
 }
 
 fn loaded(structure: &str, common: &Common) -> Result<pixelfold_core::Protein> {
     let dir = cache_dir(common)?;
 
-    load::analysis_structure(structure, &dir, common.altloc.into())
+    load::analysis_structure(structure, &dir, common.altloc.into(), common.model)
 }
 
 /// The URL and parse format a MolViewSpec scene should load the structure from.
