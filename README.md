@@ -169,8 +169,9 @@ Being explicit about what this does not do:
 - **Hydrogen bonds and water bridges over-report** relative to PLIP, as above.
 - **No cartoons or ribbons, no molecular surfaces, no ray tracing.** Space-filling
   spheres and bonds only.
-- **No trajectories, ensembles, or multi-model analysis.** One structure at a
-  time.
+- **No trajectories.** A multi-model file such as an NMR ensemble works model
+  by model (`--model N`, or `--model all` for a report on every model), but a
+  molecular-dynamics trajectory is not read.
 - **No cryo-EM density, no electrostatics, no structure building or refinement.**
 - **No pi-hydrogen bonds**, which RING 4.0 detects.
 - **Rendering quality depends on your terminal.** Kitty and iTerm2 show real
@@ -202,6 +203,15 @@ pixelfold sasa 1UBQ --format json
 # Render to a PNG, or to the terminal
 pixelfold render 4HHB -o hemoglobin.png --width 1600 --height 1200
 
+# One model of an NMR ensemble, or every model with a model column
+pixelfold ss 1D3Z --model 3
+pixelfold sasa 1D3Z --model all --format tsv
+
+# The biological assembly instead of the deposited coordinates; copies of a
+# chain are named A, A-2, A-3
+pixelfold rin 6ZPA --assembly --analyze
+pixelfold interactions 7AEW --assembly --select 'chain AAA-2'
+
 # Any command, narrowed by the selection language
 pixelfold interactions 1STP --select 'byres within 5 of resn BTN'
 ```
@@ -219,6 +229,8 @@ pixelfold interactions 1STP --select 'byres within 5 of resn BTN'
 | `l` `e` | Network layout (force or spatial), node colour (structure or burial) |
 | `t` `y` | Filter network edges by interaction type, by chain |
 | `k` `[` `]` `,` `.` | Slab: toggle, move, and resize a depth slice |
+| `m`/`M` | Next, previous model of a multi-model file |
+| `u` | Biological assembly on or off |
 | `f`, `q` | Reset the view, quit |
 
 ## Citations

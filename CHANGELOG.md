@@ -4,7 +4,20 @@ All notable changes to PixelFold are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.0] (2026-10-22)
+
+The structure-IO milestone. PixelFold now reads structures through
+`mmcif-model` and `mmcif-cif` instead of pdbtbx, and comparing the two readers
+across the benchmark corpus turned up a string of numbering and conformer bugs,
+fixed here. Multi-model files and biological assemblies become first-class:
+pick a model or report on all of them, and build an assembly with each copy of
+a chain named. Loading a large structure is about 30 times faster.
+
+This is a major release because the library API changes. `Atom::residue_seq`
+is signed and `Atom::chain_id` is an eight-byte `ChainId`; loading goes through
+`parser::Load`; and `pixelfold-tui` and `pixelfold-core` now expose only what
+the other crates use (see Removed). The command line keeps every option it had;
+single-model output keeps its shape, with residues listed in label-chain order.
 
 ### Added
 
@@ -65,6 +78,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Removed
 
+- **Most of `pixelfold-tui`'s public API.** It exposes `view`, `search` and
+  `ViewProtocol`; `App`, its fields and methods, `RenderedFrame`, the picking
+  helpers, and the `search` module are internal, and `DisplayMode` moves here
+  from `pixelfold-core`.
+- **`pixelfold-core` internals from the public API**: the `assembly`, `dssp`
+  and `spatial` modules (`HBond` stays, re-exported), the interaction
+  submodules (`aromatic`, `classify`, `connectivity`, `hydrogens`, `params`,
+  `topology`) and `Charge`, the selection syntax tree (`Selection`, `Cmp`,
+  `ResiRange`, `AtomSet::of`), `filter_altlocs`, and
+  `Dictionary::from_block`, which took an `mmcif-cif` type. No `mmcif-*` type
+  is part of the public API, so a future mmcif upgrade is not a breaking change.
+- **Unused code**: `rin::HBondGraph` with its motifs and analysis,
+  `load_protein_backbone`, `load_protein_ca_only`,
+  `SecondaryStructure::color_256`, `params::GRID_CELL_SIZE`, and
+  `Grid::within`.
 - `App::residue_colors` in `pixelfold-tui`. It mapped a residue number to a
   secondary structure with no chain, and every atom already carries its own
   residue's secondary structure.
