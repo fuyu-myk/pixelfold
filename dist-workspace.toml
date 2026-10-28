@@ -28,7 +28,7 @@ targets = [
 # On a pull request, only run the planning step: building every target on a PR is
 # slow and the artifacts are discarded, but the plan still catches a broken
 # release config before a tag goes out.
-pr-run-mode = "upload"
+pr-run-mode = "plan"
 # No self-updater binary alongside the tool.
 install-updater = false
 
