@@ -46,6 +46,21 @@ jobs:
       - name: Format check
         run: cargo fmt --all --check
 
+  # The other jobs build with the pinned toolchain only, so nothing else notices
+  # when the workspace stops compiling on its declared `rust-version`, which is
+  # what `cargo install pixelfold` on an older cluster rustc needs. `+1.88`
+  # overrides rust-toolchain.toml. Keep it in step with `rust-version` in
+  # Cargo.toml.
+  msrv:
+    name: MSRV check (1.88)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.88
+      - uses: Swatinem/rust-cache@v2
+      - name: Check
+        run: cargo +1.88 check --workspace --locked
+
   validate:
     name: Validate (DSSP + SASA)
     runs-on: ubuntu-latest
