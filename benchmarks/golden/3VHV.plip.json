@@ -10,6 +10,33 @@
   "metal-coordination"
  ],
  "ligand_scoped": true,
+ "ligands": [
+  {
+   "chain": "A",
+   "seq": 1,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 2,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 3,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 985,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 986,
+   "icode": null
+  }
+ ],
  "interactions": [
   {
    "kind": "hydrogen-bond",

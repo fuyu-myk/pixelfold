@@ -72,6 +72,7 @@ pub fn get_vdw_radius(element: &str) -> f32 {
         "O" => 1.52,
         "S" => 1.80,
         "P" => 1.80,
+        "SE" => 1.90,
         "H" => 1.20,
         "F" => 1.47,
         "CL" => 1.75,
@@ -232,6 +233,8 @@ mod tests {
         assert_eq!(get_vdw_radius("N"), 1.55);
         assert_eq!(get_vdw_radius("O"), 1.52);
         assert_eq!(get_vdw_radius("S"), 1.80);
+        // Selenomethionine's selenium, not the carbon default.
+        assert_eq!(get_vdw_radius("Se"), 1.90);
     }
 
     #[test]

@@ -59,8 +59,50 @@ pub struct InteractionGolden {
     /// PLIP does by profiling binding sites.
     #[serde(default)]
     pub ligand_scoped: bool,
+    /// The residues a ligand-scoped reference profiled as ligands. Only these
+    /// count: the reference decides what a ligand is (PLIP skips modified
+    /// residues and some crystallisation additives), not the HETATM record.
+    #[serde(default)]
+    pub ligands: Vec<ResidueKey>,
     #[serde(default)]
     pub interactions: Vec<InteractionEdge>,
+}
+
+impl InteractionGolden {
+    /// Errors when a ligand-scoped reference has an interaction touching none of
+    /// its listed ligands: a stale or broken golden that would otherwise
+    /// silently narrow what is scored.
+    pub fn check_scope(&self) -> Result<()> {
+        if !self.ligand_scoped {
+            return Ok(());
+        }
+
+        let unlisted = self
+            .interactions
+            .iter()
+            .find(|edge| !self.ligands.contains(&edge.a) && !self.ligands.contains(&edge.b));
+        match unlisted {
+            Some(edge) => anyhow::bail!(
+                "{} interaction {}-{} touches no listed ligand; regenerate the golden file",
+                edge.kind,
+                edge.a,
+                edge.b
+            ),
+            None => Ok(()),
+        }
+    }
+}
+
+impl std::fmt::Display for ResidueKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}/{}{}",
+            self.chain,
+            self.seq,
+            self.icode.as_deref().unwrap_or("")
+        )
+    }
 }
 
 /// One residue-residue interaction of a given kind. The pair is unordered; the
@@ -98,4 +140,77 @@ pub fn load<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<Option<T>> {
         .with_context(|| format!("parsing golden file {}", path.display()))?;
 
     Ok(Some(value))
+}
+
+/// Every golden reference for one entry, each `None` when its tool has no file.
+pub struct Goldens {
+    pub dssp: Option<DsspGolden>,
+    pub sasa: Option<SasaGolden>,
+    pub plip: Option<InteractionGolden>,
+    pub ring: Option<InteractionGolden>,
+}
+
+impl Goldens {
+    pub fn load(golden_dir: &Path, id: &str) -> Result<Self> {
+        let path = |tool: &str| golden_dir.join(format!("{id}.{tool}.json"));
+
+        Ok(Self {
+            dssp: load(&path("dssp"))?,
+            sasa: load(&path("freesasa"))?,
+            plip: load_interactions(&path("plip"))?,
+            ring: load_interactions(&path("ring"))?,
+        })
+    }
+}
+
+/// [`load`] for an interaction golden, rejecting one whose scope is
+/// inconsistent (see [`InteractionGolden::check_scope`]).
+pub fn load_interactions(path: &Path) -> Result<Option<InteractionGolden>> {
+    let golden: Option<InteractionGolden> = load(path)?;
+    if let Some(golden) = &golden {
+        golden
+            .check_scope()
+            .with_context(|| format!("checking golden file {}", path.display()))?;
+    }
+
+    Ok(golden)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn golden(json: &str) -> InteractionGolden {
+        serde_json::from_str(json).expect("test golden is valid JSON")
+    }
+
+    const EDGE: &str = r#"{"kind": "hydrogen-bond", "a": {"chain": "A", "seq": 1}, "b": {"chain": "A", "seq": 9}}"#;
+
+    // A ligand-scoped golden written before ligands were listed, or by a
+    // generator that dropped one, would silently narrow what is scored.
+    #[test]
+    fn a_ligand_scoped_golden_must_list_the_ligand_of_every_interaction() {
+        let listed = golden(&format!(
+            r#"{{"kinds": ["hydrogen-bond"], "ligand_scoped": true,
+                "ligands": [{{"chain": "A", "seq": 9}}], "interactions": [{EDGE}]}}"#
+        ));
+        assert!(listed.check_scope().is_ok());
+
+        let unlisted = golden(&format!(
+            r#"{{"kinds": ["hydrogen-bond"], "ligand_scoped": true, "interactions": [{EDGE}]}}"#
+        ));
+        let error = unlisted.check_scope().expect_err("ligand 9 is not listed");
+        assert!(
+            error.to_string().contains("A/1-A/9"),
+            "the error names the edge: {error}"
+        );
+    }
+
+    #[test]
+    fn a_whole_structure_golden_lists_no_ligands() {
+        let whole = golden(&format!(
+            r#"{{"kinds": ["hydrogen-bond"], "ligand_scoped": false, "interactions": [{EDGE}]}}"#
+        ));
+        assert!(whole.check_scope().is_ok());
+    }
 }

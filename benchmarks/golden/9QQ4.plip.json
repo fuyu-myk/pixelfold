@@ -10,6 +10,128 @@
   "metal-coordination"
  ],
  "ligand_scoped": true,
+ "ligands": [
+  {
+   "chain": "A",
+   "seq": 201,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 203,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 204,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 206,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 207,
+   "icode": null
+  },
+  {
+   "chain": "B",
+   "seq": 201,
+   "icode": null
+  },
+  {
+   "chain": "B",
+   "seq": 203,
+   "icode": null
+  },
+  {
+   "chain": "B",
+   "seq": 205,
+   "icode": null
+  },
+  {
+   "chain": "B",
+   "seq": 206,
+   "icode": null
+  },
+  {
+   "chain": "B",
+   "seq": 207,
+   "icode": null
+  },
+  {
+   "chain": "B",
+   "seq": 208,
+   "icode": null
+  },
+  {
+   "chain": "B",
+   "seq": 209,
+   "icode": null
+  },
+  {
+   "chain": "B",
+   "seq": 210,
+   "icode": null
+  },
+  {
+   "chain": "C",
+   "seq": 201,
+   "icode": null
+  },
+  {
+   "chain": "C",
+   "seq": 202,
+   "icode": null
+  },
+  {
+   "chain": "C",
+   "seq": 203,
+   "icode": null
+  },
+  {
+   "chain": "C",
+   "seq": 204,
+   "icode": null
+  },
+  {
+   "chain": "C",
+   "seq": 205,
+   "icode": null
+  },
+  {
+   "chain": "C",
+   "seq": 206,
+   "icode": null
+  },
+  {
+   "chain": "D",
+   "seq": 202,
+   "icode": null
+  },
+  {
+   "chain": "D",
+   "seq": 203,
+   "icode": null
+  },
+  {
+   "chain": "D",
+   "seq": 204,
+   "icode": null
+  },
+  {
+   "chain": "D",
+   "seq": 205,
+   "icode": null
+  },
+  {
+   "chain": "D",
+   "seq": 206,
+   "icode": null
+  }
+ ],
  "interactions": [
   {
    "kind": "hydrogen-bond",

@@ -1865,6 +1865,7 @@ dependencies = [
  "clap",
  "crossterm 0.29.0",
  "dirs",
+ "glam",
  "pixelfold-core",
  "pixelfold-fetch",
  "pixelfold-render",

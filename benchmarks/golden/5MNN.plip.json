@@ -10,6 +10,38 @@
   "metal-coordination"
  ],
  "ligand_scoped": true,
+ "ligands": [
+  {
+   "chain": "A",
+   "seq": 301,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 302,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 303,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 304,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 305,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 306,
+   "icode": null
+  }
+ ],
  "interactions": [
   {
    "kind": "metal-coordination",

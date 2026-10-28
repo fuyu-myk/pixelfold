@@ -4,61 +4,145 @@
    "chain": "A",
    "seq": 1,
    "icode": null,
-   "sasa": 175.46114496602715
+   "sasa": 151.18536624658174
   },
   {
    "chain": "A",
    "seq": 2,
    "icode": null,
-   "sasa": 223.99149331386263
+   "sasa": 142.49761369693033
+  },
+  {
+   "chain": "A",
+   "seq": 3,
+   "icode": null,
+   "sasa": 79.97309604516444
+  },
+  {
+   "chain": "A",
+   "seq": 4,
+   "icode": null,
+   "sasa": 111.65391038676974
+  },
+  {
+   "chain": "A",
+   "seq": 5,
+   "icode": null,
+   "sasa": 70.94140122833421
   },
   {
    "chain": "A",
    "seq": 6,
    "icode": null,
-   "sasa": 165.6165725099888
+   "sasa": 9.502912188986464
+  },
+  {
+   "chain": "A",
+   "seq": 7,
+   "icode": null,
+   "sasa": 138.61876424722396
+  },
+  {
+   "chain": "A",
+   "seq": 8,
+   "icode": null,
+   "sasa": 138.49404995921805
   },
   {
    "chain": "A",
    "seq": 9,
    "icode": null,
-   "sasa": 155.05139294839242
+   "sasa": 77.11480867600231
   },
   {
    "chain": "A",
    "seq": 10,
    "icode": null,
-   "sasa": 159.35744209143616
+   "sasa": 119.50229360486814
+  },
+  {
+   "chain": "A",
+   "seq": 11,
+   "icode": null,
+   "sasa": 67.65926020471113
+  },
+  {
+   "chain": "A",
+   "seq": 12,
+   "icode": null,
+   "sasa": 11.357798051105569
   },
   {
    "chain": "A",
    "seq": 13,
    "icode": null,
-   "sasa": 169.6395895627136
+   "sasa": 152.74946233226416
   },
   {
    "chain": "A",
    "seq": 14,
    "icode": null,
-   "sasa": 224.13990882039118
+   "sasa": 148.8740932802136
+  },
+  {
+   "chain": "A",
+   "seq": 15,
+   "icode": null,
+   "sasa": 73.92910872579954
+  },
+  {
+   "chain": "A",
+   "seq": 16,
+   "icode": null,
+   "sasa": 118.83181231176675
+  },
+  {
+   "chain": "A",
+   "seq": 17,
+   "icode": null,
+   "sasa": 64.38008879491503
   },
   {
    "chain": "A",
    "seq": 18,
    "icode": null,
-   "sasa": 159.94945877234784
+   "sasa": 9.276955442490024
+  },
+  {
+   "chain": "A",
+   "seq": 19,
+   "icode": null,
+   "sasa": 147.87263135527553
+  },
+  {
+   "chain": "A",
+   "seq": 20,
+   "icode": null,
+   "sasa": 135.97517652823723
   },
   {
    "chain": "A",
    "seq": 21,
    "icode": null,
-   "sasa": 151.80420215448166
+   "sasa": 78.31239949819508
   },
   {
    "chain": "A",
    "seq": 22,
    "icode": null,
-   "sasa": 156.25066232970065
+   "sasa": 115.73995088042335
+  },
+  {
+   "chain": "A",
+   "seq": 23,
+   "icode": null,
+   "sasa": 59.275114655440156
+  },
+  {
+   "chain": "A",
+   "seq": 24,
+   "icode": null,
+   "sasa": 7.357312196567627
   }
  ]
 }

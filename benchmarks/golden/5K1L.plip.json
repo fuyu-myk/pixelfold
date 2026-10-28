@@ -10,6 +10,43 @@
   "metal-coordination"
  ],
  "ligand_scoped": true,
+ "ligands": [
+  {
+   "chain": "A",
+   "seq": 201,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 202,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 203,
+   "icode": null
+  },
+  {
+   "chain": "B",
+   "seq": 201,
+   "icode": null
+  },
+  {
+   "chain": "B",
+   "seq": 202,
+   "icode": null
+  },
+  {
+   "chain": "B",
+   "seq": 203,
+   "icode": null
+  },
+  {
+   "chain": "B",
+   "seq": 204,
+   "icode": null
+  }
+ ],
  "interactions": [
   {
    "kind": "salt-bridge",

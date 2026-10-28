@@ -2,21 +2,27 @@
  "residues": [
   {
    "chain": "A",
+   "seq": 59,
+   "icode": null,
+   "sasa": 222.71001055712793
+  },
+  {
+   "chain": "A",
    "seq": 60,
    "icode": null,
-   "sasa": 137.54286640768805
+   "sasa": 79.90585175787116
   },
   {
    "chain": "A",
    "seq": 61,
    "icode": null,
-   "sasa": 96.53714503887463
+   "sasa": 92.87892608856173
   },
   {
    "chain": "A",
    "seq": 62,
    "icode": null,
-   "sasa": 122.51806066503487
+   "sasa": 115.07011338855007
   },
   {
    "chain": "A",
@@ -34,7 +40,7 @@
    "chain": "A",
    "seq": 65,
    "icode": null,
-   "sasa": 89.64159322718379
+   "sasa": 68.57445882682258
   },
   {
    "chain": "A",

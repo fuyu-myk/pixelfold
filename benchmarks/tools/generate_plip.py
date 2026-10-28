@@ -5,12 +5,13 @@ For every id in the benchmark manifest, this runs PLIP over the ligand binding
 sites and writes the per-type interaction edges pixelfold-validate compares
 against:
 
-    <golden-dir>/<ID>.plip.json   {"kinds": [...], "interactions": [{kind, a, b}]}
+    <golden-dir>/<ID>.plip.json   {"kinds": [...], "ligand_scoped": true,
+                                   "ligands": [...], "interactions": [{kind, a, b}]}
 
 PLIP is a protein-ligand interaction profiler, so a golden file covers only the
-interactions of a structure's ligands, not protein-protein contacts. Each edge
-is an unordered residue pair: the binding-site residue on one side (PLIP's own
-author numbering) and the ligand on the other. Residue keys use the author chain
+interactions of the ligands it profiled, listed in `ligands`, not protein-protein
+contacts. Each edge is an unordered residue pair: the binding-site residue on one
+side (PLIP's own author numbering) and the ligand on the other. Residue keys use the author chain
 id and sequence number to match how pixelfold reads structures; verify the
 alignment against `pixelfold interactions <id>` on the first run.
 
@@ -74,12 +75,24 @@ def residue_key(chain: str, seq: int, icode: str | None = None) -> dict:
     return {"chain": chain, "seq": int(seq), "icode": icode or None}
 
 
-def edges_for(pdb_id: str, pdb: Path) -> list[dict]:
-    """Every PLIP interaction as `{kind, a, b}`, an unordered residue pair."""
+def profile(pdb: Path) -> tuple[list[dict], list[dict]]:
+    """Every PLIP interaction as `{kind, a, b}`, an unordered residue pair, and
+    every residue PLIP profiled as a ligand.
+
+    The ligands are what scopes the comparison: PLIP decides what counts as one,
+    leaving out modified residues of a chain and some crystallisation additives,
+    so pixelfold is scored only on the ones PLIP looked at. A composite ligand (a
+    glycan, say) contributes each member residue; a metal ion PLIP scored inside
+    a binding site without profiling it on its own is taken from the
+    interactions.
+    """
     mol = PDBComplex()
     mol.load_pdb(str(pdb))
     mol.analyze()
 
+    profiled: set[tuple[str, int]] = {
+        (chain, int(seq)) for ligand in mol.ligands for _, chain, seq in ligand.members
+    }
     seen: set[tuple[str, str, str]] = set()
     edges: list[dict] = []
     for site in mol.interaction_sets.values():
@@ -93,6 +106,7 @@ def edges_for(pdb_id: str, pdb: Path) -> list[dict]:
                     # exposes an insertion code, so it stays None.
                     partner = residue_key(interaction.reschain, interaction.resnr)
                     ligand = residue_key(interaction.reschain_l, interaction.resnr_l)
+                    profiled.add((ligand["chain"], ligand["seq"]))
                     a, b = sorted(
                         (partner, ligand),
                         key=lambda r: (r["chain"], r["seq"], r["icode"] or ""),
@@ -103,14 +117,17 @@ def edges_for(pdb_id: str, pdb: Path) -> list[dict]:
                     seen.add(fingerprint)
                     edges.append({"kind": kind, "a": a, "b": b})
 
-    return edges
+    ligands = [residue_key(chain, seq) for chain, seq in sorted(profiled)]
+    return edges, ligands
 
 
-def plip_golden(pdb_id: str, pdb: Path) -> dict:
+def plip_golden(pdb: Path) -> dict:
+    interactions, ligands = profile(pdb)
     return {
         "kinds": list(PLIP_LISTS),
         "ligand_scoped": True,
-        "interactions": edges_for(pdb_id, pdb),
+        "ligands": ligands,
+        "interactions": interactions,
     }
 
 
@@ -135,7 +152,7 @@ def main() -> int:
         print(pdb_id, file=sys.stderr)
         try:
             pdb = fetch_structure(pdb_id, args.structures)
-            golden = plip_golden(pdb_id, pdb)
+            golden = plip_golden(pdb)
             (args.golden_dir / f"{pdb_id}.plip.json").write_text(json.dumps(golden, indent=1))
             print(f"  {len(golden['interactions'])} interactions", file=sys.stderr)
         except Exception as error:  # noqa: BLE001

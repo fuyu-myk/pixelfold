@@ -29,6 +29,19 @@ pub struct Atom {
     pub secondary_structure: SecondaryStructure,
 }
 
+impl Atom {
+    /// True when the atom belongs to a polymer chain, modified residues such as
+    /// selenomethionine included even though they are HETATM records. Without
+    /// entity records, an ATOM record is taken as polymer.
+    pub fn is_polymer(&self) -> bool {
+        match self.molecule {
+            Molecule::Protein | Molecule::NucleicAcid | Molecule::OtherPolymer => true,
+            Molecule::Branched | Molecule::NonPolymer | Molecule::Water => false,
+            Molecule::Unknown => !self.is_hetatm,
+        }
+    }
+}
+
 /// The kind of molecule an atom belongs to, as the file's entity records state
 /// it. `Unknown` when the file names no entity, which leaves callers to judge by
 /// residue name and record type.
@@ -332,6 +345,26 @@ mod tests {
             b_factor: b,
             secondary_structure: SecondaryStructure::Coil,
         }
+    }
+
+    #[test]
+    fn polymer_membership_follows_the_entity_not_the_record_type() {
+        let atom = |molecule, is_hetatm| Atom {
+            molecule,
+            is_hetatm,
+            ..atom_with_bfactor(0.0)
+        };
+
+        // A modified residue such as selenomethionine is a HETATM record of a
+        // polymer chain.
+        assert!(atom(Molecule::Protein, true).is_polymer());
+        assert!(atom(Molecule::NucleicAcid, true).is_polymer());
+        assert!(atom(Molecule::OtherPolymer, false).is_polymer());
+        assert!(!atom(Molecule::NonPolymer, true).is_polymer());
+        assert!(!atom(Molecule::Branched, true).is_polymer());
+        assert!(!atom(Molecule::Water, true).is_polymer());
+        assert!(atom(Molecule::Unknown, false).is_polymer());
+        assert!(!atom(Molecule::Unknown, true).is_polymer());
     }
 
     #[test]
