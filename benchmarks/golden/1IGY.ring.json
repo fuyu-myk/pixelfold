@@ -13,6 +13,7 @@
   "salt-bridge",
   "pi-stacking",
   "pi-cation",
+  "pi-hydrogen-bond",
   "halogen-bond",
   "metal-coordination",
   "disulfide"
@@ -1266,6 +1267,19 @@
    "b": {
     "chain": "A",
     "seq": 171,
+    "icode": null
+   }
+  },
+  {
+   "kind": "pi-hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 174,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 172,
     "icode": null
    }
   },
@@ -2956,6 +2970,19 @@
    "b": {
     "chain": "B",
     "seq": 306,
+    "icode": null
+   }
+  },
+  {
+   "kind": "pi-hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 312,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 319,
     "icode": null
    }
   },
@@ -5040,6 +5067,19 @@
    }
   },
   {
+   "kind": "pi-hydrogen-bond",
+   "a": {
+    "chain": "C",
+    "seq": 174,
+    "icode": null
+   },
+   "b": {
+    "chain": "D",
+    "seq": 172,
+    "icode": null
+   }
+  },
+  {
    "kind": "hydrogen-bond",
    "a": {
     "chain": "C",
@@ -6687,6 +6727,19 @@
    "b": {
     "chain": "D",
     "seq": 306,
+    "icode": null
+   }
+  },
+  {
+   "kind": "pi-hydrogen-bond",
+   "a": {
+    "chain": "D",
+    "seq": 312,
+    "icode": null
+   },
+   "b": {
+    "chain": "D",
+    "seq": 319,
     "icode": null
    }
   },

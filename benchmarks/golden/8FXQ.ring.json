@@ -13,6 +13,7 @@
   "salt-bridge",
   "pi-stacking",
   "pi-cation",
+  "pi-hydrogen-bond",
   "halogen-bond",
   "metal-coordination",
   "disulfide"
@@ -608,6 +609,19 @@
   },
   {
    "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 42,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 122,
+    "icode": null
+   }
+  },
+  {
+   "kind": "pi-hydrogen-bond",
    "a": {
     "chain": "A",
     "seq": 42,
@@ -3533,6 +3547,19 @@
   },
   {
    "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 42,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 122,
+    "icode": null
+   }
+  },
+  {
+   "kind": "pi-hydrogen-bond",
    "a": {
     "chain": "B",
     "seq": 42,

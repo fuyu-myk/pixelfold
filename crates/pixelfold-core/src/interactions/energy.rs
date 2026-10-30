@@ -62,6 +62,12 @@ impl InteractionKind {
             // 46(4):885 (2013); Gallivan & Dougherty, PNAS 96:9459 (1999).
             InteractionKind::PiCation => 12.5,
 
+            // An N-H pointing into an aromatic face in a protein, ~3 kcal/mol,
+            // which the source puts at about half a normal hydrogen bond. Levitt
+            // & Perutz, "Aromatic rings act as hydrogen bond acceptors", J. Mol.
+            // Biol. 201:751 (1988).
+            InteractionKind::PiHydrogenBond => 12.5,
+
             // A C-X...O=C halogen bond to a backbone carbonyl, mid-range across
             // Cl/Br/I (per-halogen ~8/10/16 kJ/mol). Auffinger et al., PNAS
             // 101:16789 (2004); Nishikawa et al., J. Chem. Inf. Model. 64(15)
@@ -94,12 +100,13 @@ impl InteractionKind {
 mod tests {
     use super::*;
 
-    const ALL: [InteractionKind; 9] = [
+    const ALL: [InteractionKind; 10] = [
         InteractionKind::HydrogenBond,
         InteractionKind::SaltBridge,
         InteractionKind::Hydrophobic,
         InteractionKind::PiStacking,
         InteractionKind::PiCation,
+        InteractionKind::PiHydrogenBond,
         InteractionKind::HalogenBond,
         InteractionKind::WaterBridge,
         InteractionKind::MetalCoordination,
@@ -120,6 +127,7 @@ mod tests {
         assert_eq!(InteractionKind::Hydrophobic.contact_energy_kj(), 0.3);
         assert_eq!(InteractionKind::PiStacking.contact_energy_kj(), 10.0);
         assert_eq!(InteractionKind::PiCation.contact_energy_kj(), 12.5);
+        assert_eq!(InteractionKind::PiHydrogenBond.contact_energy_kj(), 12.5);
         assert_eq!(InteractionKind::HalogenBond.contact_energy_kj(), 12.0);
         assert_eq!(InteractionKind::WaterBridge.contact_energy_kj(), 12.5);
         assert_eq!(InteractionKind::MetalCoordination.contact_energy_kj(), 70.0);

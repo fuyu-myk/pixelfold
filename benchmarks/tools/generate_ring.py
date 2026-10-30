@@ -70,6 +70,7 @@ RING_KINDS: dict[str, str] = {
     "IONIC": "salt-bridge",
     "PIPISTACK": "pi-stacking",
     "PICATION": "pi-cation",
+    "PIHBOND": "pi-hydrogen-bond",
     "HALOGEN": "halogen-bond",
     "METAL_ION": "metal-coordination",
     "SSBOND": "disulfide",
@@ -78,10 +79,9 @@ RING_KINDS: dict[str, str] = {
 # RING types with no pixelfold counterpart, left out of the golden:
 # - VDW is any two atoms whose van der Waals radii overlap; pixelfold's
 #   hydrophobic contact is two apolar carbons within 4.0 A, a different criterion.
-# - PIHBOND, the pi-hydrogen bond, is not detected by pixelfold.
 # - IAC, the generic inter-atomic contact, appears only under RING's CA, CB and
 #   lollipop node policies, never under the closest-atom policy used here.
-UNSCORED = frozenset({"VDW", "PIHBOND", "IAC"})
+UNSCORED = frozenset({"VDW", "IAC"})
 
 
 def structure_url(pdb_id: str) -> str:

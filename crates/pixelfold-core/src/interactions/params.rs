@@ -13,7 +13,8 @@
 //!
 //! Sources:
 //! - PLIP config.py: `https://raw.githubusercontent.com/pharmai/plip/master/plip/basic/config.py`
-//! - RING 4.0 criteria and strict/relaxed defaults: `https://ring.biocomputingup.it/about`
+//! - RING 4.0 criteria: `https://ring.biocomputingup.it/help/interactions` (the
+//!   strict/relaxed defaults were on `/about` until the site's 2026 redesign)
 //! - RING 4.0: Clementel et al., Nucleic Acids Research 2024 (gkae337)
 //! - RING 2.0 (superseded, for the version differences): Piovesan et al., NAR 2016 (gkw315)
 
@@ -57,6 +58,19 @@ pub const PISTACK_OFFSET_MAX: f32 = 2.0;
 /// Max cation to aromatic-ring-centroid distance (PLIP `PICATION_DIST_MAX`). RING
 /// is stricter at ~5.0 A.
 pub const PICATION_DIST_MAX: f32 = 6.0;
+
+/// Max donor to aromatic-ring-centroid distance for a pi-hydrogen bond. PLIP
+/// does not detect pi-hydrogen bonds; this and the two angles below are RING
+/// 4.0's definition, after Steiner and Koellner (J Mol Biol 2001). RING labels
+/// the distance d_HC but measures it from the donor heavy atom, which is the
+/// distance every pi-hydrogen bond its server reports carries.
+pub const PIHBOND_DIST_MAX: f32 = 4.3;
+/// Min D-H...centroid angle, at the hydrogen (RING 4.0's epsilon): the hydrogen
+/// points at the ring.
+pub const PIHBOND_DONOR_ANGLE_MIN: f32 = 120.0;
+/// Max angle between the ring normal and the line from the centroid to the donor
+/// (RING 4.0's omega): the donor sits over the face, not beside the ring.
+pub const PIHBOND_AXIS_ANGLE_MAX: f32 = 25.0;
 
 /// Max halogen X...A distance (PLIP `HALOGEN_DIST_MAX`, Auffinger's van der
 /// Waals sums widened by 0.5).

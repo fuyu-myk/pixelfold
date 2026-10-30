@@ -17,10 +17,10 @@ use super::params::{
     DISULFIDE_DIST_MAX, HALOGEN_ACCEPTOR_ANGLE, HALOGEN_ACCEPTOR_ELEMENTS, HALOGEN_ANGLE_DEV,
     HALOGEN_ANTECEDENT_ELEMENTS, HALOGEN_DIST_MAX, HALOGEN_DONOR_ANGLE, HALOGEN_ELEMENTS,
     HBOND_DIST_MAX, HBOND_DONOR_ANGLE_MIN, HYDROPHOBIC_DIST_MAX, METAL_DIST_MAX, MIN_DIST,
-    PICATION_DIST_MAX, PISTACK_ANGLE_DEV, PISTACK_DIST_MAX, PISTACK_OFFSET_MAX,
-    SALTBRIDGE_DIST_MAX, WATER_BRIDGE_MAX_DIST, WATER_BRIDGE_MIN_DIST, WATER_BRIDGE_OMEGA_IDEAL,
-    WATER_BRIDGE_OMEGA_MAX, WATER_BRIDGE_OMEGA_MIN, WATER_BRIDGE_THETA_MIN, WATER_HYDROGENS,
-    WATER_LONE_PAIRS,
+    PICATION_DIST_MAX, PIHBOND_AXIS_ANGLE_MAX, PIHBOND_DIST_MAX, PIHBOND_DONOR_ANGLE_MIN,
+    PISTACK_ANGLE_DEV, PISTACK_DIST_MAX, PISTACK_OFFSET_MAX, SALTBRIDGE_DIST_MAX,
+    WATER_BRIDGE_MAX_DIST, WATER_BRIDGE_MIN_DIST, WATER_BRIDGE_OMEGA_IDEAL, WATER_BRIDGE_OMEGA_MAX,
+    WATER_BRIDGE_OMEGA_MIN, WATER_BRIDGE_THETA_MIN, WATER_HYDROGENS, WATER_LONE_PAIRS,
 };
 use super::{Interaction, InteractionKind, aromatic, connectivity, hydrogens};
 
@@ -895,6 +895,80 @@ pub fn pi_cation(protein: &Protein, bonds: &connectivity::Bonds) -> Vec<Interact
     out
 }
 
+/// Pi-hydrogen bonds: a polar hydrogen pointing into the face of an aromatic
+/// ring, on RING 4.0's geometry. PLIP has no counterpart.
+///
+/// The donor must sit within the cutoff of the ring centre and close to the
+/// ring's axis, and one of its hydrogens must point at the centre. The donors
+/// are the hydrogen bond donors, as in RING. A rotatable hydrogen is placed
+/// toward the ring, as [`hydrogen_bonds`] places it toward an acceptor, where
+/// RING fixes every hydrogen's torsion, so a hydroxyl or an ammonium can reach a
+/// ring here that RING does not credit. A donor bonds a residue once, through
+/// its straightest hydrogen, whatever hydrogen bond that hydrogen also makes.
+/// Over the bond a tryptophan's two rings share, a donor can pass for both; it
+/// then bonds the nearer, the one RING reports.
+pub fn pi_hydrogen_bonds(protein: &Protein, bonds: &connectivity::Bonds) -> Vec<Interaction> {
+    let rings = aromatic::rings(protein);
+    let donors = hydrogens::donors(protein, bonds);
+    if rings.is_empty() || donors.is_empty() {
+        return Vec::new();
+    }
+
+    let centers: Vec<Vec3> = rings.iter().map(|ring| ring.center).collect();
+    let grid = Grid::build(&centers, PIHBOND_DIST_MAX);
+
+    let mut out = Vec::new();
+    for donor in &donors {
+        let origin = protein.atoms[donor.atom].position;
+        let donor_residue = residue_key(&protein.atoms[donor.atom]);
+        let mut nearest: Vec<(ResidueKey, Interaction)> = Vec::new();
+        grid.for_each_within(origin, PIHBOND_DIST_MAX, |r| {
+            let ring = &rings[r];
+            if ring.residue == donor_residue {
+                return; // a residue's own ring does not take its hydrogen
+            }
+
+            let distance = (ring.center - origin).length();
+            if !(MIN_DIST < distance && distance <= PIHBOND_DIST_MAX) {
+                return;
+            }
+            // `plane_angle` folds away the normal's arbitrary sign.
+            if aromatic::plane_angle(ring.normal, origin - ring.center) >= PIHBOND_AXIS_ANGLE_MAX {
+                return;
+            }
+
+            let angle = donor
+                .hydrogens
+                .angles_toward(origin, ring.center)
+                .into_iter()
+                .fold(f32::NEG_INFINITY, f32::max);
+            if angle <= PIHBOND_DONOR_ANGLE_MIN {
+                return;
+            }
+
+            let bond = Interaction {
+                kind: InteractionKind::PiHydrogenBond,
+                atoms_a: vec![donor.atom],
+                atoms_b: ring.atoms.clone(),
+                distance,
+                angle: Some(angle),
+                bridge: None,
+            };
+            match nearest
+                .iter_mut()
+                .find(|(residue, _)| *residue == ring.residue)
+            {
+                Some((_, kept)) if kept.distance <= distance => {}
+                Some((_, kept)) => *kept = bond,
+                None => nearest.push((ring.residue, bond)),
+            }
+        });
+        out.extend(nearest.into_iter().map(|(_, bond)| bond));
+    }
+
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use std::f32::consts::TAU;
@@ -947,6 +1021,10 @@ mod tests {
 
     fn pications(structure: &Protein) -> Vec<Interaction> {
         pi_cation(structure, &connectivity::bonds(structure))
+    }
+
+    fn pihbonds(structure: &Protein) -> Vec<Interaction> {
+        pi_hydrogen_bonds(structure, &connectivity::bonds(structure))
     }
 
     fn protein(atoms: Vec<Atom>) -> Protein {
@@ -1629,6 +1707,180 @@ LIG C2 O2  sing
             atom("HIS", 1, "CD2", "C", Vec3::new(0.5, -1.2, 0.0)),
         ]);
         assert!(pications(&his).is_empty());
+    }
+
+    /// Residue 2's amide N, and the direction its hydrogen points, as fixed by
+    /// residue 1's carbonyl in [`amide_donor_to`].
+    fn amide_n_and_direction() -> (Vec3, Vec3) {
+        let along = (Vec3::new(2.0, 1.4, 0.0) - Vec3::new(1.2, 2.3, 0.0)).normalize();
+        (Vec3::new(3.3, 1.5, 0.0), along)
+    }
+
+    /// The amide donor of [`amide_donor_to`] with a phenylalanine ring, residue
+    /// 9, centred at `center` with its plane normal to `normal`.
+    fn amide_and_ring(center: Vec3, normal: Vec3) -> Protein {
+        let mut atoms = amide_donor_to(Vec3::ZERO).atoms;
+        atoms.pop(); // the carbonyl acceptor, not wanted here
+        let (u, v) = normal.normalize().any_orthonormal_pair();
+        atoms.extend(ring_at(9, center, u, v));
+        protein(atoms)
+    }
+
+    /// `direction` turned by `degrees` about z, the axis normal to the amide plane.
+    fn turned(direction: Vec3, degrees: f32) -> Vec3 {
+        glam::Quat::from_rotation_z(degrees.to_radians()) * direction
+    }
+
+    #[test]
+    fn an_amide_pointing_into_a_ring_face_is_a_pi_hydrogen_bond() {
+        let (n, along) = amide_n_and_direction();
+        let found = pihbonds(&amide_and_ring(n + along * 3.5, along));
+
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].kind, InteractionKind::PiHydrogenBond);
+        assert_eq!(found[0].atoms_a, vec![4]); // the amide nitrogen
+        assert_eq!(found[0].atoms_b, (6..12).collect::<Vec<_>>()); // the ring
+        assert!((found[0].distance - 3.5).abs() < 1e-3, "donor to centroid");
+        assert!(found[0].angle.unwrap() > 179.0, "expected a straight bond");
+
+        // Winding the ring the other way flips its normal, which says nothing
+        // about which face the donor is on.
+        assert_eq!(pihbonds(&amide_and_ring(n + along * 3.5, -along)).len(), 1);
+    }
+
+    #[test]
+    fn a_pi_hydrogen_bond_reaches_4_3_angstroms_from_the_donor_and_no_further() {
+        let (n, along) = amide_n_and_direction();
+
+        assert_eq!(pihbonds(&amide_and_ring(n + along * 4.25, along)).len(), 1);
+        assert!(pihbonds(&amide_and_ring(n + along * 4.35, along)).is_empty());
+    }
+
+    #[test]
+    fn a_residues_own_ring_does_not_take_its_hydrogen() {
+        let (n, along) = amide_n_and_direction();
+        let mut structure = amide_and_ring(n + along * 3.5, along);
+        for atom in &mut structure.atoms[4..] {
+            atom.residue_name = FixedStr::new("PHE");
+            atom.residue_seq = 2;
+        }
+
+        assert!(pihbonds(&structure).is_empty());
+    }
+
+    #[test]
+    fn a_donor_must_sit_within_25_degrees_of_the_ring_axis() {
+        // The hydrogen points straight at the centroid each time; only the
+        // ring's tilt away from the donor changes.
+        let (n, along) = amide_n_and_direction();
+        let center = n + along * 3.5;
+
+        assert_eq!(
+            pihbonds(&amide_and_ring(center, turned(along, 23.0))).len(),
+            1
+        );
+        assert!(pihbonds(&amide_and_ring(center, turned(along, 27.0))).is_empty());
+    }
+
+    #[test]
+    fn the_hydrogen_must_point_at_the_ring_within_60_degrees_of_straight() {
+        // The ring faces the donor each time, so only the D-H...centroid angle
+        // changes: about 124 degrees with the centroid 42 degrees off the N-H
+        // line, about 117 at 48 degrees off.
+        let (n, along) = amide_n_and_direction();
+        let off = |degrees: f32| {
+            let toward = turned(along, degrees);
+            pihbonds(&amide_and_ring(n + toward * 3.5, toward))
+        };
+
+        assert_eq!(off(42.0).len(), 1);
+        assert!(off(48.0).is_empty());
+    }
+
+    #[test]
+    fn either_hydrogen_of_an_amide_can_make_the_bond() {
+        // An asparagine amide fixes two hydrogens apart. A ring placed out along
+        // either one is reached, though the other points well away from it.
+        let asn = vec![
+            atom("ASN", 1, "CB", "C", Vec3::ZERO),
+            atom("ASN", 1, "CG", "C", Vec3::new(1.5, 0.0, 0.0)),
+            atom("ASN", 1, "OD1", "O", Vec3::new(2.2, 1.1, 0.0)),
+            atom("ASN", 1, "ND2", "N", Vec3::new(2.2, -1.2, 0.0)),
+        ];
+        let alone = protein(asn.clone());
+        let donors = hydrogens::donors(&alone, &connectivity::bonds(&alone));
+        let nd2 = donors.iter().find(|donor| donor.atom == 3).unwrap();
+        let hydrogens::Hydrogens::Fixed(sites) = &nd2.hydrogens else {
+            panic!("an amide's hydrogens are fixed");
+        };
+        assert_eq!(sites.len(), 2);
+
+        let n = asn[3].position;
+        for &hydrogen in sites {
+            let toward = (hydrogen - n).normalize();
+            let (u, v) = toward.any_orthonormal_pair();
+            let mut atoms = asn.clone();
+            atoms.extend(ring_at(9, n + toward * 3.5, u, v));
+            assert_eq!(pihbonds(&protein(atoms)).len(), 1);
+        }
+    }
+
+    #[test]
+    fn a_donor_over_a_tryptophans_fused_bond_bonds_it_once_through_the_nearer_ring() {
+        // The tryptophan lies in the plane normal to the amide's N-H, with the
+        // bond its two rings share centred 3.4 A out along the hydrogen. Both
+        // rings pass every gate; the five-membered ring's centre is the nearer.
+        let (n, along) = amide_n_and_direction();
+        let (u, v) = along.any_orthonormal_pair();
+        let shared_bond_middle = Vec3::new(0.65, -1.5, 0.0);
+        let place = |x: f32, y: f32| {
+            let local = Vec3::new(x, y, 0.0) - shared_bond_middle;
+            n + along * 3.4 + u * local.x + v * local.y
+        };
+        let mut atoms = amide_donor_to(Vec3::ZERO).atoms;
+        atoms.pop();
+        for (name, element, x, y) in [
+            ("CG", "C", 0.0, 0.0),
+            ("CD1", "C", 1.2, 0.5),
+            ("NE1", "N", 2.0, -0.5),
+            ("CE2", "C", 1.3, -1.6),
+            ("CD2", "C", 0.0, -1.4),
+            ("CZ2", "C", 1.6, -2.9),
+            ("CH2", "C", 0.6, -3.9),
+            ("CZ3", "C", -0.7, -3.7),
+            ("CE3", "C", -1.0, -2.4),
+        ] {
+            atoms.push(atom("TRP", 9, name, element, place(x, y)));
+        }
+
+        let found = pihbonds(&protein(atoms));
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].atoms_b, vec![6, 7, 8, 9, 10]); // CG CD1 NE1 CE2 CD2
+    }
+
+    #[test]
+    fn a_rotatable_donor_turns_toward_the_ring_and_bonds_it_once() {
+        // A lysine ammonium carries three hydrogens on one circle. With the ring
+        // where the circle can point straight at it, all three reach it, and the
+        // donor still reports one bond to the ring.
+        let nz = Vec3::new(6.0, 4.2, 0.0);
+        let axis = (nz - Vec3::new(5.5, 2.8, 0.0)).normalize();
+        let toward = turned(axis, 70.0); // 110 degrees from CE-NZ, on the circle
+        let mut atoms = vec![
+            atom("LYS", 1, "CD", "C", Vec3::new(4.0, 2.8, 0.0)),
+            atom("LYS", 1, "CE", "C", Vec3::new(5.5, 2.8, 0.0)),
+            atom("LYS", 1, "NZ", "N", nz),
+        ];
+        let (u, v) = toward.any_orthonormal_pair();
+        atoms.extend(ring_at(9, nz + toward * 3.5, u, v));
+
+        let found = pihbonds(&protein(atoms));
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].atoms_a, vec![2]);
+        assert!(
+            found[0].angle.unwrap() > 179.0,
+            "the hydrogen turned to face it"
+        );
     }
 
     /// A donor residue, an acceptor residue, and a water between them. Residue 1
