@@ -280,7 +280,7 @@ pub fn sasa(protein: &Protein, chosen: &AtomSet) -> Vec<SasaRecord> {
 ///
 /// This is the filter `pixelfold_validate` applies before comparing against FreeSASA.
 fn bears_surface(atom: &Atom) -> bool {
-    !atom.is_hetatm && !atom.element.as_str().eq_ignore_ascii_case("H")
+    atom.is_polymer() && !atom.element.as_str().eq_ignore_ascii_case("H")
 }
 
 /// Each chosen residue as its atom range and first atom, in file order.
@@ -307,4 +307,71 @@ fn residues<'a>(
 
         None
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use glam::Vec3;
+    use pixelfold_core::{FixedStr, Molecule, SecondaryStructure, select};
+
+    use super::*;
+
+    fn atom(element: &str, residue: &str, seq: i32, molecule: Molecule, x: f32) -> Atom {
+        Atom {
+            serial: 0,
+            name: FixedStr::new(element),
+            element: FixedStr::new(element),
+            residue_name: FixedStr::new(residue),
+            residue_seq: seq,
+            chain_id: FixedStr::new("A"),
+            is_hetatm: residue != "ALA",
+            molecule,
+            altloc: None,
+            occupancy: 1.0,
+            insertion_code: None,
+            model_number: 1,
+            position: Vec3::new(x, 0.0, 0.0),
+            b_factor: 0.0,
+            secondary_structure: SecondaryStructure::Coil,
+        }
+    }
+
+    fn report(atoms: Vec<Atom>) -> Vec<SasaRecord> {
+        let protein = Protein {
+            atoms,
+            title: String::new(),
+            hbonds: Vec::new(),
+            assembly: None,
+            components: Default::default(),
+        };
+        let all = select("all", &protein).expect("`all` always parses");
+
+        sasa(&protein, &all)
+    }
+
+    fn area(records: &[SasaRecord], resn: &str) -> Option<f32> {
+        records.iter().find(|r| r.resn == resn).map(|r| r.sasa)
+    }
+
+    fn reported(records: &[SasaRecord], resn: &str) -> f32 {
+        area(records, resn).unwrap_or_else(|| panic!("{resn} is reported"))
+    }
+
+    // Selenomethionine is a HETATM record of the protein chain, so it is part of
+    // the surface; a bound glycerol is not, and must not shield its neighbour.
+    #[test]
+    fn sasa_keeps_modified_residues_and_drops_ligands() {
+        let alanine = atom("C", "ALA", 1, Molecule::Protein, 0.0);
+        let selenomethionine = atom("SE", "MSE", 2, Molecule::Protein, 3.0);
+        let glycerol = atom("C", "GOL", 3, Molecule::NonPolymer, -1.0);
+
+        let alone = report(vec![alanine.clone()]);
+        let records = report(vec![alanine.clone(), selenomethionine.clone()]);
+        let with_ligand = report(vec![alanine, selenomethionine, glycerol]);
+
+        assert!(reported(&records, "MSE") > 0.0);
+        assert!(reported(&records, "ALA") < reported(&alone, "ALA"));
+        assert_eq!(area(&with_ligand, "GOL"), None);
+        assert_eq!(reported(&with_ligand, "ALA"), reported(&records, "ALA"));
+    }
 }

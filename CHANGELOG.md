@@ -4,6 +4,32 @@ All notable changes to PixelFold are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`pixelfold sasa` left out modified residues.** Surface atoms were chosen by
+  record type, so a selenomethionine or phosphoserine inside a chain, written as
+  a HETATM record, was neither reported nor allowed to shield the residues
+  beside it, which read too exposed: 3G5S's 14 MSE were missing, and `--select
+  'resn MSE'` printed an empty table. The surface is now every heavy atom of a
+  polymer entity (`Atom::is_polymer`); a file without entity records keeps the
+  record-type rule. Selenium also had no radius of its own and took carbon's
+  1.70 A; it now takes Bondi's 1.90 A. The FreeSASA golden files are
+  regenerated on the same atom set, the 51 entries holding modified residues
+  change, and 8A71's modified DNA is scored for the first time: SASA mean
+  absolute error against FreeSASA moves from 4.93 to 4.77 A^2 over 203 entries.
+- **The validation harness charged pixelfold for ligands PLIP never profiled.**
+  It decided what a ligand was by the HETATM record, while PLIP leaves out
+  modified residues of a chain and sets aside some crystallisation additives,
+  so pixelfold's contacts to those counted as false positives. PLIP golden
+  files now list the residues PLIP profiled, and only edges touching one of
+  them are scored. Hydrogen-bond precision moves from 0.58 to 0.64 and
+  water-bridge precision from 0.50 to 0.53; no recall changes. A golden file
+  that fails to parse, or a ligand-scoped one whose interactions name a ligand
+  it does not list, now stops the harness instead of skipping its entry, which
+  had left the gates it feeds silently unchecked.
+
 ## [2.0.0] (2026-10-22)
 
 The structure-IO milestone. PixelFold now reads structures through

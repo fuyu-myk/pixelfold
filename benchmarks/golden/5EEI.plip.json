@@ -10,6 +10,83 @@
   "metal-coordination"
  ],
  "ligand_scoped": true,
+ "ligands": [
+  {
+   "chain": "A",
+   "seq": 2001,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 2002,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 2003,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 2004,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 2005,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 2006,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 2007,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 2010,
+   "icode": null
+  },
+  {
+   "chain": "B",
+   "seq": 801,
+   "icode": null
+  },
+  {
+   "chain": "B",
+   "seq": 802,
+   "icode": null
+  },
+  {
+   "chain": "B",
+   "seq": 803,
+   "icode": null
+  },
+  {
+   "chain": "B",
+   "seq": 804,
+   "icode": null
+  },
+  {
+   "chain": "B",
+   "seq": 805,
+   "icode": null
+  },
+  {
+   "chain": "B",
+   "seq": 806,
+   "icode": null
+  },
+  {
+   "chain": "B",
+   "seq": 809,
+   "icode": null
+  }
+ ],
  "interactions": [
   {
    "kind": "hydrogen-bond",

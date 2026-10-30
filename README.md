@@ -20,21 +20,21 @@ Validated 205 benchmark entries against DSSP 4, FreeSASA and PLIP.
 | --- | --- | --- | --- |
 | Secondary structure (Q3) | DSSP 4 | 194 | 97.1% |
 | Backbone H-bond edges (F1) | DSSP 4 | 205 | 0.97 |
-| SASA mean abs error | FreeSASA | 202 | 4.93 A^2 |
-| SASA median abs error | FreeSASA | 202 | 3.77 A^2 |
-| SASA correlation (Pearson r) | FreeSASA | 202 | 0.99 |
+| SASA mean abs error | FreeSASA | 203 | 4.77 A^2 |
+| SASA median abs error | FreeSASA | 203 | 3.61 A^2 |
+| SASA correlation (Pearson r) | FreeSASA | 203 | 0.99 |
 
 Per-type interaction agreement (precision / recall / F1):
 
 | Interaction type | Reference | Entries | Pred edges | Ref edges | Precision | Recall | F1 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| hydrogen-bond | PLIP | 60 | 787 | 519 | 0.58 | 0.82 | 0.65 |
-| salt-bridge | PLIP | 60 | 140 | 127 | 0.85 | 0.93 | 0.83 |
-| hydrophobic | PLIP | 60 | 479 | 377 | 0.82 | 0.96 | 0.87 |
+| hydrogen-bond | PLIP | 60 | 676 | 519 | 0.64 | 0.82 | 0.68 |
+| salt-bridge | PLIP | 60 | 129 | 127 | 0.91 | 0.93 | 0.87 |
+| hydrophobic | PLIP | 60 | 435 | 377 | 0.87 | 0.96 | 0.90 |
 | pi-stacking | PLIP | 60 | 23 | 22 | 0.97 | 0.95 | 0.92 |
 | pi-cation | PLIP | 60 | 6 | 17 | 0.97 | 0.88 | 0.84 |
 | halogen-bond | PLIP | 60 | 4 | 5 | 1.00 | 0.98 | 0.98 |
-| water-bridge | PLIP | 60 | 722 | 345 | 0.50 | 0.87 | 0.59 |
+| water-bridge | PLIP | 60 | 601 | 345 | 0.53 | 0.87 | 0.62 |
 | metal-coordination | PLIP | 60 | 444 | 338 | 0.82 | 0.92 | 0.81 |
 <!-- VALIDATION:END -->
 
@@ -136,8 +136,8 @@ difference from RING is also noted. Secondary structure is
 Kabsch-Sander electrostatic hydrogen bonding with inferred amide hydrogens.
 
 **The weak rows are a modelling choice, and they are the honest headline.**
-Hydrogen bonds (F1 0.65, precision 0.58) and water bridges (F1 0.59, precision
-0.50) are the two classes where PixelFold reports every geometrically reachable
+Hydrogen bonds (F1 0.68, precision 0.64) and water bridges (F1 0.62, precision
+0.53) are the two classes where PixelFold reports every geometrically reachable
 bond while PLIP commits to one. Those two classes are roughly
 half of all protein-ligand interactions, so for ligand-site work where a curated
 answer matters, use PLIP.

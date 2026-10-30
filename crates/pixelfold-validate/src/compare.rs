@@ -76,10 +76,11 @@ pub fn compare(
 /// but found none of still scores, against whatever pixelfold found; a kind the
 /// reference does not report at all is left out.
 ///
-/// A ligand-scoped reference (PLIP) covers only interactions that touch a ligand,
-/// so pixelfold's predicted set is restricted to its own ligand-touching edges
-/// first. Without that, every protein-protein interaction the reference never
-/// looked at would count against precision.
+/// A ligand-scoped reference (PLIP) covers only interactions that touch a ligand
+/// it profiled, so pixelfold's predicted set is restricted to its edges touching
+/// one of those first. Without that, every protein-protein interaction the
+/// reference never looked at, and every HETATM group it chose not to profile,
+/// would count against precision.
 fn compare_interactions(prediction: &Prediction, golden: &InteractionGolden) -> Vec<KindMetric> {
     let mut reference: HashMap<&str, HashSet<(ResidueKey, ResidueKey)>> = HashMap::new();
     for edge in &golden.interactions {
@@ -89,9 +90,9 @@ fn compare_interactions(prediction: &Prediction, golden: &InteractionGolden) -> 
             .insert(ordered_pair(edge.a.clone(), edge.b.clone()));
     }
 
-    let touches_ligand = |pair: &(ResidueKey, ResidueKey)| {
-        prediction.ligands.contains(&pair.0) || prediction.ligands.contains(&pair.1)
-    };
+    let ligands: HashSet<&ResidueKey> = golden.ligands.iter().collect();
+    let touches_ligand =
+        |pair: &(ResidueKey, ResidueKey)| ligands.contains(&pair.0) || ligands.contains(&pair.1);
 
     let empty = HashSet::new();
     golden
@@ -176,7 +177,6 @@ mod tests {
             hbonds: HashSet::new(),
             sasa: vec![],
             interactions: HashMap::new(),
-            ligands: HashSet::new(),
         }
     }
 
@@ -193,7 +193,6 @@ mod tests {
             hbonds: [(key(1), key(3))].into_iter().collect(),
             sasa: vec![(key(1), 10.0), (key(2), 20.0), (key(3), 30.0)],
             interactions: HashMap::new(),
-            ligands: HashSet::new(),
         };
 
         let dssp = DsspGolden {
@@ -292,7 +291,6 @@ mod tests {
             hbonds: HashSet::new(),
             sasa: vec![],
             interactions,
-            ligands: HashSet::new(),
         };
 
         let golden = InteractionGolden {
@@ -302,6 +300,7 @@ mod tests {
                 "pi-stacking".to_string(),
             ],
             ligand_scoped: false,
+            ligands: vec![],
             interactions: vec![
                 // Same two hydrogen bonds, one written in the reverse direction.
                 edge("hydrogen-bond", 5, 1),
@@ -344,13 +343,13 @@ mod tests {
             hbonds: HashSet::new(),
             sasa: vec![],
             interactions,
-            ligands: HashSet::new(),
         };
 
         // PLIP does not detect disulfides, so its golden does not list the kind.
         let golden = InteractionGolden {
             kinds: vec!["hydrogen-bond".to_string()],
             ligand_scoped: false,
+            ligands: vec![],
             interactions: vec![],
         };
 
@@ -360,46 +359,49 @@ mod tests {
     }
 
     /// A ligand-scoped reference (PLIP) is compared only against pixelfold's
-    /// ligand-touching edges, so the protein-protein interactions it never looked
-    /// at are not charged against precision.
+    /// edges to a ligand it profiled, so neither the protein-protein interactions
+    /// it never looked at nor a HETATM group it chose to skip (a crystallisation
+    /// additive, a modified residue) is charged against precision.
     #[test]
-    fn a_ligand_scoped_reference_ignores_protein_protein_edges() {
-        // Residue 9 is the ligand. Pixelfold found a ligand hydrogen bond (1-9)
-        // and a protein-protein one (1-2); PLIP reports only the ligand's.
+    fn a_ligand_scoped_reference_scores_only_the_ligands_it_profiled() {
+        // Residue 9 is the ligand PLIP profiled and 7 a glycerol it skipped.
+        // Pixelfold found a hydrogen bond to each, and a protein-protein one.
         let mut interactions = HashMap::new();
         interactions.insert(
             "hydrogen-bond".to_string(),
-            [ordered_pair(key(1), key(9)), ordered_pair(key(1), key(2))]
-                .into_iter()
-                .collect(),
+            [
+                ordered_pair(key(1), key(9)),
+                ordered_pair(key(1), key(7)),
+                ordered_pair(key(1), key(2)),
+            ]
+            .into_iter()
+            .collect(),
         );
         let prediction = Prediction {
             ss: vec![],
             hbonds: HashSet::new(),
             sasa: vec![],
             interactions,
-            ligands: [key(9)].into_iter().collect(),
         };
 
         let golden = InteractionGolden {
             kinds: vec!["hydrogen-bond".to_string()],
             ligand_scoped: true,
+            ligands: vec![key(9)],
             interactions: vec![edge("hydrogen-bond", 1, 9)],
         };
 
         let metric = &compare_interactions(&prediction, &golden)[0];
-        // Only the ligand edge is scored: 1 predicted, matching 1 reference.
         assert_eq!(metric.predicted, 1);
         assert_eq!(
             metric.prf1.f1, 1.0,
-            "the protein-protein edge is out of scope"
+            "only the profiled ligand's edge is in scope"
         );
 
-        // Without the scope, the protein-protein edge would drop precision.
         let unscoped = InteractionGolden {
             ligand_scoped: false,
             ..golden
         };
-        assert_eq!(compare_interactions(&prediction, &unscoped)[0].predicted, 2);
+        assert_eq!(compare_interactions(&prediction, &unscoped)[0].predicted, 3);
     }
 }

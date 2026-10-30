@@ -23,7 +23,7 @@ use pixelfold_core::AltlocPolicy;
 use pixelfold_core::parser::load_protein_with_options;
 
 use crate::compare::{EntryMetrics, compare};
-use crate::golden::{DsspGolden, InteractionGolden, SasaGolden};
+use crate::golden::Goldens;
 use crate::report::{render_markdown, summarize};
 
 /// Validate pixelfold against reference implementations (DSSP, FreeSASA).
@@ -74,7 +74,12 @@ fn main() -> Result<()> {
 
     let mut metrics = Vec::new();
     for id in &ids {
-        match evaluate(id, &cli.cache_dir, &cli.golden_dir, cli.offline) {
+        let id = id.to_uppercase();
+        // A golden file that fails to parse or contradicts itself is a defect in
+        // the repository, not a missing input: skipping its entry would quietly
+        // switch off the gates it feeds.
+        let goldens = Goldens::load(&cli.golden_dir, &id)?;
+        match evaluate(&id, &cli.cache_dir, cli.offline, &goldens) {
             Ok(Some(entry)) => metrics.push(entry),
             Ok(None) => eprintln!("skip {id}: not cached (offline)"),
             Err(e) => eprintln!("skip {id}: {e:#}"),
@@ -104,36 +109,28 @@ fn main() -> Result<()> {
 fn evaluate(
     id: &str,
     cache_dir: &Path,
-    golden_dir: &Path,
     offline: bool,
+    goldens: &Goldens,
 ) -> Result<Option<EntryMetrics>> {
-    let id = id.to_uppercase();
     let path = cache_dir.join(format!("{id}.cif"));
     if !path.exists() {
         if offline {
             return Ok(None);
         }
 
-        pixelfold_fetch::fetch_cif(&id, cache_dir).with_context(|| format!("fetching {id}"))?;
+        pixelfold_fetch::fetch_cif(id, cache_dir).with_context(|| format!("fetching {id}"))?;
     }
 
     let protein = load_protein_with_options(&path, AltlocPolicy::default())
         .with_context(|| format!("loading {}", path.display()))?;
     let prediction = analysis::predict(&protein);
 
-    let dssp: Option<DsspGolden> = golden::load(&golden_dir.join(format!("{id}.dssp.json")))?;
-    let sasa: Option<SasaGolden> = golden::load(&golden_dir.join(format!("{id}.freesasa.json")))?;
-    let plip: Option<InteractionGolden> =
-        golden::load(&golden_dir.join(format!("{id}.plip.json")))?;
-    let ring: Option<InteractionGolden> =
-        golden::load(&golden_dir.join(format!("{id}.ring.json")))?;
-
     Ok(Some(compare(
-        &id,
+        id,
         &prediction,
-        dssp.as_ref(),
-        sasa.as_ref(),
-        plip.as_ref(),
-        ring.as_ref(),
+        goldens.dssp.as_ref(),
+        goldens.sasa.as_ref(),
+        goldens.plip.as_ref(),
+        goldens.ring.as_ref(),
     )))
 }

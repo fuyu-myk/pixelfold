@@ -10,6 +10,103 @@
   "metal-coordination"
  ],
  "ligand_scoped": true,
+ "ligands": [
+  {
+   "chain": "A",
+   "seq": 501,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 502,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 503,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 504,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 505,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 506,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 507,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 508,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 509,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 510,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 511,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 512,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 513,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 514,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 515,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 516,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 517,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 518,
+   "icode": null
+  },
+  {
+   "chain": "A",
+   "seq": 519,
+   "icode": null
+  }
+ ],
  "interactions": [
   {
    "kind": "salt-bridge",

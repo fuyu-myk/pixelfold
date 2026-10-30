@@ -24,9 +24,6 @@ pub struct Prediction {
     pub sasa: Vec<(ResidueKey, f64)>,
     /// Non-covalent interactions as unordered residue pairs, per type.
     pub interactions: InteractionEdges,
-    /// The residues that are ligands: HETATM, not water. A ligand-scoped
-    /// reference (PLIP) is compared only against edges touching one of these.
-    pub ligands: HashSet<ResidueKey>,
 }
 
 /// Order a residue pair canonically, so an edge and its reverse are one key.
@@ -58,12 +55,12 @@ pub fn predict(protein: &Protein) -> Prediction {
         }
     }
 
-    // SASA is compared against FreeSASA run on the protein alone, so match its
-    // atom set: drop HETATM (waters, ligands, ions) and hydrogens.
+    // SASA is compared against FreeSASA run on the polymer alone, so match its
+    // atom set: drop waters, ligands, ions and hydrogens.
     let sasa_atoms: Vec<Atom> = protein
         .atoms
         .iter()
-        .filter(|atom| !atom.is_hetatm && !atom.element.as_str().eq_ignore_ascii_case("H"))
+        .filter(|atom| atom.is_polymer() && !atom.element.as_str().eq_ignore_ascii_case("H"))
         .cloned()
         .collect();
     let atom_sasa = SurfaceCalculator::default().calculate_atom_sasa(&sasa_atoms);
@@ -80,25 +77,12 @@ pub fn predict(protein: &Protein) -> Prediction {
         })
         .collect();
 
-    let ligands = protein
-        .atoms
-        .iter()
-        .filter(|atom| atom.is_hetatm && !is_water(atom.residue_name.as_str()))
-        .map(residue_key)
-        .collect();
-
     Prediction {
         ss,
         hbonds,
         sasa,
         interactions: interaction_edges(protein),
-        ligands,
     }
-}
-
-/// True when a residue name denotes water, which is never a ligand.
-fn is_water(residue_name: &str) -> bool {
-    matches!(residue_name, "HOH" | "WAT" | "H2O" | "DOD" | "TIP")
 }
 
 /// Every detected interaction reduced to an unordered residue pair, grouped by
@@ -160,7 +144,7 @@ fn residue_key(atom: &Atom) -> ResidueKey {
 mod tests {
     use super::*;
     use glam::Vec3;
-    use pixelfold_core::{FixedStr, Protein, SecondaryStructure};
+    use pixelfold_core::{FixedStr, Molecule, Protein, SecondaryStructure};
 
     fn atom(element: &str, is_hetatm: bool, residue_name: &str, seq: i32, pos: Vec3) -> Atom {
         Atom {
@@ -217,5 +201,32 @@ mod tests {
         assert!(residue_sasa(&baseline, 1).unwrap() > 0.0);
         // The water residue contributes no surface of its own.
         assert_eq!(residue_sasa(&with_solvent, 2), Some(0.0));
+    }
+
+    // A modified residue such as selenomethionine is a HETATM record of the
+    // polymer, so FreeSASA is run with it; a ligand stays out.
+    #[test]
+    fn sasa_counts_modified_residues_but_not_ligands() {
+        let molecule = |molecule, atom: Atom| Atom { molecule, ..atom };
+        let carbon = molecule(Molecule::Protein, atom("C", false, "ALA", 1, Vec3::ZERO));
+        let selenium = molecule(
+            Molecule::Protein,
+            atom("SE", true, "MSE", 2, Vec3::new(3.0, 0.0, 0.0)),
+        );
+        let glycerol = molecule(
+            Molecule::NonPolymer,
+            atom("C", true, "GOL", 3, Vec3::new(-1.0, 0.0, 0.0)),
+        );
+
+        let alone = predict(&protein(vec![carbon.clone()]));
+        let with_mse = predict(&protein(vec![carbon.clone(), selenium.clone()]));
+        let with_ligand = predict(&protein(vec![carbon, selenium, glycerol]));
+
+        let area =
+            |prediction: &Prediction, seq| residue_sasa(prediction, seq).expect("residue present");
+        assert!(area(&with_mse, 2) > 0.0);
+        assert!(area(&with_mse, 1) < area(&alone, 1));
+        assert_eq!(area(&with_ligand, 1), area(&with_mse, 1));
+        assert_eq!(area(&with_ligand, 3), 0.0);
     }
 }

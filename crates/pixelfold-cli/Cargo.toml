@@ -30,5 +30,6 @@ serde = { workspace = true }
 serde_json.workspace = true
 
 [dev-dependencies]
+glam.workspace = true
 tempfile = "3.27.0"
 serde_json.workspace = true
