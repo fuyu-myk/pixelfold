@@ -24,6 +24,13 @@ pub struct Prediction {
     pub sasa: Vec<(ResidueKey, f64)>,
     /// Non-covalent interactions as unordered residue pairs, per type.
     pub interactions: InteractionEdges,
+    /// The water residues. A reference that leaves water out (RING) is compared
+    /// only against edges touching none of these.
+    pub waters: HashSet<ResidueKey>,
+    /// Each standard amino acid's position in its chain, counting every residue
+    /// of the chain in file order. A reference with a sequence gap (RING) pairs
+    /// two of these only when their positions are at least the gap apart.
+    pub chain_positions: HashMap<ResidueKey, usize>,
 }
 
 /// Order a residue pair canonically, so an edge and its reverse are one key.
@@ -77,12 +84,76 @@ pub fn predict(protein: &Protein) -> Prediction {
         })
         .collect();
 
+    let waters = protein
+        .atoms
+        .iter()
+        .filter(|atom| is_water(atom.residue_name.as_str()))
+        .map(residue_key)
+        .collect();
+
     Prediction {
         ss,
         hbonds,
         sasa,
         interactions: interaction_edges(protein),
+        waters,
+        chain_positions: chain_positions(protein),
     }
+}
+
+/// True when a residue name denotes water.
+fn is_water(residue_name: &str) -> bool {
+    matches!(residue_name, "HOH" | "WAT" | "H2O" | "DOD" | "TIP")
+}
+
+/// True for the 20 standard amino acids, the only residues RING's sequence gap
+/// applies to.
+fn is_standard_amino_acid(residue_name: &str) -> bool {
+    matches!(
+        residue_name,
+        "ALA"
+            | "ARG"
+            | "ASN"
+            | "ASP"
+            | "CYS"
+            | "GLN"
+            | "GLU"
+            | "GLY"
+            | "HIS"
+            | "ILE"
+            | "LEU"
+            | "LYS"
+            | "MET"
+            | "PHE"
+            | "PRO"
+            | "SER"
+            | "THR"
+            | "TRP"
+            | "TYR"
+            | "VAL"
+    )
+}
+
+/// Number every residue of each chain in file order, keeping the positions of
+/// the standard amino acids.
+fn chain_positions(protein: &Protein) -> HashMap<ResidueKey, usize> {
+    let mut next_in_chain: HashMap<String, usize> = HashMap::new();
+    let mut seen: HashSet<ResidueKey> = HashSet::new();
+    let mut positions = HashMap::new();
+
+    for atom in &protein.atoms {
+        let key = residue_key(atom);
+        if !seen.insert(key.clone()) {
+            continue;
+        }
+        let next = next_in_chain.entry(key.chain.clone()).or_insert(0);
+        if is_standard_amino_acid(atom.residue_name.as_str()) {
+            positions.insert(key, *next);
+        }
+        *next += 1;
+    }
+
+    positions
 }
 
 /// Every detected interaction reduced to an unordered residue pair, grouped by

@@ -6,6 +6,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Interaction agreement against RING 4.0**, the whole-structure reference
+  beside PLIP's ligand sites. Its golden files cover all 205 benchmark entries
+  and come from the public RING 4.0 web server
+  (`benchmarks/tools/generate_ring.py`), since RING's standalone binary may not
+  be passed on. Seven RING types map onto pixelfold's; van der Waals contacts,
+  pi-hydrogen bonds and generic contacts have no counterpart and are left
+  unscored. Pixelfold is scored only where RING looks: edges to water, and
+  amino acids of one chain fewer than three positions apart, are left out.
+  Per-type F1 runs from 0.32 (pi-stacking, where RING's wider window finds
+  seven times as many) to 1.00 (disulfide), with a mean of 0.729, and
+  `--check` now fails below 0.65 (`min_ring_f1`).
+
 ### Fixed
 
 - **`pixelfold sasa` left out modified residues.** Surface atoms were chosen by

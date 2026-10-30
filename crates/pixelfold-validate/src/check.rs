@@ -6,6 +6,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
+use crate::compare::Tool;
 use crate::report::Summary;
 
 /// Per-metric floors and ceilings. A metric is only enforced when both its
@@ -18,6 +19,9 @@ pub struct Thresholds {
     /// Minimum mean interaction F1 against PLIP, averaged over the types PLIP
     /// scores. Enforced only when set and PLIP golden data exists.
     pub min_plip_f1: Option<f64>,
+    /// Minimum mean interaction F1 against RING, averaged over the types RING
+    /// scores. Enforced only when set and RING golden data exists.
+    pub min_ring_f1: Option<f64>,
 }
 
 /// Load thresholds from TOML, or defaults if absent.
@@ -51,24 +55,30 @@ pub fn evaluate(summary: &Summary, thresholds: &Thresholds) -> Vec<String> {
     {
         failures.push(format!("SASA MAE {value:.3} above maximum {max:.3}"));
     }
-    if let (Some(min), Some(value)) = (thresholds.min_plip_f1, plip_mean_f1(summary))
-        && value < min
-    {
-        failures.push(format!(
-            "PLIP interaction F1 {value:.3} below minimum {min:.3}"
-        ));
+    for (tool, threshold) in [
+        (Tool::Plip, thresholds.min_plip_f1),
+        (Tool::Ring, thresholds.min_ring_f1),
+    ] {
+        if let (Some(min), Some(value)) = (threshold, mean_f1(summary, tool))
+            && value < min
+        {
+            failures.push(format!(
+                "{} interaction F1 {value:.3} below minimum {min:.3}",
+                tool.label()
+            ));
+        }
     }
 
     failures
 }
 
-/// The mean interaction F1 against PLIP over the types it scores, or `None` when
-/// no PLIP golden was compared.
-fn plip_mean_f1(summary: &Summary) -> Option<f64> {
+/// The mean interaction F1 against one reference over the types it scores, or
+/// `None` when no golden from that reference was compared.
+fn mean_f1(summary: &Summary, tool: Tool) -> Option<f64> {
     let f1: Vec<f64> = summary
         .interactions
         .iter()
-        .filter(|row| row.tool == "PLIP")
+        .filter(|row| row.tool == tool.label())
         .map(|row| row.f1)
         .collect();
     if f1.is_empty() {
@@ -167,5 +177,39 @@ mod tests {
             )
             .is_empty()
         );
+    }
+
+    #[test]
+    fn ring_gate_averages_only_ring_rows_and_is_pending_without_golden() {
+        use crate::report::InteractionSummary;
+
+        let row = |tool: &'static str, kind: &str, f1: f64| InteractionSummary {
+            tool,
+            kind: kind.to_string(),
+            entries: 1,
+            pred_edges: 1,
+            ref_edges: 1,
+            precision: f1,
+            recall: f1,
+            f1,
+        };
+        let gate = |min: f64| Thresholds {
+            min_ring_f1: Some(min),
+            ..Default::default()
+        };
+
+        let mut s = summary(None);
+        // The RING mean is 0.8; PLIP's low row must not pull it down.
+        s.interactions = vec![
+            row("PLIP", "hydrogen-bond", 0.2),
+            row("RING", "hydrogen-bond", 0.7),
+            row("RING", "disulfide", 0.9),
+        ];
+        assert!(evaluate(&s, &gate(0.75)).is_empty());
+        let failures = evaluate(&s, &gate(0.85));
+        assert_eq!(failures.len(), 1);
+        assert!(failures[0].starts_with("RING"), "{failures:?}");
+
+        assert!(evaluate(&summary(None), &gate(0.9)).is_empty());
     }
 }

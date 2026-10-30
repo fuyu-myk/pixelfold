@@ -1,9 +1,10 @@
 # PixelFold validation benchmark set.
 #
 # Stratified PDB entries that pixelfold-validate compares against reference
-# implementations. DSSP and FreeSASA are compared now; PLIP and RING planned
-# once the interaction engine exists. Golden outputs (one file per entry per
-# tool) live under golden/ as <ID>.dssp.json and <ID>.freesasa.json.
+# implementations: DSSP and FreeSASA over every entry, PLIP over the
+# protein-ligand stratum, and RING over every entry. Golden outputs (one file per
+# entry per tool) live under golden/ as <ID>.dssp.json, <ID>.freesasa.json,
+# <ID>.plip.json and <ID>.ring.json.
 #
 # Entries are drawn from the RCSB PDB via its search API and chosen to be
 # diverse within each stratum (deduplicated by sequence / protein identity),

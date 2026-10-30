@@ -14,6 +14,9 @@ pub enum Tool {
 }
 
 impl Tool {
+    /// Every interaction reference, in the order reports list them.
+    pub const ALL: [Tool; 2] = [Tool::Plip, Tool::Ring];
+
     pub fn label(self) -> &'static str {
         match self {
             Tool::Plip => "PLIP",
@@ -76,11 +79,13 @@ pub fn compare(
 /// but found none of still scores, against whatever pixelfold found; a kind the
 /// reference does not report at all is left out.
 ///
-/// A ligand-scoped reference (PLIP) covers only interactions that touch a ligand
-/// it profiled, so pixelfold's predicted set is restricted to its edges touching
-/// one of those first. Without that, every protein-protein interaction the
-/// reference never looked at, and every HETATM group it chose not to profile,
-/// would count against precision.
+/// Pixelfold's predicted set is first restricted to the part of the structure
+/// the reference looked at, or every interaction it never examined would count
+/// against precision. A ligand-scoped reference (PLIP) covers only edges that
+/// touch a ligand it profiled, so a HETATM group it chose not to profile is out
+/// too; a reference without water (RING) covers only edges that touch none; a
+/// reference with a sequence gap (RING) never pairs amino acids of one chain
+/// closer than that gap.
 fn compare_interactions(prediction: &Prediction, golden: &InteractionGolden) -> Vec<KindMetric> {
     let mut reference: HashMap<&str, HashSet<(ResidueKey, ResidueKey)>> = HashMap::new();
     for edge in &golden.interactions {
@@ -93,6 +98,15 @@ fn compare_interactions(prediction: &Prediction, golden: &InteractionGolden) -> 
     let ligands: HashSet<&ResidueKey> = golden.ligands.iter().collect();
     let touches_ligand =
         |pair: &(ResidueKey, ResidueKey)| ligands.contains(&pair.0) || ligands.contains(&pair.1);
+    let in_scope = |pair: &(ResidueKey, ResidueKey)| {
+        (!golden.ligand_scoped || touches_ligand(pair))
+            && (!golden.water_excluded || !touches(&prediction.waters, pair))
+            && apart_in_sequence(
+                &prediction.chain_positions,
+                pair,
+                golden.sequence_separation,
+            )
+    };
 
     let empty = HashSet::new();
     golden
@@ -100,11 +114,8 @@ fn compare_interactions(prediction: &Prediction, golden: &InteractionGolden) -> 
         .iter()
         .map(|kind| {
             let all = prediction.interactions.get(kind).unwrap_or(&empty);
-            let predicted: HashSet<(ResidueKey, ResidueKey)> = if golden.ligand_scoped {
-                all.iter().filter(|p| touches_ligand(p)).cloned().collect()
-            } else {
-                all.clone()
-            };
+            let predicted: HashSet<(ResidueKey, ResidueKey)> =
+                all.iter().filter(|p| in_scope(p)).cloned().collect();
             let found = reference.get(kind.as_str()).unwrap_or(&empty);
 
             KindMetric {
@@ -115,6 +126,25 @@ fn compare_interactions(prediction: &Prediction, golden: &InteractionGolden) -> 
             }
         })
         .collect()
+}
+
+fn touches(residues: &HashSet<ResidueKey>, pair: &(ResidueKey, ResidueKey)) -> bool {
+    residues.contains(&pair.0) || residues.contains(&pair.1)
+}
+
+/// False for two standard amino acids of one chain fewer than `separation`
+/// positions apart. Positions count residues, not author numbers, so insertion
+/// codes widen the distance; ligands, modified residues and nucleotides have no
+/// position and pair at any distance, as do residues of different chains.
+fn apart_in_sequence(
+    positions: &HashMap<ResidueKey, usize>,
+    pair: &(ResidueKey, ResidueKey),
+    separation: u32,
+) -> bool {
+    match (positions.get(&pair.0), positions.get(&pair.1)) {
+        (Some(a), Some(b)) if pair.0.chain == pair.1.chain => a.abs_diff(*b) >= separation as usize,
+        _ => true,
+    }
 }
 
 fn compare_dssp(prediction: &Prediction, dssp: &DsspGolden) -> (Option<f64>, Option<PrF1>, usize) {
@@ -177,6 +207,8 @@ mod tests {
             hbonds: HashSet::new(),
             sasa: vec![],
             interactions: HashMap::new(),
+            waters: HashSet::new(),
+            chain_positions: HashMap::new(),
         }
     }
 
@@ -193,6 +225,8 @@ mod tests {
             hbonds: [(key(1), key(3))].into_iter().collect(),
             sasa: vec![(key(1), 10.0), (key(2), 20.0), (key(3), 30.0)],
             interactions: HashMap::new(),
+            waters: HashSet::new(),
+            chain_positions: HashMap::new(),
         };
 
         let dssp = DsspGolden {
@@ -291,6 +325,8 @@ mod tests {
             hbonds: HashSet::new(),
             sasa: vec![],
             interactions,
+            waters: HashSet::new(),
+            chain_positions: HashMap::new(),
         };
 
         let golden = InteractionGolden {
@@ -301,6 +337,8 @@ mod tests {
             ],
             ligand_scoped: false,
             ligands: vec![],
+            water_excluded: false,
+            sequence_separation: 0,
             interactions: vec![
                 // Same two hydrogen bonds, one written in the reverse direction.
                 edge("hydrogen-bond", 5, 1),
@@ -343,6 +381,8 @@ mod tests {
             hbonds: HashSet::new(),
             sasa: vec![],
             interactions,
+            waters: HashSet::new(),
+            chain_positions: HashMap::new(),
         };
 
         // PLIP does not detect disulfides, so its golden does not list the kind.
@@ -350,6 +390,8 @@ mod tests {
             kinds: vec!["hydrogen-bond".to_string()],
             ligand_scoped: false,
             ligands: vec![],
+            water_excluded: false,
+            sequence_separation: 0,
             interactions: vec![],
         };
 
@@ -382,12 +424,16 @@ mod tests {
             hbonds: HashSet::new(),
             sasa: vec![],
             interactions,
+            waters: HashSet::new(),
+            chain_positions: HashMap::new(),
         };
 
         let golden = InteractionGolden {
             kinds: vec!["hydrogen-bond".to_string()],
             ligand_scoped: true,
             ligands: vec![key(9)],
+            water_excluded: false,
+            sequence_separation: 0,
             interactions: vec![edge("hydrogen-bond", 1, 9)],
         };
 
@@ -403,5 +449,110 @@ mod tests {
             ..golden
         };
         assert_eq!(compare_interactions(&prediction, &unscoped)[0].predicted, 3);
+    }
+
+    fn chain_key(chain: &str, seq: i64) -> ResidueKey {
+        ResidueKey {
+            chain: chain.to_string(),
+            seq,
+            icode: None,
+        }
+    }
+
+    /// A reference that leaves water out (RING by default) is not charged with
+    /// pixelfold's edges to a water, which it never saw.
+    #[test]
+    fn a_reference_without_water_ignores_water_edges() {
+        // Residue 9 is a water coordinating the metal at residue 1.
+        let mut interactions = HashMap::new();
+        interactions.insert(
+            "metal-coordination".to_string(),
+            [ordered_pair(key(1), key(9)), ordered_pair(key(1), key(2))]
+                .into_iter()
+                .collect(),
+        );
+        let prediction = Prediction {
+            waters: [key(9)].into_iter().collect(),
+            interactions,
+            ..prediction()
+        };
+
+        let golden = InteractionGolden {
+            kinds: vec!["metal-coordination".to_string()],
+            ligand_scoped: false,
+            ligands: vec![],
+            water_excluded: true,
+            sequence_separation: 0,
+            interactions: vec![edge("metal-coordination", 1, 2)],
+        };
+
+        let metric = &compare_interactions(&prediction, &golden)[0];
+        assert_eq!(metric.predicted, 1);
+        assert_eq!(metric.prf1.f1, 1.0, "the water edge is out of scope");
+
+        let with_water = InteractionGolden {
+            water_excluded: false,
+            ..golden
+        };
+        assert_eq!(
+            compare_interactions(&prediction, &with_water)[0].predicted,
+            2
+        );
+    }
+
+    /// A reference that never pairs residues of one chain closer than its
+    /// sequence gap (RING's 3) is compared only against pixelfold's pairs at
+    /// least that far apart; pairs across chains are always in scope.
+    #[test]
+    fn a_sequence_gap_drops_close_pairs_within_a_chain() {
+        let mut interactions = HashMap::new();
+        interactions.insert(
+            "hydrogen-bond".to_string(),
+            [
+                ordered_pair(chain_key("A", 1), chain_key("A", 3)), // 2 apart: out
+                ordered_pair(chain_key("A", 1), chain_key("A", 4)), // 3 apart: in
+                ordered_pair(chain_key("A", 5), chain_key("A", 3)), // reversed, 2 apart: out
+                ordered_pair(chain_key("A", 1), chain_key("B", 2)), // across chains: in
+                ordered_pair(chain_key("A", 20), chain_key("A", 21)), // 3 positions apart: in
+                ordered_pair(chain_key("A", 99), chain_key("A", 100)), // a ligand: in
+            ]
+            .into_iter()
+            .collect(),
+        );
+        // Positions count residues, so two inserted residues (20A, 20B) put 20
+        // and 21 three apart; residue 100 is a ligand and has no position.
+        let chain_positions = [
+            (chain_key("A", 1), 0),
+            (chain_key("A", 3), 2),
+            (chain_key("A", 4), 3),
+            (chain_key("A", 5), 4),
+            (chain_key("A", 20), 19),
+            (chain_key("A", 21), 22),
+            (chain_key("A", 99), 98),
+            (chain_key("B", 2), 1),
+        ]
+        .into_iter()
+        .collect();
+        let prediction = Prediction {
+            interactions,
+            chain_positions,
+            ..prediction()
+        };
+
+        let golden = InteractionGolden {
+            kinds: vec!["hydrogen-bond".to_string()],
+            ligand_scoped: false,
+            ligands: vec![],
+            water_excluded: false,
+            sequence_separation: 3,
+            interactions: vec![],
+        };
+        assert_eq!(compare_interactions(&prediction, &golden)[0].predicted, 4);
+
+        let no_gap = InteractionGolden {
+            sequence_separation: 0,
+            ..golden
+        };
+        assert_eq!(compare_interactions(&prediction, &no_gap)[0].predicted, 6);
     }
 }
