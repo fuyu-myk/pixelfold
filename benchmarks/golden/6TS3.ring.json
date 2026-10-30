@@ -1,0 +1,1988 @@
+{
+ "source": {
+  "tool": "RING 4.0 web server",
+  "task": "ring-v4",
+  "params": {
+   "seq_sep": "3",
+   "policy": "closest"
+  },
+  "generated": "2026-10-28"
+ },
+ "kinds": [
+  "hydrogen-bond",
+  "salt-bridge",
+  "pi-stacking",
+  "pi-cation",
+  "halogen-bond",
+  "metal-coordination",
+  "disulfide"
+ ],
+ "ligand_scoped": false,
+ "water_excluded": true,
+ "sequence_separation": 3,
+ "interactions": [
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 822,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 825,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 822,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 826,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 822,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 891,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 823,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 827,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 823,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 890,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 824,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 828,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 825,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 829,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 826,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 830,
+    "icode": null
+   }
+  },
+  {
+   "kind": "salt-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 826,
+    "icode": null
+   },
+   "b": {
+    "chain": "D",
+    "seq": 300,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 826,
+    "icode": null
+   },
+   "b": {
+    "chain": "D",
+    "seq": 300,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 827,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 831,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 828,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 832,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 829,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 833,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 830,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 834,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 830,
+    "icode": null
+   },
+   "b": {
+    "chain": "D",
+    "seq": 301,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 831,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 835,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 832,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 836,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 833,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 837,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 834,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 838,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 834,
+    "icode": null
+   },
+   "b": {
+    "chain": "C",
+    "seq": 307,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 835,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 839,
+    "icode": null
+   }
+  },
+  {
+   "kind": "pi-stacking",
+   "a": {
+    "chain": "A",
+    "seq": 835,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 881,
+    "icode": null
+   }
+  },
+  {
+   "kind": "pi-stacking",
+   "a": {
+    "chain": "A",
+    "seq": 835,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 884,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 836,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 841,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 837,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 840,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 839,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 842,
+    "icode": null
+   }
+  },
+  {
+   "kind": "salt-bridge",
+   "a": {
+    "chain": "A",
+    "seq": 842,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 849,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 842,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 849,
+    "icode": null
+   }
+  },
+  {
+   "kind": "pi-stacking",
+   "a": {
+    "chain": "A",
+    "seq": 844,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 869,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 845,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 879,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 846,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 849,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 846,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 850,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 847,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 851,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 848,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 852,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 849,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 853,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 850,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 853,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 850,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 854,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 853,
+    "icode": null
+   },
+   "b": {
+    "chain": "C",
+    "seq": 311,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 855,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 858,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 855,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 859,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 856,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 860,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 857,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 861,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 858,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 862,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 859,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 863,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 860,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 864,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 861,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 865,
+    "icode": null
+   }
+  },
+  {
+   "kind": "pi-stacking",
+   "a": {
+    "chain": "A",
+    "seq": 861,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 884,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 862,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 866,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 867,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 880,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 869,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 874,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 869,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 878,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 871,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 874,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 875,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 878,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 880,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 883,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 880,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 884,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 881,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 885,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 882,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 886,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 883,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 887,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 884,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 888,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 885,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 889,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 886,
+    "icode": null
+   },
+   "b": {
+    "chain": "A",
+    "seq": 890,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "A",
+    "seq": 890,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 823,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 822,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 825,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 822,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 826,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 822,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 891,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 823,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 827,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 824,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 828,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 825,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 829,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 826,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 830,
+    "icode": null
+   }
+  },
+  {
+   "kind": "salt-bridge",
+   "a": {
+    "chain": "B",
+    "seq": 826,
+    "icode": null
+   },
+   "b": {
+    "chain": "C",
+    "seq": 300,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 826,
+    "icode": null
+   },
+   "b": {
+    "chain": "C",
+    "seq": 300,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 827,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 830,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 827,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 831,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 828,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 832,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 829,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 833,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 830,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 834,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 830,
+    "icode": null
+   },
+   "b": {
+    "chain": "C",
+    "seq": 301,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 831,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 834,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 831,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 835,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 832,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 836,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 833,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 837,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 834,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 838,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 834,
+    "icode": null
+   },
+   "b": {
+    "chain": "D",
+    "seq": 307,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 835,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 839,
+    "icode": null
+   }
+  },
+  {
+   "kind": "pi-stacking",
+   "a": {
+    "chain": "B",
+    "seq": 835,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 881,
+    "icode": null
+   }
+  },
+  {
+   "kind": "pi-stacking",
+   "a": {
+    "chain": "B",
+    "seq": 835,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 884,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 836,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 841,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 837,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 840,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 839,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 842,
+    "icode": null
+   }
+  },
+  {
+   "kind": "salt-bridge",
+   "a": {
+    "chain": "B",
+    "seq": 842,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 849,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 842,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 849,
+    "icode": null
+   }
+  },
+  {
+   "kind": "pi-stacking",
+   "a": {
+    "chain": "B",
+    "seq": 844,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 869,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 845,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 879,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 846,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 849,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 846,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 850,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 847,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 851,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 848,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 852,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 850,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 854,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 855,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 858,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 855,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 859,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 856,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 860,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 857,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 861,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 858,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 862,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 859,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 863,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 860,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 864,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 861,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 865,
+    "icode": null
+   }
+  },
+  {
+   "kind": "pi-stacking",
+   "a": {
+    "chain": "B",
+    "seq": 861,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 884,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 862,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 866,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 867,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 880,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 869,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 878,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 871,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 874,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 875,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 878,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 880,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 883,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 880,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 884,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 881,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 885,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 882,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 886,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 883,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 887,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 884,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 888,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 885,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 889,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "B",
+    "seq": 886,
+    "icode": null
+   },
+   "b": {
+    "chain": "B",
+    "seq": 890,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "C",
+    "seq": 294,
+    "icode": null
+   },
+   "b": {
+    "chain": "C",
+    "seq": 297,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "C",
+    "seq": 294,
+    "icode": null
+   },
+   "b": {
+    "chain": "C",
+    "seq": 298,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "C",
+    "seq": 294,
+    "icode": null
+   },
+   "b": {
+    "chain": "C",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "C",
+    "seq": 295,
+    "icode": null
+   },
+   "b": {
+    "chain": "C",
+    "seq": 299,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "C",
+    "seq": 296,
+    "icode": null
+   },
+   "b": {
+    "chain": "C",
+    "seq": 300,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "C",
+    "seq": 297,
+    "icode": null
+   },
+   "b": {
+    "chain": "C",
+    "seq": 301,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "C",
+    "seq": 297,
+    "icode": null
+   },
+   "b": {
+    "chain": "C",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "C",
+    "seq": 298,
+    "icode": null
+   },
+   "b": {
+    "chain": "C",
+    "seq": 302,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "C",
+    "seq": 299,
+    "icode": null
+   },
+   "b": {
+    "chain": "C",
+    "seq": 303,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "C",
+    "seq": 300,
+    "icode": null
+   },
+   "b": {
+    "chain": "C",
+    "seq": 304,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "C",
+    "seq": 301,
+    "icode": null
+   },
+   "b": {
+    "chain": "C",
+    "seq": 305,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "C",
+    "seq": 302,
+    "icode": null
+   },
+   "b": {
+    "chain": "C",
+    "seq": 306,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "C",
+    "seq": 303,
+    "icode": null
+   },
+   "b": {
+    "chain": "C",
+    "seq": 307,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "C",
+    "seq": 304,
+    "icode": null
+   },
+   "b": {
+    "chain": "C",
+    "seq": 308,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "C",
+    "seq": 305,
+    "icode": null
+   },
+   "b": {
+    "chain": "C",
+    "seq": 309,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "C",
+    "seq": 305,
+    "icode": null
+   },
+   "b": {
+    "chain": "D",
+    "seq": 308,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "C",
+    "seq": 306,
+    "icode": null
+   },
+   "b": {
+    "chain": "C",
+    "seq": 310,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "C",
+    "seq": 308,
+    "icode": null
+   },
+   "b": {
+    "chain": "D",
+    "seq": 305,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "D",
+    "seq": 294,
+    "icode": null
+   },
+   "b": {
+    "chain": "D",
+    "seq": 298,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "D",
+    "seq": 294,
+    "icode": null
+   },
+   "b": {
+    "chain": "D",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "D",
+    "seq": 295,
+    "icode": null
+   },
+   "b": {
+    "chain": "D",
+    "seq": 299,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "D",
+    "seq": 296,
+    "icode": null
+   },
+   "b": {
+    "chain": "D",
+    "seq": 300,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "D",
+    "seq": 297,
+    "icode": null
+   },
+   "b": {
+    "chain": "D",
+    "seq": 301,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "D",
+    "seq": 297,
+    "icode": null
+   },
+   "b": {
+    "chain": "D",
+    "seq": 401,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "D",
+    "seq": 298,
+    "icode": null
+   },
+   "b": {
+    "chain": "D",
+    "seq": 302,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "D",
+    "seq": 299,
+    "icode": null
+   },
+   "b": {
+    "chain": "D",
+    "seq": 303,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "D",
+    "seq": 300,
+    "icode": null
+   },
+   "b": {
+    "chain": "D",
+    "seq": 304,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "D",
+    "seq": 301,
+    "icode": null
+   },
+   "b": {
+    "chain": "D",
+    "seq": 305,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "D",
+    "seq": 302,
+    "icode": null
+   },
+   "b": {
+    "chain": "D",
+    "seq": 306,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "D",
+    "seq": 303,
+    "icode": null
+   },
+   "b": {
+    "chain": "D",
+    "seq": 307,
+    "icode": null
+   }
+  },
+  {
+   "kind": "hydrogen-bond",
+   "a": {
+    "chain": "D",
+    "seq": 304,
+    "icode": null
+   },
+   "b": {
+    "chain": "D",
+    "seq": 308,
+    "icode": null
+   }
+  }
+ ]
+}

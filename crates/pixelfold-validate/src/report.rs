@@ -85,7 +85,7 @@ struct KindTotals {
 fn interaction_summary(entries: &[EntryMetrics]) -> Vec<InteractionSummary> {
     let mut out = Vec::new();
 
-    for tool in [Tool::Plip, Tool::Ring] {
+    for tool in Tool::ALL {
         let per_entry = entries.iter().filter_map(|e| match tool {
             Tool::Plip => e.plip.as_ref(),
             Tool::Ring => e.ring.as_ref(),
@@ -128,6 +128,23 @@ fn interaction_summary(entries: &[EntryMetrics]) -> Vec<InteractionSummary> {
     out
 }
 
+/// The references a summary was measured against, as an English list: DSSP and
+/// FreeSASA always, then each interaction reference that has golden data.
+fn reference_list(summary: &Summary) -> String {
+    let mut names = vec!["DSSP 4", "FreeSASA"];
+    names.extend(
+        Tool::ALL
+            .map(Tool::label)
+            .into_iter()
+            .filter(|label| summary.interactions.iter().any(|row| row.tool == *label)),
+    );
+
+    let (last, rest) = names
+        .split_last()
+        .expect("DSSP and FreeSASA are always named");
+    format!("{} and {last}", rest.join(", "))
+}
+
 fn mean(values: &[f64]) -> Option<f64> {
     if values.is_empty() {
         None
@@ -168,11 +185,7 @@ pub fn render_markdown(entries: &[EntryMetrics]) -> String {
     }
 
     let summary = summarize(entries);
-    let references = if summary.interactions.is_empty() {
-        "DSSP 4 and FreeSASA".to_string()
-    } else {
-        "DSSP 4, FreeSASA and PLIP".to_string()
-    };
+    let references = reference_list(&summary);
     out.push_str(&format!(
         "Validated {} benchmark entries against {references}.\n\n",
         summary.entries
@@ -322,5 +335,27 @@ mod tests {
         let md = render_markdown(&entries);
         assert!(md.contains("Per-type interaction agreement"), "{md}");
         assert!(md.contains("| hydrogen-bond | PLIP |"), "{md}");
+    }
+
+    /// The summary line names every interaction reference that was compared,
+    /// and RING's rows follow PLIP's.
+    #[test]
+    fn summary_line_names_each_interaction_reference() {
+        let mut both = interaction_entry("a", vec![kind_metric("hydrogen-bond", 0.8, 10)]);
+        both.ring = Some(vec![kind_metric("disulfide", 1.0, 2)]);
+        let md = render_markdown(&[both]);
+        assert!(
+            md.contains("against DSSP 4, FreeSASA, PLIP and RING."),
+            "{md}"
+        );
+        let plip_row = md.find("| hydrogen-bond | PLIP |").expect("PLIP row");
+        let ring_row = md.find("| disulfide | RING |").expect("RING row");
+        assert!(plip_row < ring_row, "{md}");
+
+        let mut ring_only = interaction_entry("b", vec![]);
+        ring_only.plip = None;
+        ring_only.ring = Some(vec![kind_metric("disulfide", 1.0, 2)]);
+        let md = render_markdown(&[ring_only]);
+        assert!(md.contains("against DSSP 4, FreeSASA and RING."), "{md}");
     }
 }

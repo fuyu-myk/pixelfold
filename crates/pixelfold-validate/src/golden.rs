@@ -50,7 +50,8 @@ pub struct HBondEdge {
 /// PLIP or RING reference: residue-residue non-covalent interactions by type.
 ///
 /// The generator normalises each tool's own type names and residue numbering to
-/// pixelfold's, so the comparison here is a plain set intersection per type.
+/// pixelfold's, so the comparison here is a plain set intersection per type,
+/// over the part of the structure the reference looked at.
 #[derive(Clone, Debug, Deserialize)]
 pub struct InteractionGolden {
     /// The interaction kinds this reference reports, by pixelfold's label.
@@ -64,6 +65,15 @@ pub struct InteractionGolden {
     /// residues and some crystallisation additives), not the HETATM record.
     #[serde(default)]
     pub ligands: Vec<ResidueKey>,
+    /// Whether the reference left water out of the structure, as RING does by
+    /// default, so it never reports an interaction with a water.
+    #[serde(default)]
+    pub water_excluded: bool,
+    /// Standard amino acids of one chain fewer than this many positions apart
+    /// are never paired by the reference (RING's sequence gap, 3 by default);
+    /// other residues pair at any distance. Zero pairs any two.
+    #[serde(default)]
+    pub sequence_separation: u32,
     #[serde(default)]
     pub interactions: Vec<InteractionEdge>,
 }

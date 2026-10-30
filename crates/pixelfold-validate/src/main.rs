@@ -26,7 +26,7 @@ use crate::compare::{EntryMetrics, compare};
 use crate::golden::Goldens;
 use crate::report::{render_markdown, summarize};
 
-/// Validate pixelfold against reference implementations (DSSP, FreeSASA).
+/// Validate pixelfold against reference implementations (DSSP, FreeSASA, PLIP, RING).
 #[derive(Parser)]
 #[command(name = "pixelfold-validate", version)]
 struct Cli {
