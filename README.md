@@ -40,6 +40,7 @@ Per-type interaction agreement (precision / recall / F1):
 | salt-bridge | RING | 205 | 4251 | 1545 | 0.38 | 1.00 | 0.50 |
 | pi-stacking | RING | 205 | 517 | 3756 | 1.00 | 0.25 | 0.32 |
 | pi-cation | RING | 205 | 453 | 454 | 0.72 | 0.71 | 0.62 |
+| pi-hydrogen-bond | RING | 205 | 269 | 97 | 0.65 | 0.99 | 0.66 |
 | halogen-bond | RING | 205 | 7 | 9 | 0.99 | 0.98 | 0.97 |
 | metal-coordination | RING | 205 | 567 | 558 | 0.89 | 0.91 | 0.86 |
 | disulfide | RING | 205 | 249 | 249 | 1.00 | 1.00 | 1.00 |
@@ -76,26 +77,26 @@ hydrogen-bond  A            52  ARG     NH2         A           161  MTX     O  
 hydrogen-bond  A            52  ARG     NH2         A           161  MTX     OE2          3.43  138.2
 hydrogen-bond  A            57  ARG     NH1         A           161  MTX     O1           2.57  155.1
 hydrogen-bond  A            57  ARG     NH2         A           161  MTX     O2           2.72  170.8
-... 53 rows
+... 48 rows
 ```
 
 Next, analyze the network to find where the important residues are located.
 
 ```console
 $ pixelfold rin 4DFR --analyze
-Residue interaction network: 311 residues, 629 edges, 5 components
+Residue interaction network: 311 residues, 615 edges, 5 components
 ...
 Top hubs by betweenness centrality:
   residue    resn  ss  degree      between
-  A/23       ASN   C        5     13880.74
-  A/24       LEU   C        5     12961.77
-  B/162      MTX   C       17     10909.25
-  A/161      MTX   C       15     10552.69
-  B/22       TRP   C        7     10378.71
+  A/23       ASN   C        5     14016.66
+  A/24       LEU   C        4     13113.96
+  A/161      MTX   C       15     11017.94
+  B/162      MTX   C       17     10686.73
+  B/22       TRP   C        7     10301.22
 ```
 
 Both copies of the inhibitor rank among the most central residues in the
-structure. Both are also articulation points, where the network will split if one is removed.
+structure. A/161 is also an articulation point, where the network will split if it is removed.
 This local computation takes about a second, and provides insight to the fold.
 
 Everything here is scriptable. `--format json|tsv|graphml` feeds a pipeline,
@@ -125,7 +126,7 @@ chemistry. Below is a compilation of how different tools compare.
 | [PyMOL](https://pymol.org) | Ray-traced publication figures, cartoons, surfaces, electrostatics, trajectories, twenty years of plugins, an embedded Python API, and near-universal adoption | Terminal-native with no display server; MIT throughout; the network is the primary output rather than a side feature |
 | [Mol\*](https://molstar.org) | GPU rendering at a quality and scale PixelFold cannot approach, million-atom and integrative models, MD streaming, zero install, and it powers RCSB, PDBe and AlphaFold DB | No browser and no upload, so embargoed coordinates stays local. PixelFold complements through its exportable `.mvsj` scenes |
 | [ChimeraX](https://www.cgl.ucsf.edu/chimerax/) | Cryo-EM density, structure building and refinement, VR, AlphaFold workflows, a bundle ecosystem, and NIH-funded maintenance | MIT versus a non-commercial licence, so it can be vendored freely; a small static binary rather than a GB-class install |
-| [RING 4.0](https://ring.biocomputingup.it) | The peer-reviewed network reference the field accepts. Ligand coverage across the whole PDB chemical component dictionary, plus pi-hydrogen bonds, which PixelFold does not detect. RING-PyMOL already does ensemble and MD contact analysis | Readable MIT source you can fork or embed as a Rust library, offline with no web upload, and graph analytics in the same binary. Distribution differences, not accuracy claims |
+| [RING 4.0](https://ring.biocomputingup.it) | The peer-reviewed network reference the field accepts. Ligand coverage across the whole PDB chemical component dictionary. RING-PyMOL already does ensemble and MD contact analysis | Readable MIT source you can fork or embed as a Rust library, offline with no web upload, and graph analytics in the same binary. Distribution differences, not accuracy claims |
 | [PLIP](https://plip-tool.biotec.tu-dresden.de) | The yardstick for interaction detection. Its protonation-aware pipeline is more physically grounded, and it covers DNA, RNA and protein-protein interfaces | No Python or OpenBabel to install; profiles the whole structure as a graph rather than only ligand sites |
 | [asciiMol](https://github.com/dewberryants/asciiMol) | Runs on genuinely any terminal, including plain ncurses, where PixelFold degrades to half-blocks and looks worse. `pip install` into an environment you already have. Native `.xyz` and SMILES | Protein-scale mmCIF and PDB with chains, conformers and a selection language, and the analysis engine behind it |
 
@@ -142,8 +143,9 @@ at. Against PLIP, only PixelFold's edges that touch a ligand PLIP profiled count
 Against RING, edges to water are left out, as are pairs of amino acids fewer than
 three residues apart in one chain, which RING never pairs at its defaults.
 
-Interaction geometry follows PLIP's published thresholds, with the exact source
-variable recorded next to every constant in
+Interaction geometry follows PLIP's published thresholds, and RING's for the
+pi-hydrogen bond, which PLIP does not detect, with the exact source recorded
+next to every constant in
 [`params.rs`](https://github.com/fuyu-myk/pixelfold/blob/main/crates/pixelfold-core/src/interactions/params.rs). Each known
 difference from RING is also noted. Secondary structure is
 Kabsch-Sander electrostatic hydrogen bonding with inferred amide hydrogens.
@@ -174,7 +176,12 @@ many. Pi-cation (F1 0.62) disagrees in both directions: PixelFold, like PLIP,
 counts histidine as a cation and needs the cation within 2.0 A of the ring's
 axis, while RING's cations here are only arginine and lysine, within about
 5.0 A. Hydrogen bonds agree at F1 0.83 (precision 0.79): RING's shorter 3.9 A
-cutoff and its added hydrogen-to-acceptor limit leave it fewer bonds. The
+cutoff and its added hydrogen-to-acceptor limit leave it fewer bonds.
+Pi-hydrogen bonds (F1 0.66, precision 0.65) follow RING's own definition, and
+PixelFold finds 95 of RING's 97 and 174 more. Of those, 97 come from a rotatable
+hydroxyl or ammonium, which PixelFold turns toward the ring and RING fixes at one
+torsion; the other 77 pass RING's published criteria and are still absent from
+its server's output, for reasons its closed engine does not show. The
 halogen-bond rows rest on five and nine reference edges, and an entry where
 neither side finds one counts as agreement, so they say little.
 
@@ -213,14 +220,14 @@ Being explicit about what this does not do:
   take about a day and a half.
 - **Hydrogen bonds and water bridges over-report** relative to PLIP, as above.
 - **Salt bridges over-report and pi-stacking under-reports** relative to RING,
-  as above, because both follow PLIP's geometry.
+  as above, because both follow PLIP's geometry. Pi-hydrogen bonds over-report
+  relative to RING too, mostly from rotatable hydrogens.
 - **No cartoons or ribbons, no molecular surfaces, no ray tracing.** Space-filling
   spheres and bonds only.
 - **No trajectories.** A multi-model file such as an NMR ensemble works model
   by model (`--model N`, or `--model all` for a report on every model), but a
   molecular-dynamics trajectory is not read.
 - **No cryo-EM density, no electrostatics, no structure building or refinement.**
-- **No pi-hydrogen bonds**, which RING 4.0 detects.
 - **Rendering quality depends on your terminal.** Kitty and iTerm2 show real
   pixels; anywhere else falls back to half-blocks, which is coarse. Pass
   `--protocol half-block` if the structure pane comes up blank.

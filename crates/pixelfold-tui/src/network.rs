@@ -564,6 +564,7 @@ fn edge_color(kind: InteractionKind) -> Color {
         InteractionKind::Hydrophobic => Color::Rgb(130, 140, 90),
         InteractionKind::PiStacking => Color::Rgb(180, 120, 240),
         InteractionKind::PiCation => Color::Rgb(230, 100, 190),
+        InteractionKind::PiHydrogenBond => Color::Rgb(120, 220, 90),
         InteractionKind::HalogenBond => Color::Rgb(80, 210, 190),
         InteractionKind::WaterBridge => Color::Rgb(110, 150, 200),
         InteractionKind::MetalCoordination => Color::Rgb(210, 190, 80),
@@ -579,6 +580,7 @@ fn kind_short(kind: InteractionKind) -> &'static str {
         InteractionKind::Hydrophobic => "phobic",
         InteractionKind::PiStacking => "π-stack",
         InteractionKind::PiCation => "π-cation",
+        InteractionKind::PiHydrogenBond => "π-H",
         InteractionKind::HalogenBond => "halogen",
         InteractionKind::WaterBridge => "water",
         InteractionKind::MetalCoordination => "metal",
@@ -587,12 +589,13 @@ fn kind_short(kind: InteractionKind) -> &'static str {
 }
 
 /// The interaction kinds in a fixed display order.
-const KIND_ORDER: [InteractionKind; 9] = [
+const KIND_ORDER: [InteractionKind; 10] = [
     InteractionKind::HydrogenBond,
     InteractionKind::SaltBridge,
     InteractionKind::Hydrophobic,
     InteractionKind::PiStacking,
     InteractionKind::PiCation,
+    InteractionKind::PiHydrogenBond,
     InteractionKind::HalogenBond,
     InteractionKind::WaterBridge,
     InteractionKind::MetalCoordination,

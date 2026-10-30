@@ -26,6 +26,7 @@ pub enum InteractionKind {
     Hydrophobic,
     PiStacking,
     PiCation,
+    PiHydrogenBond,
     HalogenBond,
     WaterBridge,
     MetalCoordination,
@@ -41,6 +42,7 @@ impl InteractionKind {
             InteractionKind::Hydrophobic => "hydrophobic",
             InteractionKind::PiStacking => "pi-stacking",
             InteractionKind::PiCation => "pi-cation",
+            InteractionKind::PiHydrogenBond => "pi-hydrogen-bond",
             InteractionKind::HalogenBond => "halogen-bond",
             InteractionKind::WaterBridge => "water-bridge",
             InteractionKind::MetalCoordination => "metal-coordination",
@@ -78,6 +80,7 @@ pub fn detect(protein: &Protein) -> Vec<Interaction> {
     interactions.extend(detectors::salt_bridges(protein, &bonds));
     interactions.extend(detectors::pi_stacking(protein));
     interactions.extend(detectors::pi_cation(protein, &bonds));
+    interactions.extend(detectors::pi_hydrogen_bonds(protein, &bonds));
     interactions.extend(detectors::hydrophobic_contacts(protein, &bonds));
     interactions.extend(detectors::water_bridges(protein, &bonds));
     interactions.extend(detectors::halogen_bonds(protein, &bonds));

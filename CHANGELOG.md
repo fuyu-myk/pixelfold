@@ -4,6 +4,27 @@ All notable changes to PixelFold are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Pi-hydrogen bonds**, a new interaction kind (`pi-hydrogen-bond`): an N-H or
+  O-H pointing into the face of an aromatic ring. PLIP has no such type, so the
+  geometry is RING 4.0's: the donor within 4.3 A of the ring centre and within
+  25 degrees of its axis, and the D-H...centre angle above 120 degrees. The
+  donors are the hydrogen bond donors, and a rotatable hydrogen is turned toward
+  the ring. The kind reaches every surface that lists interactions:
+  `interactions` and `rin` (with `--type pi-hydrogen-bond`), their exports, and
+  the network pane, where it is drawn as `π-H`. A donor bonds a residue once,
+  through the nearer of a tryptophan's two rings where it sits over both. Its
+  energy weight is 12.5 kJ/mol, after Levitt and Perutz's 3 kcal/mol. Against
+  RING, now scored on eight types, it finds
+  95 of RING's 97 pairs at a precision of 0.65 (F1 0.66); most of the extra
+  pairs come from the rotatable hydrogens, which RING fixes at one torsion. The
+  mean RING F1 moves from 0.729 to 0.721. `InteractionKind` gains a
+  `PiHydrogenBond` variant, which breaks an exhaustive `match` on it outside
+  this workspace.
+
 ## [2.1.0] (2026-10-30)
 
 The Linux release binaries now start on RHEL and Rocky 8, the usual cluster

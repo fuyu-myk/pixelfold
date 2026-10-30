@@ -70,11 +70,11 @@ and unscored.
 | `IONIC` | `salt-bridge` | |
 | `PIPISTACK` | `pi-stacking` | |
 | `PICATION` | `pi-cation` | |
+| `PIHBOND` | `pi-hydrogen-bond` | |
 | `HALOGEN` | `halogen-bond` | |
 | `METAL_ION` | `metal-coordination` | |
 | `SSBOND` | `disulfide` | |
 | `VDW` | none | any two atoms whose van der Waals radii overlap; pixelfold's `hydrophobic` is two apolar carbons within 4.0 A, a different criterion |
-| `PIHBOND` | none | pi-hydrogen bonds, which pixelfold does not detect |
 | `IAC` | none | generic contacts, emitted only under RING's C-alpha, C-beta and lollipop node policies, not the closest-atom policy used here |
 | none | `water-bridge` | RING has no water-mediated type |
 
