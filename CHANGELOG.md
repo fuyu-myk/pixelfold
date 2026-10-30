@@ -20,6 +20,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   seven times as many) to 1.00 (disulfide), with a mean of 0.729, and
   `--check` now fails below 0.65 (`min_ring_f1`).
 
+### Changed
+
+- **A water bridges two donors and two acceptors at most.** A water accepts a
+  hydrogen bond on each of its two lone pairs and donates one from each of its
+  two hydrogens, but the geometric gates alone let one water in a crowded site
+  bridge every donor near it to every acceptor near it. Where a water has more
+  candidates than it can serve, `pixelfold interactions` and `pixelfold rin` now
+  keep the bridges whose angle at the water is nearest tetrahedral. Against
+  PLIP, water-bridge precision moves from 0.53 to 0.59 and recall from 0.87 to
+  0.83, so F1 rises from 0.62 to 0.65 and the mean PLIP F1 from 0.828 to 0.832.
+  RING scores no water bridges, so its numbers do not move.
+
 ### Fixed
 
 - **`pixelfold sasa` left out modified residues.** Surface atoms were chosen by

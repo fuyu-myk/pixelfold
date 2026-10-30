@@ -18,8 +18,9 @@ use super::params::{
     HALOGEN_ANTECEDENT_ELEMENTS, HALOGEN_DIST_MAX, HALOGEN_DONOR_ANGLE, HALOGEN_ELEMENTS,
     HBOND_DIST_MAX, HBOND_DONOR_ANGLE_MIN, HYDROPHOBIC_DIST_MAX, METAL_DIST_MAX, MIN_DIST,
     PICATION_DIST_MAX, PISTACK_ANGLE_DEV, PISTACK_DIST_MAX, PISTACK_OFFSET_MAX,
-    SALTBRIDGE_DIST_MAX, WATER_BRIDGE_MAX_DIST, WATER_BRIDGE_MIN_DIST, WATER_BRIDGE_OMEGA_MAX,
-    WATER_BRIDGE_OMEGA_MIN, WATER_BRIDGE_THETA_MIN,
+    SALTBRIDGE_DIST_MAX, WATER_BRIDGE_MAX_DIST, WATER_BRIDGE_MIN_DIST, WATER_BRIDGE_OMEGA_IDEAL,
+    WATER_BRIDGE_OMEGA_MAX, WATER_BRIDGE_OMEGA_MIN, WATER_BRIDGE_THETA_MIN, WATER_HYDROGENS,
+    WATER_LONE_PAIRS,
 };
 use super::{Interaction, InteractionKind, aromatic, connectivity, hydrogens};
 
@@ -370,10 +371,18 @@ fn is_water_oxygen(atom: &Atom) -> bool {
 /// happens to sit between two residues: the geometry has to look like two
 /// hydrogen bonds through one oxygen, not a coincidence of proximity.
 ///
-/// Two differences from PLIP. This reports one bridge per donor instead of multiple,
-/// through whichever hydrogen reaches the water straightest. Additionally, this looks
-/// between any two residues over looking only for bridges between its ligand and its
-/// binding site.
+/// A water then serves two donors at most, one per lone pair, and two acceptors,
+/// one per hydrogen; see [`within_water_capacity`].
+///
+/// Differences from PLIP. This reports one bridge per donor, water and acceptor,
+/// through whichever hydrogen reaches the water straightest, where PLIP reports
+/// one per hydrogen. It looks between any two residues over looking only for
+/// bridges between its ligand and its binding site. PLIP caps a water at two
+/// acceptors with one donor each, where this caps it at two of each. PLIP also
+/// drops a bridge whose donor already makes a direct hydrogen bond between the
+/// ligand and its site. Applied to every hydrogen bond in a structure, as it
+/// would have to be here, that rule drops many of the bridges PLIP itself
+/// reports, so it is not reproduced.
 pub fn water_bridges(protein: &Protein, bonds: &connectivity::Bonds) -> Vec<Interaction> {
     let (waters, water_positions) = collect(protein, |i| is_water_oxygen(&protein.atoms[i]));
     let (acceptors, acceptor_positions) =
@@ -398,7 +407,7 @@ pub fn water_bridges(protein: &Protein, bonds: &connectivity::Bonds) -> Vec<Inte
         });
     }
 
-    let mut out = Vec::new();
+    let mut candidates = Vec::new();
     for donor in &donors {
         let origin = protein.atoms[donor.atom].position;
         let donor_residue = residue_key(&protein.atoms[donor.atom]);
@@ -439,20 +448,82 @@ pub fn water_bridges(protein: &Protein, bonds: &connectivity::Bonds) -> Vec<Inte
                     continue;
                 }
 
-                out.push(Interaction {
-                    kind: InteractionKind::WaterBridge,
-                    atoms_a: vec![donor.atom],
-                    atoms_b: vec![acceptor],
+                candidates.push(Bridge {
+                    donor: donor.atom,
+                    acceptor,
+                    water: waters[w],
                     // The longer leg, the one that limits the bridge.
                     distance: donor_leg.max(acceptor_leg),
-                    angle: Some(water_angle),
-                    bridge: Some(waters[w]),
+                    angle: water_angle,
                 });
             }
         });
     }
 
-    out
+    within_water_capacity(candidates)
+        .into_iter()
+        .map(|bridge| Interaction {
+            kind: InteractionKind::WaterBridge,
+            atoms_a: vec![bridge.donor],
+            atoms_b: vec![bridge.acceptor],
+            distance: bridge.distance,
+            angle: Some(bridge.angle),
+            bridge: Some(bridge.water),
+        })
+        .collect()
+}
+
+/// One donor-water-acceptor route that passed every geometric gate.
+struct Bridge {
+    donor: usize,
+    acceptor: usize,
+    water: usize,
+    distance: f32,
+    /// The angle at the water between the acceptor and the donor's hydrogen.
+    angle: f32,
+}
+
+/// Keep only the bridges each water can make at once.
+///
+/// A water accepts a hydrogen bond on each of its two lone pairs and donates one
+/// from each of its two hydrogens, so it bridges two donors and two acceptors at
+/// most. The geometric gates alone let one water in a crowded site bridge every
+/// donor near it to every acceptor near it. Where a water has more candidates
+/// than it can serve, those whose angle at the water is nearest tetrahedral are
+/// kept.
+fn within_water_capacity(mut candidates: Vec<Bridge>) -> Vec<Bridge> {
+    let strain = |bridge: &Bridge| (bridge.angle - WATER_BRIDGE_OMEGA_IDEAL).abs();
+    candidates.sort_by(|a, b| {
+        strain(a)
+            .total_cmp(&strain(b))
+            .then(a.distance.total_cmp(&b.distance))
+            .then((a.water, a.donor, a.acceptor).cmp(&(b.water, b.donor, b.acceptor)))
+    });
+
+    let mut donors: HashMap<usize, Vec<usize>> = HashMap::new();
+    let mut acceptors: HashMap<usize, Vec<usize>> = HashMap::new();
+    candidates.retain(|bridge| {
+        let donors = donors.entry(bridge.water).or_default();
+        let acceptors = acceptors.entry(bridge.water).or_default();
+        let new_donor = !donors.contains(&bridge.donor);
+        let new_acceptor = !acceptors.contains(&bridge.acceptor);
+        if (new_donor && donors.len() == WATER_LONE_PAIRS)
+            || (new_acceptor && acceptors.len() == WATER_HYDROGENS)
+        {
+            return false;
+        }
+
+        if new_donor {
+            donors.push(bridge.donor);
+        }
+        if new_acceptor {
+            acceptors.push(bridge.acceptor);
+        }
+        true
+    });
+
+    candidates.sort_unstable_by_key(|bridge| (bridge.donor, bridge.acceptor, bridge.water));
+    candidates
 }
 
 /// One surviving apolar carbon pair.
@@ -826,6 +897,8 @@ pub fn pi_cation(protein: &Protein, bonds: &connectivity::Bonds) -> Vec<Interact
 
 #[cfg(test)]
 mod tests {
+    use std::f32::consts::TAU;
+
     use super::*;
     use crate::fixed_str::FixedStr;
     use crate::structure::SecondaryStructure;
@@ -1610,6 +1683,68 @@ LIG C2 O2  sing
         // The water is in range of the donor but the acceptor is too far from it.
         let water = nitrogen + amide_direction() * 3.0;
         assert!(bridges(&bridged(water, water + Vec3::new(0.0, -6.0, 0.0))).is_empty());
+    }
+
+    /// The donor of [`bridged`] alone, turned by `turn` radians about the
+    /// vertical axis through the water so its amide hydrogen still points at
+    /// `water`.
+    fn amide_donor_facing(water: Vec3, turn: f32, seq: i32) -> Vec<Atom> {
+        let anchor = Vec3::new(3.3, 1.5, 0.0) + amide_direction() * 3.0;
+        let rotation = glam::Quat::from_rotation_z(turn);
+        bridged(anchor, Vec3::ZERO).atoms[..6]
+            .iter()
+            .map(|atom| Atom {
+                residue_seq: atom.residue_seq + seq,
+                position: water + rotation * (atom.position - anchor),
+                ..atom.clone()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_water_donates_to_two_acceptors_at_most_the_most_tetrahedral_first() {
+        let nitrogen = Vec3::new(3.3, 1.5, 0.0);
+        let water = nitrogen + amide_direction() * 3.0;
+        let towards_hydrogen = -amide_direction();
+        let in_plane = Vec3::Z.cross(towards_hydrogen).normalize();
+        // An acceptor 2.9 A from the water, at this angle from the hydrogen.
+        let at = |degrees: f32, across: Vec3| {
+            let (sin, cos) = degrees.to_radians().sin_cos();
+            water + (towards_hydrogen * cos + across * sin) * 2.9
+        };
+
+        // Every leg is the same length, so only the angle ranks them; the two
+        // nearest 110 degrees are the last two atoms, not the first.
+        let mut structure = bridged(water, at(125.0, in_plane)); // atom 7
+        structure.atoms.extend([
+            atom("GLY", 5, "O", "O", at(85.0, -in_plane)), // atom 8
+            atom("GLY", 6, "O", "O", at(110.0, Vec3::Z)),  // atom 9
+            atom("GLY", 7, "O", "O", at(100.0, -Vec3::Z)), // atom 10
+        ]);
+
+        let mut acceptors: Vec<usize> = bridges(&structure).iter().map(|b| b.atoms_b[0]).collect();
+        acceptors.sort_unstable();
+        assert_eq!(acceptors, vec![9, 10]);
+    }
+
+    #[test]
+    fn a_water_accepts_from_two_donors_at_most() {
+        let water = Vec3::new(10.0, 10.0, 0.0);
+        let mut atoms: Vec<Atom> = [0, 1, 2]
+            .into_iter()
+            .flat_map(|k| amide_donor_facing(water, k as f32 * TAU / 3.0, 10 * (k + 1)))
+            .collect();
+        atoms.push(atom("HOH", 90, "O", "O", water));
+        atoms.push(atom("GLY", 80, "O", "O", water + Vec3::new(0.0, 0.0, 2.9)));
+        atoms.push(atom("GLY", 70, "O", "O", water - Vec3::new(0.0, 0.0, 2.9)));
+
+        // The cap is on distinct partners, not on bridges: two donors and two
+        // acceptors make all four pairings through the one water.
+        let found = bridges(&protein(atoms));
+        let donors: std::collections::HashSet<usize> =
+            found.iter().map(|bridge| bridge.atoms_a[0]).collect();
+        assert_eq!(found.len(), 4);
+        assert_eq!(donors.len(), 2);
     }
 
     #[test]

@@ -34,7 +34,7 @@ Per-type interaction agreement (precision / recall / F1):
 | pi-stacking | PLIP | 60 | 23 | 22 | 0.97 | 0.95 | 0.92 |
 | pi-cation | PLIP | 60 | 6 | 17 | 0.97 | 0.88 | 0.84 |
 | halogen-bond | PLIP | 60 | 4 | 5 | 1.00 | 0.98 | 0.98 |
-| water-bridge | PLIP | 60 | 601 | 345 | 0.53 | 0.87 | 0.62 |
+| water-bridge | PLIP | 60 | 511 | 345 | 0.59 | 0.83 | 0.65 |
 | metal-coordination | PLIP | 60 | 444 | 338 | 0.82 | 0.92 | 0.81 |
 | hydrogen-bond | RING | 205 | 49374 | 43512 | 0.79 | 0.90 | 0.83 |
 | salt-bridge | RING | 205 | 4251 | 1545 | 0.38 | 1.00 | 0.50 |
@@ -149,11 +149,18 @@ difference from RING is also noted. Secondary structure is
 Kabsch-Sander electrostatic hydrogen bonding with inferred amide hydrogens.
 
 **The weak rows are a modelling choice, and they are the honest headline.**
-Hydrogen bonds (F1 0.68, precision 0.64) and water bridges (F1 0.62, precision
-0.53) are the two classes where PixelFold reports every geometrically reachable
-bond while PLIP commits to one. Those two classes are roughly
-half of all protein-ligand interactions, so for ligand-site work where a curated
-answer matters, use PLIP.
+Hydrogen bonds (F1 0.68, precision 0.64) and water bridges (F1 0.65, precision
+0.59) are the two classes where PixelFold reports what the geometry allows while
+PLIP commits to one reading of it. Of the 261 hydrogen-bonded residue pairs
+PixelFold finds and PLIP does not, 94 come from a rotatable hydroxyl, which
+PixelFold turns toward each acceptor and PLIP fixes wherever OpenBabel placed
+its hydrogen; 77 also form a salt bridge, which PLIP then drops and RING keeps;
+and the other 90 have nitrogen donors, many of them histidine tautomers, amide
+flips and ligand nitrogens the coordinates leave open. A water bridges up to two
+donors and two acceptors, one per lone pair and per hydrogen, where PLIP keeps
+one donor per acceptor and drops a donor that already hydrogen-bonds the ligand.
+Those two classes are roughly half of all protein-ligand interactions, so for
+ligand-site work where a curated answer matters, use PLIP.
 
 **Against RING, the weak rows come from following PLIP's definitions.** RING 4.0
 draws three types differently, and where the two disagree RING is the reference.
