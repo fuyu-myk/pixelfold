@@ -4,10 +4,20 @@ All notable changes to PixelFold are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.1.0] (2026-10-30)
+
+The Linux release binaries now start on RHEL and Rocky 8, the usual cluster
+login node, and `pixelfold sasa` stops dropping modified residues. A water now
+bridges two donors and two acceptors at most, as its lone pairs and hydrogens
+allow. The validation harness gains RING 4.0 as a second interaction reference
+and scores PLIP only on the ligands PLIP profiled. The library adds one method,
+`Atom::is_polymer`, and removes nothing.
 
 ### Added
 
+- **`Atom::is_polymer`** in `pixelfold-core`: whether an atom belongs to a
+  polymer chain, decided by its entity, so modified residues written as HETATM
+  records count. Without entity records it falls back to the record type.
 - **Interaction agreement against RING 4.0**, the whole-structure reference
   beside PLIP's ligand sites. Its golden files cover all 205 benchmark entries
   and come from the public RING 4.0 web server
@@ -19,6 +29,22 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Per-type F1 runs from 0.32 (pi-stacking, where RING's wider window finds
   seven times as many) to 1.00 (disulfide), with a mean of 0.729, and
   `--check` now fails below 0.65 (`min_ring_f1`).
+
+### Changed
+
+- **The Linux binaries need glibc 2.28 instead of 2.34.** Both Linux targets
+  now build inside a pinned manylinux_2_28 container rather than on the bare
+  Ubuntu 22.04 runner, so the prebuilt `pixelfold` starts on RHEL/Rocky 8 and
+  later. The macOS and Windows binaries and `cargo install` are unaffected.
+- **A water bridges two donors and two acceptors at most.** A water accepts a
+  hydrogen bond on each of its two lone pairs and donates one from each of its
+  two hydrogens, but the geometric gates alone let one water in a crowded site
+  bridge every donor near it to every acceptor near it. Where a water has more
+  candidates than it can serve, `pixelfold interactions` and `pixelfold rin` now
+  keep the bridges whose angle at the water is nearest tetrahedral. Against
+  PLIP, water-bridge precision moves from 0.53 to 0.59 and recall from 0.87 to
+  0.83, so F1 rises from 0.62 to 0.65 and the mean PLIP F1 from 0.828 to 0.832.
+  RING scores no water bridges, so its numbers do not move.
 
 ### Fixed
 

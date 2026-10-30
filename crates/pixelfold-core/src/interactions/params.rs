@@ -98,6 +98,14 @@ pub const WATER_BRIDGE_OMEGA_MIN: f32 = 71.0;
 pub const WATER_BRIDGE_OMEGA_MAX: f32 = 140.0;
 /// Water-bridge angle bounds (PLIP `WATER_BRIDGE_THETA_MIN`).
 pub const WATER_BRIDGE_THETA_MIN: f32 = 100.0;
+/// The angle at the water a bridge is ranked against when a water has more
+/// candidates than it can serve: PLIP's `refine_water_bridges` target, close to
+/// the tetrahedral 109.5 degrees.
+pub const WATER_BRIDGE_OMEGA_IDEAL: f32 = 110.0;
+/// Donors one water accepts a hydrogen bond from, one per lone pair.
+pub const WATER_LONE_PAIRS: usize = 2;
+/// Acceptors one water donates a hydrogen bond to, one per hydrogen.
+pub const WATER_HYDROGENS: usize = 2;
 
 /// Max metal-ion to coordinating O/N/S atom distance (PLIP `METAL_DIST_MAX`,
 /// Harding 2001).
