@@ -4,7 +4,14 @@ All notable changes to PixelFold are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [3.0.0] (2026-10-30)
+
+Pixelfold now detects pi-hydrogen bonds, and the validation harness scores
+them against RING 4.0. The version is major only because `InteractionKind`
+gains a variant: code outside this workspace that matches on it exhaustively
+needs a `PiHydrogenBond` arm or a wildcard. Nothing is removed, and every
+existing interaction kind reports what it did in 2.1.0; residue networks gain
+the new edges.
 
 ### Added
 
