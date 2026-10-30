@@ -59,8 +59,8 @@ cargo install pixelfold
 
 This needs Rust 1.88 or newer. Each [GitHub release](https://github.com/fuyu-myk/pixelfold/releases)
 also carries prebuilt binaries for macOS, Linux and Windows, with shell and
-PowerShell installers. The Linux binaries need glibc 2.28 or newer, which
-covers RHEL/Rocky 8 and later, the usual cluster login node; the v2.0.0 ones
+PowerShell installers. From v2.1.0 the Linux binaries need glibc 2.28 or newer,
+which covers RHEL/Rocky 8 and later, the usual cluster login node; earlier ones
 need glibc 2.34.
 
 ## A 30 second demo
