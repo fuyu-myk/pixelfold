@@ -1077,6 +1077,60 @@ fn poses_rank_by_the_reference_contacts_they_keep() {
 }
 
 #[test]
+fn a_pose_that_inverts_a_stereocentre_of_the_ligand_names_it() {
+    // The phenylalanine's amine and side chain trade places on its alpha
+    // carbon, which turns it from D to L.
+    let dir = tempfile::tempdir().unwrap();
+    let text = std::fs::read_to_string(fixture("1PPB")).unwrap();
+    let column = atom_site_columns(&text);
+    let position = |name: &str| -> Vec<String> {
+        let line = text
+            .lines()
+            .find(|line| {
+                let fields: Vec<&str> = line.split_whitespace().collect();
+                line.starts_with("HETATM")
+                    && fields[column["auth_comp_id"]] == "0G6"
+                    && fields[column["auth_atom_id"]] == name
+            })
+            .unwrap();
+        let fields: Vec<&str> = line.split_whitespace().collect();
+        ["Cartn_x", "Cartn_y", "Cartn_z"]
+            .map(|axis| fields[column[axis]].to_string())
+            .to_vec()
+    };
+    let (amine, side_chain) = (position("N"), position("CB"));
+    let inverted = edited_fixture("1PPB", dir.path(), |fields, column| {
+        if fields[column["auth_comp_id"]] != "0G6" {
+            return;
+        }
+        let to = match fields[column["auth_atom_id"]].as_str() {
+            "N" => &side_chain,
+            "CB" => &amine,
+            _ => return,
+        };
+        for (axis, value) in ["Cartn_x", "Cartn_y", "Cartn_z"].into_iter().zip(to) {
+            fields[column[axis]] = value.clone();
+        }
+    });
+
+    let found = records(&poses_against(
+        &fixture("1PPB"),
+        &[&inverted, &fixture("1PPB")],
+    ));
+    let by_file = |suffix: &str| {
+        found
+            .iter()
+            .find(|record| record["pose"].as_str().unwrap().ends_with(suffix))
+            .unwrap()
+    };
+    assert_eq!(by_file("1PPB.cif")["inverted"], serde_json::json!([]));
+    assert_eq!(
+        by_file("1PPB-edited.cif")["inverted"],
+        serde_json::json!(["0G6 H/1 CA"])
+    );
+}
+
+#[test]
 fn a_pose_in_another_frame_is_superposed_on_the_pocket() {
     // The whole complex turned a quarter about z and lifted 30 A, as a
     // co-folding model sits in a frame of its own.

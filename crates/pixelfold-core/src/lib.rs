@@ -14,6 +14,7 @@ pub mod rmsd;
 pub mod sasa;
 pub mod select;
 mod spatial;
+mod stereo;
 pub mod structure;
 
 pub use components::{Component, Dictionary};

@@ -9,7 +9,7 @@ use pixelfold_core::components::Dictionary;
 use pixelfold_core::interactions::{Interaction, detect};
 use pixelfold_core::numbering::{self, Chain, ResidueKey, ResidueMap};
 use pixelfold_core::pose::{self, Attachments, Contact, Contents, Fingerprint};
-use pixelfold_core::rmsd::{NoRmsd, POCKET_REACH, RmsdReference};
+use pixelfold_core::rmsd::{AtomId, NoRmsd, POCKET_REACH, RmsdReference};
 use pixelfold_core::{Atom, AtomSet, ChainId, Protein};
 use serde::Serialize;
 
@@ -33,6 +33,9 @@ pub struct PoseRecord {
     /// on the reference's pocket, or `None` when it cannot be measured.
     pub rmsd: Option<f32>,
     pub clashes: usize,
+    /// The reference ligand's stereocentres the pose inverts, or `None` when
+    /// its atoms could not be paired with the reference's.
+    pub inverted: Option<Vec<String>>,
     pub lost: Vec<String>,
 }
 
@@ -48,6 +51,7 @@ impl Row for PoseRecord {
             "similarity",
             "rmsd",
             "clashes",
+            "inverted",
             "lost",
         ]
     }
@@ -63,6 +67,9 @@ impl Row for PoseRecord {
             format!("{:.3}", self.similarity),
             self.rmsd.map_or(String::new(), |rmsd| format!("{rmsd:.2}")),
             self.clashes.to_string(),
+            self.inverted
+                .as_ref()
+                .map_or(String::new(), |inverted| inverted.join(", ")),
             self.lost.join(", "),
         ]
     }
@@ -250,7 +257,7 @@ impl Reference {
         let found = pose::fingerprint(model.protein, &model.interactions, copy);
         let map = pose::residue_map(&found, &model.chains, reference, &self.chains);
         let fingerprint = pose::renumbered(&found, reference, &map);
-        let rmsd = self.rmsd.rmsd(model.protein, copy, &map);
+        let fit = self.rmsd.fit(model.protein, copy, &map);
 
         let record = PoseRecord {
             pose: model.pose.to_string(),
@@ -260,15 +267,19 @@ impl Reference {
             shared: fingerprint.shared(reference),
             recovery: rounded(fingerprint.recovery(reference), 3),
             similarity: rounded(fingerprint.similarity(reference), 3),
-            rmsd: rmsd.as_ref().ok().map(|&rmsd| rounded(rmsd, 2)),
+            rmsd: fit.as_ref().ok().map(|fit| rounded(fit.rmsd, 2)),
             clashes: pose::clashes(model.protein, copy, &self.attachments.renumbered(&map)),
+            inverted: fit
+                .as_ref()
+                .ok()
+                .map(|fit| fit.inverted.iter().map(atom_label).collect()),
             lost: fingerprint.lost(reference).map(contact_label).collect(),
         };
 
         Scored {
             record,
             map,
-            no_rmsd: rmsd.err(),
+            no_rmsd: fit.err(),
         }
     }
 
@@ -379,6 +390,11 @@ fn residue_id((chain, seq, icode): ResidueKey) -> String {
     }
 }
 
+/// An atom as its residue and name, e.g. `0G6 H/1 CA`.
+fn atom_label((residue, residue_name, name): &AtomId) -> String {
+    format!("{residue_name} {} {name}", residue_id(*residue))
+}
+
 /// A contact as its residue and kind, e.g. `HIS H/57 hydrogen-bond`.
 fn contact_label(contact: &Contact) -> String {
     format!(
@@ -404,6 +420,7 @@ mod tests {
             similarity,
             rmsd: None,
             clashes,
+            inverted: None,
             lost: Vec::new(),
         }
     }

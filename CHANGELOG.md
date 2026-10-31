@@ -15,17 +15,23 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   fingerprint is the set of residues its ligand touches, each with the kind of
   interaction; each pose reports its contacts, those it shares with the
   reference, its recovery (the share of the reference's contacts it keeps), its
-  Tanimoto similarity, its ligand RMSD, its clashes and the contacts it lost,
-  best first. The RMSD follows AlphaFold 3's protocol: the pose is superposed
+  Tanimoto similarity, its ligand RMSD, its clashes, the reference ligand's
+  stereocentres it inverts and the contacts it lost, best first. The RMSD
+  follows AlphaFold 3's protocol: the pose is superposed
   on the reference pocket's backbone (N, CA and C within 10 A of the ligand, on
   the chain holding the most), and the ligand's heavy atoms pair by name or, for
   output named otherwise, by bond graph, in the pairing closest in space that
   the bonds allow, so swapped equivalent atoms and reordered copies cost
-  nothing. A clash is a ligand-protein heavy-atom pair closer than 0.75 of their
-  summed van der Waals radii, PoseBusters' default; a covalent ligand's bonds to
-  the protein, read off the reference, are not clashes. A pose file without its
-  ligand's chemical definitions, as co-folding output often is, borrows the
-  reference's.
+  nothing. The same pairing checks chirality, PoseBusters-style but against the
+  reference: a tetrahedral stereocentre of the reference ligand, one whose
+  neighbours no symmetry of the bond graph exchanges, is inverted when the
+  pose's atoms around it clearly turn the other way, a centre left flat not
+  counting, and a symmetric ligand merely turned about, such as a meso
+  compound, inverts nothing. A clash is a ligand-protein heavy-atom pair closer
+  than 0.75 of their summed van der Waals radii, PoseBusters' default; a
+  covalent ligand's bonds to the protein, read off the reference, are not
+  clashes. A pose file without its ligand's chemical definitions, as co-folding
+  output often is, borrows the reference's.
   Residues are matched with the reference's by aligning chain sequences, so a
   co-folding model numbered from 1 compares with a crystal structure in author
   numbering: of identical chains, as in a homodimer, the pairing that keeps the

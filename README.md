@@ -246,7 +246,16 @@ Being explicit about what this does not do:
   indifferent to the order of a ligand's copies; a pose whose ligand atoms pair
   with the reference's neither by name nor by bond graph (a ligand missing atoms,
   or one renamed and so distorted its bonds no longer read) gets none, with a
-  warning.
+  warning. The same pairing names the reference ligand's tetrahedral
+  stereocentres a pose inverts (`inverted`, empty like the RMSD when the atoms
+  cannot be paired); a centre the pose leaves flat, as a covalent warhead
+  without its bond to the protein is, does not count. The bond graph is
+  heavy-atom connectivity without bond orders, so a centre whose substituents
+  differ only in bond order or hydrogens (glyceraldehyde's CHO beside its
+  CH2OH) is not checked, nor is one whose neighbours a symmetry could exchange
+  (cis and trans across a symmetric ring, as in 4-methylcyclohexanol), one left
+  with fewer than three neighbours inside the ligand selection (a glycan's
+  anomeric carbon on its asparagine), or a double bond's E or Z.
 - **No trajectories.** A multi-model file such as an NMR ensemble works model
   by model (`--model N`, or `--model all` for a report on every model), but a
   molecular-dynamics trajectory is not read.
@@ -274,7 +283,8 @@ pixelfold rin 4DFR --path A/23 A/94
 pixelfold rin 4DFR --mvsj -o scene.mvsj
 
 # Ligand poses, from co-folding, docking or an NMR ensemble, ranked by the
-# reference contacts each keeps, with their pocket-aligned RMSD and clashes;
+# reference contacts each keeps, with their pocket-aligned RMSD, their clashes
+# and the stereocentres they invert;
 # every model is a pose, and residues are matched by sequence, so the numbering
 # may differ
 pixelfold poses --reference crystal.cif --ligand STI pose_*.cif

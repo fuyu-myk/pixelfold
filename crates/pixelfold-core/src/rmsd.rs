@@ -10,7 +10,8 @@
 //! where it does not, as output from a SMILES input does not. Either way the
 //! pairing is the one closest in space among those the bond graph allows, so a
 //! carboxylate or a ring that swaps equivalent atoms costs nothing, and nor do
-//! copies of a ligand listed in another order.
+//! copies of a ligand listed in another order. The same pairing says which of
+//! the reference ligand's stereocentres the pose inverts.
 
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -23,6 +24,7 @@ use crate::interactions::connectivity;
 use crate::numbering::{ResidueKey, ResidueMap, residue_key};
 use crate::pose::is_hydrogen;
 use crate::select::AtomSet;
+use crate::stereo::{self, Stereocentre};
 use crate::structure::{ChainId, Protein};
 
 /// How far from the reference ligand a backbone atom may lie and still belong
@@ -67,6 +69,19 @@ impl fmt::Display for NoRmsd {
     }
 }
 
+/// A pose's ligand measured against the reference's.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Fit {
+    /// The heavy-atom RMSD in angstroms.
+    pub rmsd: f32,
+    /// The reference ligand's stereocentres the pose turns the other way, in
+    /// the reference's order.
+    pub inverted: Vec<AtomId>,
+}
+
+/// A reference atom by residue, component and name.
+pub type AtomId = (ResidueKey, FixedStr<6>, FixedStr<4>);
+
 /// A heavy atom's place in a ligand across structures: its component, which
 /// residue of that component it is, counted in order, and its name. A pose
 /// may number its residues otherwise, but lists a ligand's residues in the
@@ -77,12 +92,14 @@ type AtomKey = (FixedStr<6>, usize, FixedStr<4>);
 type PocketAtom = (ResidueKey, FixedStr<4>, Vec3);
 
 /// What a pose's ligand RMSD is measured against: the reference ligand's heavy
-/// atoms and their bond graph, and the pocket atoms a pose is superposed on,
-/// by chain, the chain holding the most first.
+/// atoms, their bond graph and stereocentres, and the pocket atoms a pose is
+/// superposed on, by chain, the chain holding the most first.
 #[derive(Clone, Debug)]
 pub struct RmsdReference {
     keys: Vec<AtomKey>,
+    atoms: Vec<AtomId>,
     graph: LigandGraph,
+    stereocentres: Vec<Stereocentre>,
     pocket: Vec<Vec<PocketAtom>>,
 }
 
@@ -90,10 +107,23 @@ impl RmsdReference {
     /// The reference made of the `ligand` atoms of `reference`.
     pub fn new(reference: &Protein, ligand: &AtomSet) -> Self {
         let heavy = heavy_atoms(reference, ligand);
+        let graph = LigandGraph::of(reference, &heavy);
 
         Self {
             keys: atom_keys(reference, &heavy),
-            graph: LigandGraph::of(reference, &heavy),
+            atoms: heavy
+                .iter()
+                .map(|&atom| {
+                    let atom = &reference.atoms[atom];
+                    (residue_key(atom), atom.residue_name, atom.name)
+                })
+                .collect(),
+            stereocentres: stereo::stereocentres(
+                &graph.elements,
+                &graph.positions,
+                &graph.neighbours,
+            ),
+            graph,
             pocket: pocket(reference, ligand, &heavy),
         }
     }
@@ -104,9 +134,9 @@ impl RmsdReference {
         self.pocket.iter().any(|atoms| atoms.len() >= 3)
     }
 
-    /// The RMSD of the `ligand` atoms of `pose`, in angstroms, once the pose is
-    /// superposed on the reference's pocket through `map`.
-    pub fn rmsd(&self, pose: &Protein, ligand: &AtomSet, map: &ResidueMap) -> Result<f32, NoRmsd> {
+    /// The `ligand` atoms of `pose` measured against the reference's once the
+    /// pose is superposed on the reference's pocket through `map`.
+    pub fn fit(&self, pose: &Protein, ligand: &AtomSet, map: &ResidueMap) -> Result<Fit, NoRmsd> {
         let heavy = heavy_atoms(pose, ligand);
         if heavy.len() != self.keys.len() {
             return Err(NoRmsd::Atoms {
@@ -123,9 +153,48 @@ impl RmsdReference {
         let mobile = self
             .named(pose, &heavy, &placed)
             .unwrap_or_else(|| LigandGraph::of(pose, &heavy).placed_at(placed));
-        let squared = closest_pairing(&mobile, &self.graph).ok_or(NoRmsd::Unpaired)?;
+        let (squared, pairing) =
+            closest_pairing(&mobile, &self.graph, &[]).ok_or(NoRmsd::Unpaired)?;
 
-        Ok((squared / heavy.len().max(1) as f32).sqrt())
+        Ok(Fit {
+            rmsd: (squared / heavy.len().max(1) as f32).sqrt(),
+            inverted: self.inverted(&mobile, &pairing),
+        })
+    }
+
+    /// The reference stereocentres the `mobile` atoms turn the other way under
+    /// `pairing`. A symmetry of the ligand may carry a centre onto another of
+    /// its class that turns the other way, as in a meso compound, so before
+    /// one such is reported, a pairing that keeps every centre is sought: if
+    /// there is one, the pose is the same molecule turned about.
+    fn inverted(&self, mobile: &LigandGraph, pairing: &[usize]) -> Vec<AtomId> {
+        let mut paired = vec![Vec3::ZERO; pairing.len()];
+        for (&position, &partner) in mobile.positions.iter().zip(pairing) {
+            paired[partner] = position;
+        }
+        let inverted: Vec<&Stereocentre> = self
+            .stereocentres
+            .iter()
+            .filter(|stereocentre| {
+                stereocentre.inverted_at(stereocentre.atoms().map(|atom| paired[atom]))
+            })
+            .collect();
+
+        let exchangeable = inverted.iter().any(|inverted| {
+            self.stereocentres
+                .iter()
+                .filter(|other| other.class == inverted.class)
+                .count()
+                > 1
+        });
+        if exchangeable && closest_pairing(mobile, &self.graph, &self.stereocentres).is_some() {
+            return Vec::new();
+        }
+
+        inverted
+            .iter()
+            .map(|stereocentre| self.atoms[stereocentre.centre])
+            .collect()
     }
 
     /// The superposition of `pose` on the first pocket chain with at least
@@ -268,8 +337,9 @@ impl LigandGraph {
 }
 
 /// The least sum of squared distances over the pairings of `mobile`'s atoms
-/// with `target`'s that keep elements and bonds, or `None` when there is no
-/// such pairing.
+/// with `target`'s that keep elements and bonds, and turn none of `target`'s
+/// stereocentres in `keep` the other way, with the pairing, each `mobile`
+/// atom's partner, or `None` when there is no such pairing.
 ///
 /// A branch-and-bound search: atoms go in bond order, so each meets the
 /// neighbours of atoms already paired; each tries its nearest candidates
@@ -277,16 +347,21 @@ impl LigandGraph {
 /// pairing found is the nearest-first one, which for a pose that sits where the
 /// reference does is the answer, and the rest are cut short. Past [`MAX_STEPS`]
 /// the best found stands.
-fn closest_pairing(mobile: &LigandGraph, target: &LigandGraph) -> Option<f32> {
+fn closest_pairing(
+    mobile: &LigandGraph,
+    target: &LigandGraph,
+    keep: &[Stereocentre],
+) -> Option<(f32, Vec<usize>)> {
     if mobile.signature() != target.signature() {
         return None;
     }
     let mut search = Pairing {
         mobile,
         target,
+        keep,
         order: bond_order(mobile),
         paired: vec![None; mobile.elements.len()],
-        taken: vec![false; target.elements.len()],
+        owner: vec![None; target.elements.len()],
         best: None,
         steps: 0,
     };
@@ -326,35 +401,46 @@ fn bond_order(graph: &LigandGraph) -> Vec<usize> {
 struct Pairing<'a> {
     mobile: &'a LigandGraph,
     target: &'a LigandGraph,
+    keep: &'a [Stereocentre],
     order: Vec<usize>,
+    /// Each mobile atom's partner so far.
     paired: Vec<Option<usize>>,
-    taken: Vec<bool>,
-    best: Option<f32>,
+    /// Each target atom's partner so far.
+    owner: Vec<Option<usize>>,
+    best: Option<(f32, Vec<usize>)>,
     steps: usize,
 }
 
 impl Pairing<'_> {
     fn run(&mut self, depth: usize, sum: f32) {
         let Some(&atom) = self.order.get(depth) else {
-            if self.best.is_none_or(|best| sum < best) {
-                self.best = Some(sum);
+            if self.best.as_ref().is_none_or(|&(best, _)| sum < best) {
+                let pairing = self
+                    .paired
+                    .iter()
+                    .map(|partner| partner.expect("every atom is paired at a leaf"))
+                    .collect();
+                self.best = Some((sum, pairing));
             }
             return;
         };
 
         for (squared, candidate) in self.candidates(atom) {
             self.steps += 1;
-            let hopeless = self.best.is_some_and(|best| sum + squared >= best);
+            let hopeless = self
+                .best
+                .as_ref()
+                .is_some_and(|&(best, _)| sum + squared >= best);
             if hopeless || self.steps > MAX_STEPS {
                 break;
             }
-            if !self.consistent(atom, candidate) {
+            if !self.consistent(atom, candidate) || !self.keeps_turns(atom, candidate) {
                 continue;
             }
             self.paired[atom] = Some(candidate);
-            self.taken[candidate] = true;
+            self.owner[candidate] = Some(atom);
             self.run(depth + 1, sum + squared);
-            self.taken[candidate] = false;
+            self.owner[candidate] = None;
             self.paired[atom] = None;
         }
     }
@@ -375,7 +461,7 @@ impl Pairing<'_> {
         let mut candidates: Vec<(f32, usize)> = pool
             .into_iter()
             .filter(|&other| {
-                !self.taken[other]
+                self.owner[other].is_none()
                     && target.elements[other] == mobile.elements[atom]
                     && target.neighbours[other].len() == mobile.neighbours[atom].len()
             })
@@ -403,10 +489,34 @@ impl Pairing<'_> {
         }
         let partners_bonded = target.neighbours[candidate]
             .iter()
-            .filter(|&&other| self.taken[other])
+            .filter(|&&other| self.owner[other].is_some())
             .count();
 
         bonded_paired == partners_bonded
+    }
+
+    /// True when pairing `atom` with `candidate` turns none of the
+    /// stereocentres to keep that it completes the other way.
+    fn keeps_turns(&self, atom: usize, candidate: usize) -> bool {
+        self.keep.iter().all(|stereocentre| {
+            let atoms = stereocentre.atoms();
+            if !atoms.contains(&candidate) {
+                return true;
+            }
+            let position = |target: usize| {
+                let partner = match target == candidate {
+                    true => Some(atom),
+                    false => self.owner[target],
+                };
+                partner.map(|partner| self.mobile.positions[partner])
+            };
+            match atoms.map(position) {
+                [Some(centre), Some(a), Some(b), Some(c)] => {
+                    !stereocentre.inverted_at([centre, a, b, c])
+                }
+                _ => true,
+            }
+        })
     }
 }
 
@@ -567,6 +677,10 @@ mod tests {
     }
 
     fn rmsd_of(pose: &Protein, reference: &Protein) -> Result<f32, NoRmsd> {
+        fit_of(pose, reference).map(|fit| fit.rmsd)
+    }
+
+    fn fit_of(pose: &Protein, reference: &Protein) -> Result<Fit, NoRmsd> {
         let map = residue_map(
             &polymer_chains(pose),
             &polymer_chains(reference),
@@ -574,7 +688,73 @@ mod tests {
             |_| 0,
         );
 
-        RmsdReference::new(reference, &ligand_of(reference)).rmsd(pose, &ligand_of(pose), &map)
+        RmsdReference::new(reference, &ligand_of(reference)).fit(pose, &ligand_of(pose), &map)
+    }
+
+    /// The glycines of [`site`] around a ligand with one stereocentre: C1 at
+    /// the origin, bonded to a methyl carbon, a nitrogen, an oxygen and a
+    /// fluorine at the corners of a tetrahedron.
+    fn chiral_site() -> Protein {
+        let mut structure = site();
+        structure.atoms.retain(|atom| atom.residue_name != "LIG");
+        let corners = [
+            Vec3::new(1.0, 1.0, 1.0),
+            Vec3::new(1.0, -1.0, -1.0),
+            Vec3::new(-1.0, 1.0, -1.0),
+            Vec3::new(-1.0, -1.0, 1.0),
+        ];
+        structure
+            .atoms
+            .push(atom(900, "LIG", "C1", "C", Vec3::ZERO));
+        for ((name, element), corner) in [("C2", "C"), ("N1", "N"), ("O1", "O"), ("F1", "F")]
+            .into_iter()
+            .zip(corners)
+        {
+            let position = corner.normalize() * 1.5;
+            structure
+                .atoms
+                .push(atom(900, "LIG", name, element, position));
+        }
+
+        structure
+    }
+
+    /// The glycines of [`site`] around meso-2,3-dichlorobutane, staggered so
+    /// that C2 and C3, which turn opposite ways, face each other through the
+    /// origin; each keeps its hydrogen implicit. `chlorine` places C2's
+    /// chlorine, which the hydrogen's corner instead makes the molecule
+    /// chiral.
+    fn meso_site(chlorine: Vec3) -> Protein {
+        let mut structure = site();
+        structure.atoms.retain(|atom| atom.residue_name != "LIG");
+        let c2 = Vec3::new(-0.77, 0.0, 0.0);
+        let c1 = c2 + Vec3::new(-1.0 / 3.0, 0.9428, 0.0) * 1.53;
+        let cl3 = -(c2 + Vec3::new(-1.0 / 3.0, -0.4714, 0.8165) * 1.78);
+        for (name, element, position) in [
+            ("C1", "C", c1),
+            ("C2", "C", c2),
+            ("CL2", "CL", c2 + chlorine * 1.78),
+            ("C3", "C", -c2),
+            ("C4", "C", -c1),
+            ("CL3", "CL", cl3),
+        ] {
+            structure
+                .atoms
+                .push(atom(900, "LIG", name, element, position));
+        }
+
+        structure
+    }
+
+    const MESO_CHLORINE: Vec3 = Vec3::new(-1.0 / 3.0, -0.4714, 0.8165);
+    const CHIRAL_CHLORINE: Vec3 = Vec3::new(-1.0 / 3.0, -0.4714, -0.8165);
+
+    fn named(structure: &Protein, name: &str) -> usize {
+        structure
+            .atoms
+            .iter()
+            .position(|atom| atom.name == name)
+            .unwrap()
     }
 
     fn moved(structure: &Protein, motion: impl Fn(Vec3) -> Vec3) -> Protein {
@@ -825,5 +1005,65 @@ mod tests {
         }
 
         assert!(rmsd_of(&pose, &reference).unwrap() < 1e-3);
+    }
+
+    #[test]
+    fn a_pose_that_inverts_a_stereocentre_is_found_out() {
+        let reference = chiral_site();
+        assert_eq!(fit_of(&reference, &reference).unwrap().inverted, []);
+
+        // The nitrogen and the oxygen trade places, which turns C1 the other
+        // way.
+        let mut pose = reference.clone();
+        let (n1, o1) = (named(&pose, "N1"), named(&pose, "O1"));
+        let (a, b) = (pose.atoms[n1].position, pose.atoms[o1].position);
+        pose.atoms[n1].position = b;
+        pose.atoms[o1].position = a;
+
+        let c1 = (
+            (FixedStr::new("A"), 900, None),
+            FixedStr::new("LIG"),
+            FixedStr::new("C1"),
+        );
+        assert_eq!(fit_of(&pose, &reference).unwrap().inverted, [c1]);
+    }
+
+    #[test]
+    fn a_mirror_image_named_otherwise_is_found_out_through_its_bond_graph() {
+        let reference = chiral_site();
+        let mut pose = reference.clone();
+        let ligand_start = pose.atoms.len() - 5;
+        for (i, atom) in pose.atoms[ligand_start..].iter_mut().enumerate() {
+            atom.name = FixedStr::new(&format!("X{i}"));
+            atom.position.x = -atom.position.x;
+        }
+
+        let inverted = fit_of(&pose, &reference).unwrap().inverted;
+        let names: Vec<&str> = inverted.iter().map(|(_, _, name)| name.as_str()).collect();
+        assert_eq!(names, ["C1"]);
+    }
+
+    #[test]
+    fn a_meso_ligand_turned_about_inverts_nothing() {
+        let reference = meso_site(MESO_CHLORINE);
+        let mut turned = reference.clone();
+        let ligand_start = turned.atoms.len() - 6;
+        for atom in &mut turned.atoms[ligand_start..] {
+            atom.position = Vec3::new(-atom.position.x, -atom.position.y, atom.position.z);
+        }
+
+        let fit = fit_of(&turned, &reference).unwrap();
+        assert!(fit.rmsd > 1.0, "{fit:?}");
+        assert_eq!(fit.inverted, []);
+    }
+
+    #[test]
+    fn one_centre_of_a_meso_ligand_inverted_is_still_found_out() {
+        let reference = meso_site(MESO_CHLORINE);
+        let pose = meso_site(CHIRAL_CHLORINE);
+
+        let inverted = fit_of(&pose, &reference).unwrap().inverted;
+        let names: Vec<&str> = inverted.iter().map(|(_, _, name)| name.as_str()).collect();
+        assert_eq!(names, ["C2"]);
     }
 }
