@@ -43,7 +43,7 @@ impl AtomSet {
         self.bits.ones()
     }
 
-    fn empty(atoms: usize) -> Self {
+    pub(crate) fn empty(atoms: usize) -> Self {
         Self {
             bits: FixedBitSet::with_capacity(atoms),
         }
@@ -55,7 +55,7 @@ impl AtomSet {
         Self { bits }
     }
 
-    fn insert(&mut self, index: usize) {
+    pub(crate) fn insert(&mut self, index: usize) {
         self.bits.insert(index);
     }
 

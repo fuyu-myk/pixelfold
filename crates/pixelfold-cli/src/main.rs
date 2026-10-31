@@ -208,7 +208,9 @@ enum Command {
     /// pocket-aligned RMSD and their clashes.
     /// Every model of each pose file is a pose (or only --model N); the
     /// reference is its first model. Residues are matched with the reference's
-    /// by aligning chain sequences, so a pose may number them as it likes
+    /// by aligning chain sequences, so a pose may number them as it likes. A
+    /// pose holding several copies of the ligand is scored by the copy most
+    /// like the reference's, named in the copy column
     Poses {
         /// The pose files: .pdb/.cif paths or 4-character PDB ids
         #[arg(required = true, value_name = "POSE")]

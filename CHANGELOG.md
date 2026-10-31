@@ -32,8 +32,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   most reference contacts wins, a cofactor or an ion matches by component, and a
   pose of another protein is refused. `--reference-select` picks the reference's
   ligand apart from the poses', such as one copy of a ligand the reference holds
-  several of. Water-mediated contacts are left out, since predicted poses carry
-  no water. The library gains the `pose`, `numbering` and `rmsd` modules and
+  several of; a pose holding several copies, as a homodimer's co-folding model
+  does, is scored by the copy most like the reference's, named in a `copy`
+  column. Water-mediated contacts are left out, since predicted poses carry no
+  water. The library gains the `pose`, `numbering` and `rmsd` modules and
   `Dictionary::with_fallback`.
 
 ## [3.0.0] (2026-10-30)

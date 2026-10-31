@@ -45,7 +45,7 @@ const COVALENT_TOLERANCE: f32 = 0.4;
 
 /// The widest radius sum plus tolerance that a real inter-residue linkage
 /// reaches: a disulfide at 2.05 A is the longest one these structures contain.
-const MAX_COVALENT_BOND: f32 = 2.6;
+pub(crate) const MAX_COVALENT_BOND: f32 = 2.6;
 
 /// The bonded heavy-atom neighbours of every atom, indexed by atom.
 ///

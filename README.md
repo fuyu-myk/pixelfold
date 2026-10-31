@@ -232,11 +232,15 @@ Being explicit about what this does not do:
   reference residue of the same component. A chain must share at least half its
   residues with its partner (a peptide must match whole), so a pose of another
   protein is refused, and a contact at a substituted residue counts when its kind
-  agrees. A
-  reference holding several copies of the ligand needs one picked with
-  `--reference-select`. A pose file without its ligand's chemical definitions,
-  as co-folding output often is, borrows the reference's by atom name; a ligand
-  named differently in the two gets a warning that its contacts are incomplete.
+  agrees. A reference holding several copies of the ligand needs one picked with
+  `--reference-select`. When the reference ligand is one covalent piece, a pose
+  ligand in several pieces that each hold its residues, or its heavy atoms by
+  element, holds copies of it: the pose is scored by the copy most like the
+  reference's (the most similar, then the nearest), named in the `copy` column.
+  Pieces that are not all copies are scored as one, with a warning. A pose file
+  without its ligand's chemical definitions, as co-folding output often is,
+  borrows the reference's by atom name; a ligand named differently in the two
+  gets a warning that its contacts are incomplete.
   Water-mediated contacts are left out, since predicted poses carry no water.
   The ligand RMSD is AlphaFold 3's pocket-aligned one, symmetry-corrected and
   indifferent to the order of a ligand's copies; a pose whose ligand atoms pair
@@ -275,7 +279,8 @@ pixelfold rin 4DFR --mvsj -o scene.mvsj
 # may differ
 pixelfold poses --reference crystal.cif --ligand STI pose_*.cif
 pixelfold poses --reference 29SB 29SB --format tsv
-# One copy of a ligand the reference holds several of
+# One copy of a ligand the reference holds several of; a pose holding several
+# is scored by the copy most like the reference's
 pixelfold poses --reference 1IEP --reference-select 'chain A and resn STI' --ligand STI model.cif
 
 # Secondary structure and solvent accessibility

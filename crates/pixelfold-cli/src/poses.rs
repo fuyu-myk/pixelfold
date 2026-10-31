@@ -1,14 +1,15 @@
 //! `pixelfold poses`: ligand poses ranked against a reference by the contacts
 //! the ligand makes, with the clashes each suffers.
 
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use anyhow::Result;
 use pixelfold_core::components::Dictionary;
-use pixelfold_core::interactions::detect;
+use pixelfold_core::interactions::{Interaction, detect};
 use pixelfold_core::numbering::{self, Chain, ResidueKey, ResidueMap};
-use pixelfold_core::pose::{self, Attachments, Contact, Fingerprint};
-use pixelfold_core::rmsd::{POCKET_REACH, RmsdReference};
+use pixelfold_core::pose::{self, Attachments, Contact, Contents, Fingerprint};
+use pixelfold_core::rmsd::{NoRmsd, POCKET_REACH, RmsdReference};
 use pixelfold_core::{Atom, AtomSet, ChainId, Protein};
 use serde::Serialize;
 
@@ -21,6 +22,9 @@ use crate::report::Row;
 pub struct PoseRecord {
     pub pose: String,
     pub model: usize,
+    /// The copy of the ligand scored, named by its first residue, when the
+    /// pose holds several and the one most like the reference's is kept.
+    pub copy: Option<String>,
     pub contacts: usize,
     pub shared: usize,
     pub recovery: f32,
@@ -37,6 +41,7 @@ impl Row for PoseRecord {
         vec![
             "pose",
             "model",
+            "copy",
             "contacts",
             "shared",
             "recovery",
@@ -51,6 +56,7 @@ impl Row for PoseRecord {
         vec![
             self.pose.clone(),
             self.model.to_string(),
+            self.copy.clone().unwrap_or_default(),
             self.contacts.to_string(),
             self.shared.to_string(),
             format!("{:.3}", self.recovery),
@@ -79,13 +85,33 @@ impl Warnings {
 
 /// What every pose is compared with: the reference ligand's contacts, its
 /// covalent attachments, the chains a pose's are aligned with, what its RMSD
-/// is measured against, and the chemistry a pose may borrow.
+/// is measured against, what one copy of it holds, and the chemistry a pose
+/// may borrow.
 pub struct Reference {
     components: Dictionary,
     fingerprint: Fingerprint,
     attachments: Attachments,
     chains: Vec<Chain>,
     rmsd: RmsdReference,
+    /// What the reference ligand holds, when it is one covalent piece: a pose
+    /// ligand in several pieces that each hold as much holds copies of it.
+    copy: Option<Contents>,
+}
+
+/// One copy of a pose's ligand scored, with what the warnings about it need.
+struct Scored {
+    record: PoseRecord,
+    map: ResidueMap,
+    no_rmsd: Option<NoRmsd>,
+}
+
+/// A model of a pose file, with what scoring any copy of its ligand needs.
+struct Model<'a> {
+    pose: &'a str,
+    number: usize,
+    protein: &'a Protein,
+    interactions: Vec<Interaction>,
+    chains: Vec<Chain>,
 }
 
 impl Reference {
@@ -134,6 +160,8 @@ impl Reference {
             attachments: pose::attachments(protein, &ligand),
             chains: numbering::polymer_chains(protein),
             rmsd,
+            copy: (pose::pieces(protein, &ligand).len() == 1)
+                .then(|| Contents::of(protein, &ligand)),
         })
     }
 
@@ -141,7 +169,9 @@ impl Reference {
     ///
     /// A ligand the pose file does not define takes the reference's definition
     /// of the same component, matched by atom name. The pose's residues are
-    /// matched with the reference's by aligning chain sequences.
+    /// matched with the reference's by aligning chain sequences. A pose holding
+    /// several copies of the ligand is scored by the copy most like the
+    /// reference's.
     pub fn assess(
         &self,
         protein: Protein,
@@ -157,33 +187,89 @@ impl Reference {
         let ligand = load::chosen(&protein, Some(query))?;
         warn_undefined(&protein, &ligand, warnings);
 
-        let reference = &self.fingerprint;
-        let found = pose::fingerprint(&protein, &detect(&protein), &ligand);
-        let chains = numbering::polymer_chains(&protein);
-        let map = pose::residue_map(&found, &chains, reference, &self.chains);
-        self.check_pairing(&map, pose, warnings)?;
-        let fingerprint = pose::renumbered(&found, reference, &map);
-        let rmsd = match self.rmsd.rmsd(&protein, &ligand, &map) {
-            Ok(rmsd) => Some(rounded(rmsd, 2)),
-            Err(reason) => {
-                if self.rmsd.has_pocket() {
-                    warnings.warn(format!("no RMSD for {pose}: {reason}"));
-                }
-                None
-            }
+        let copies = self.copies(&protein, &ligand, query, pose, warnings);
+        let model = Model {
+            pose,
+            number: model,
+            protein: &protein,
+            interactions: detect(&protein),
+            chains: numbering::polymer_chains(&protein),
         };
+        let best = copies
+            .iter()
+            .map(|copy| self.score(&model, copy, copies.len() > 1))
+            .min_by(|a, b| preferred(&a.record, &b.record))
+            .expect("copies holds at least the whole ligand");
 
-        Ok(PoseRecord {
-            pose: pose.to_string(),
-            model,
+        self.check_pairing(&best.map, pose, warnings)?;
+        if let Some(reason) = &best.no_rmsd
+            && self.rmsd.has_pocket()
+        {
+            warnings.warn(format!("no RMSD for {pose}: {reason}"));
+        }
+
+        Ok(best.record)
+    }
+
+    /// The copies of the reference ligand among the `ligand` atoms of the pose
+    /// file `pose`: its covalent pieces when there are several and each may be
+    /// a copy, else the whole, with a warning when the whole is in pieces.
+    fn copies(
+        &self,
+        protein: &Protein,
+        ligand: &AtomSet,
+        query: &str,
+        pose: &str,
+        warnings: &mut Warnings,
+    ) -> Vec<AtomSet> {
+        let Some(copy) = &self.copy else {
+            return vec![ligand.clone()];
+        };
+        let pieces = pose::pieces(protein, ligand);
+        if pieces.len() > 1 {
+            if pieces
+                .iter()
+                .all(|piece| copy.admits(&Contents::of(protein, piece)))
+            {
+                return pieces;
+            }
+            warnings.warn(format!(
+                "the ligand `{query}` is {} separate pieces in {pose}, not all copies of the \
+                 reference's, so they are scored as one; narrow --select to score a copy",
+                pieces.len()
+            ));
+        }
+
+        vec![ligand.clone()]
+    }
+
+    /// One `copy` of the ligand of `model` scored, the copy named in the
+    /// record when `named`.
+    fn score(&self, model: &Model, copy: &AtomSet, named: bool) -> Scored {
+        let reference = &self.fingerprint;
+        let found = pose::fingerprint(model.protein, &model.interactions, copy);
+        let map = pose::residue_map(&found, &model.chains, reference, &self.chains);
+        let fingerprint = pose::renumbered(&found, reference, &map);
+        let rmsd = self.rmsd.rmsd(model.protein, copy, &map);
+
+        let record = PoseRecord {
+            pose: model.pose.to_string(),
+            model: model.number,
+            copy: named.then(|| copy_label(model.protein, copy)),
             contacts: fingerprint.len(),
             shared: fingerprint.shared(reference),
             recovery: rounded(fingerprint.recovery(reference), 3),
             similarity: rounded(fingerprint.similarity(reference), 3),
-            rmsd,
-            clashes: pose::clashes(&protein, &ligand, &self.attachments.renumbered(&map)),
+            rmsd: rmsd.as_ref().ok().map(|&rmsd| rounded(rmsd, 2)),
+            clashes: pose::clashes(model.protein, copy, &self.attachments.renumbered(&map)),
             lost: fingerprint.lost(reference).map(contact_label).collect(),
-        })
+        };
+
+        Scored {
+            record,
+            map,
+            no_rmsd: rmsd.err(),
+        }
     }
 
     /// Fail when no chain of the pose aligns with any reference chain the
@@ -238,6 +324,17 @@ fn ligand_residues<'a>(
     residues
 }
 
+/// A copy of the ligand named by its first residue.
+fn copy_label(protein: &Protein, copy: &AtomSet) -> String {
+    copy.iter()
+        .next()
+        .map(|atom| {
+            let atom = &protein.atoms[atom];
+            residue_id((atom.chain_id, atom.residue_seq, atom.insertion_code))
+        })
+        .unwrap_or_default()
+}
+
 /// The records best first: most similar, then most recovered, then fewest
 /// clashes, ties kept in the order given.
 pub fn ranked(mut records: Vec<PoseRecord>) -> Vec<PoseRecord> {
@@ -249,6 +346,19 @@ pub fn ranked(mut records: Vec<PoseRecord>) -> Vec<PoseRecord> {
     });
 
     records
+}
+
+/// Which of two copies of a pose's ligand to keep: the more similar, then the
+/// more recovered, then the nearer the reference ligand, then the one with
+/// fewer clashes, then the first. Nearness comes before clashes because the
+/// copy kept stands for the reference's, whose own crystal contacts can clash.
+fn preferred(a: &PoseRecord, b: &PoseRecord) -> Ordering {
+    let rmsd = |record: &PoseRecord| record.rmsd.unwrap_or(f32::INFINITY);
+    b.similarity
+        .total_cmp(&a.similarity)
+        .then(b.recovery.total_cmp(&a.recovery))
+        .then(rmsd(a).total_cmp(&rmsd(b)))
+        .then(a.clashes.cmp(&b.clashes))
 }
 
 fn warn_undefined(protein: &Protein, ligand: &AtomSet, warnings: &mut Warnings) {
@@ -287,6 +397,7 @@ mod tests {
         PoseRecord {
             pose: pose.to_string(),
             model: 1,
+            copy: None,
             contacts: 0,
             shared: 0,
             recovery,
@@ -295,6 +406,25 @@ mod tests {
             clashes,
             lost: Vec::new(),
         }
+    }
+
+    #[test]
+    fn of_copies_alike_in_contacts_the_nearer_is_kept_before_the_unclashed() {
+        let copy = |pose: &str, similarity: f32, rmsd: Option<f32>, clashes: usize| PoseRecord {
+            rmsd,
+            ..record(pose, similarity, 1.0, clashes)
+        };
+        let copies = [
+            copy("unmeasured", 1.0, None, 0),
+            copy("far", 1.0, Some(1.5), 0),
+            copy("fewer-contacts", 0.9, Some(0.0), 0),
+            copy("in-place", 1.0, Some(0.0), 1),
+            copy("in-place-clashing-more", 1.0, Some(0.0), 2),
+            copy("in-place-too", 1.0, Some(0.0), 1),
+        ];
+
+        let best = copies.into_iter().min_by(preferred).expect("copies");
+        assert_eq!(best.pose, "in-place");
     }
 
     #[test]

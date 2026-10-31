@@ -17,6 +17,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use glam::Vec3;
+use petgraph::unionfind::UnionFind;
 
 use crate::fixed_str::FixedStr;
 use crate::interactions::{Interaction, InteractionKind, classify, connectivity, topology};
@@ -453,6 +454,95 @@ pub fn undefined_ligand_residues(
         .collect();
 
     undefined.into_iter().collect()
+}
+
+/// The pieces of the `ligand` atoms that no covalent bond joins, each made of
+/// whole residues, in the order of their first atoms. A pose holding several
+/// copies of a ligand holds one piece per copy; a metal ion is a piece of its
+/// own, since coordination is not a covalent bond.
+pub fn pieces(protein: &Protein, ligand: &AtomSet) -> Vec<AtomSet> {
+    let atoms: Vec<usize> = ligand.iter().collect();
+    let mut residues: HashMap<ResidueKey, usize> = HashMap::new();
+    let residue_of: Vec<usize> = atoms
+        .iter()
+        .map(|&atom| {
+            let count = residues.len();
+            *residues
+                .entry(residue_key(&protein.atoms[atom]))
+                .or_insert(count)
+        })
+        .collect();
+
+    let positions: Vec<Vec3> = atoms
+        .iter()
+        .map(|&atom| protein.atoms[atom].position)
+        .collect();
+    let grid = Grid::build(&positions, connectivity::MAX_COVALENT_BOND);
+    let mut joined = UnionFind::new(residues.len());
+    for (a, &atom) in atoms.iter().enumerate() {
+        grid.for_each_within(positions[a], connectivity::MAX_COVALENT_BOND, |b| {
+            if residue_of[a] != residue_of[b]
+                && connectivity::at_bonding_distance(&protein.atoms[atom], &protein.atoms[atoms[b]])
+            {
+                joined.union(residue_of[a], residue_of[b]);
+            }
+        });
+    }
+
+    let mut pieces: Vec<AtomSet> = Vec::new();
+    let mut piece_of: HashMap<usize, usize> = HashMap::new();
+    for (&atom, &residue) in atoms.iter().zip(&residue_of) {
+        let piece = *piece_of.entry(joined.find(residue)).or_insert_with(|| {
+            pieces.push(AtomSet::empty(protein.atoms.len()));
+            pieces.len() - 1
+        });
+        pieces[piece].insert(atom);
+    }
+
+    pieces
+}
+
+/// What one copy of a ligand holds: its residues counted by component, and
+/// its heavy atoms counted by element.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Contents {
+    residues: BTreeMap<FixedStr<6>, usize>,
+    elements: BTreeMap<FixedStr<2>, usize>,
+}
+
+impl Contents {
+    /// The contents of the `atoms` of `protein`.
+    pub fn of(protein: &Protein, atoms: &AtomSet) -> Self {
+        let mut residues: BTreeMap<FixedStr<6>, BTreeSet<ResidueKey>> = BTreeMap::new();
+        let mut elements: BTreeMap<FixedStr<2>, usize> = BTreeMap::new();
+        for atom in atoms.iter().map(|atom| &protein.atoms[atom]) {
+            residues
+                .entry(atom.residue_name)
+                .or_default()
+                .insert(residue_key(atom));
+            if !is_hydrogen(atom) {
+                *elements
+                    .entry(FixedStr::uppercased(atom.element.as_str()))
+                    .or_default() += 1;
+            }
+        }
+
+        Self {
+            residues: residues
+                .into_iter()
+                .map(|(name, keys)| (name, keys.len()))
+                .collect(),
+            elements,
+        }
+    }
+
+    /// Whether `other` may be a copy of the ligand these contents describe:
+    /// the same residues, a heavy atom or two missing as a crystal leaves
+    /// them, or the same heavy atoms, as output that names the ligand
+    /// otherwise holds.
+    pub fn admits(&self, other: &Contents) -> bool {
+        self.residues == other.residues || self.elements == other.elements
+    }
 }
 
 fn identity(atom: &Atom) -> AtomIdentity {
@@ -925,5 +1015,56 @@ LIG C1 C2 sing N 1
         let renumbered = attached.renumbered(&ResidueMap::default());
 
         assert_eq!(renumbered, attached);
+    }
+
+    #[test]
+    fn a_ligand_falls_into_its_covalent_pieces_of_whole_residues() {
+        // Two copies of a one-residue ligand, the second's oxygen listed last;
+        // a ligand of two bonded residues; a zinc ion against the first copy.
+        let structure = protein(vec![
+            atom(1, "LIG", "C1", "C", Vec3::ZERO),
+            atom(1, "LIG", "O1", "O", Vec3::new(1.4, 0.0, 0.0)),
+            atom(2, "LIG", "C1", "C", Vec3::new(20.0, 0.0, 0.0)),
+            atom(3, "LIG", "C1", "C", Vec3::new(0.0, 20.0, 0.0)),
+            atom(4, "LIG", "C1", "C", Vec3::new(1.5, 20.0, 0.0)),
+            atom(5, "ZN", "ZN", "ZN", Vec3::new(3.4, 0.0, 0.0)),
+            atom(2, "LIG", "O1", "O", Vec3::new(21.4, 0.0, 0.0)),
+        ]);
+        let ligand = select("resn LIG or resn ZN", &structure).expect("a valid query");
+
+        let found: Vec<Vec<usize>> = pieces(&structure, &ligand)
+            .iter()
+            .map(|piece| piece.iter().collect())
+            .collect();
+
+        assert_eq!(found, [vec![0, 1], vec![2, 6], vec![3, 4], vec![5]]);
+    }
+
+    #[test]
+    fn a_copy_holds_the_same_residues_or_the_same_heavy_atoms() {
+        let structure = protein(vec![
+            atom(1, "LIG", "C1", "C", Vec3::ZERO),
+            atom(1, "LIG", "O1", "O", Vec3::ZERO),
+            atom(1, "LIG", "H1", "H", Vec3::ZERO),
+            // The same residue short of its oxygen.
+            atom(2, "LIG", "C1", "C", Vec3::ZERO),
+            // The same atoms under another name, without the hydrogen.
+            atom(3, "UNL", "C1", "C", Vec3::ZERO),
+            atom(3, "UNL", "O1", "O", Vec3::ZERO),
+            // Another molecule altogether.
+            atom(4, "UNK", "N1", "N", Vec3::ZERO),
+        ]);
+        let contents = |seq: i32| {
+            let query = format!("resi {seq}");
+            Contents::of(
+                &structure,
+                &select(&query, &structure).expect("a valid query"),
+            )
+        };
+
+        let reference = contents(1);
+        assert!(reference.admits(&contents(2)));
+        assert!(reference.admits(&contents(3)));
+        assert!(!reference.admits(&contents(4)));
     }
 }

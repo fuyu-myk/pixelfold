@@ -844,12 +844,7 @@ fn edited_fixture(
     mut edit: impl FnMut(&mut [String], &HashMap<&str, usize>),
 ) -> PathBuf {
     let text = std::fs::read_to_string(fixture(id)).unwrap();
-    let columns: HashMap<&str, usize> = text
-        .lines()
-        .filter_map(|line| line.strip_prefix("_atom_site."))
-        .enumerate()
-        .map(|(index, name)| (name.trim(), index))
-        .collect();
+    let columns = atom_site_columns(&text);
 
     let edited: Vec<String> = text
         .lines()
@@ -865,6 +860,118 @@ fn edited_fixture(
 
     let path = dir.join(format!("{id}-edited.cif"));
     std::fs::write(&path, edited.join("\n")).unwrap();
+    path
+}
+
+/// The index of each `_atom_site` column of an mmCIF file, by name.
+fn atom_site_columns(text: &str) -> HashMap<&str, usize> {
+    text.lines()
+        .filter_map(|line| line.strip_prefix("_atom_site."))
+        .enumerate()
+        .map(|(index, name)| (name.trim(), index))
+        .collect()
+}
+
+/// A copy of fixture `id` in `dir` holding a second copy of the `ligand`
+/// component, as chain Y moved `shift` A along x and written before the first.
+fn with_another_copy(id: &str, dir: &Path, ligand: &str, shift: f32) -> PathBuf {
+    let text = std::fs::read_to_string(fixture(id)).unwrap();
+    let column = atom_site_columns(&text);
+    let is_ligand = |line: &str| {
+        line.starts_with("HETATM")
+            && line.split_whitespace().nth(column["auth_comp_id"]) == Some(ligand)
+    };
+
+    let copy: Vec<String> = text
+        .lines()
+        .filter(|line| is_ligand(line))
+        .map(|line| {
+            let mut fields: Vec<String> = line.split_whitespace().map(String::from).collect();
+            let serial: usize = fields[column["id"]].parse().unwrap();
+            let x: f32 = fields[column["Cartn_x"]].parse().unwrap();
+            fields[column["id"]] = (serial + 10_000).to_string();
+            fields[column["Cartn_x"]] = format!("{:.3}", x + shift);
+            fields[column["label_asym_id"]] = "Y".to_string();
+            fields[column["auth_asym_id"]] = "Y".to_string();
+            fields[column["auth_seq_id"]] = "1".to_string();
+            fields.join(" ")
+        })
+        .collect();
+    let first = text.lines().position(is_ligand).unwrap();
+    let lines: Vec<String> = text
+        .lines()
+        .take(first)
+        .map(String::from)
+        .chain(copy)
+        .chain(text.lines().skip(first).map(String::from))
+        .collect();
+
+    let path = dir.join(format!("{id}-two-copies.cif"));
+    std::fs::write(&path, lines.join("\n")).unwrap();
+    path
+}
+
+/// A copy of fixture `id` in `dir` holding a second copy of the whole complex,
+/// written after the first and moved 60 A along x: its chains renamed by
+/// `chains` and its `ligand` component as chain Y. The first copy's ligand is
+/// moved `nudge` A along x.
+fn with_another_complex(
+    id: &str,
+    dir: &Path,
+    chains: &[(&str, &str)],
+    ligand: &str,
+    nudge: f32,
+) -> PathBuf {
+    let text = std::fs::read_to_string(fixture(id)).unwrap();
+    let column = atom_site_columns(&text);
+    let renamed: HashMap<&str, &str> = chains.iter().copied().collect();
+    let is_atom = |line: &str| line.starts_with("ATOM") || line.starts_with("HETATM");
+    let moved = |fields: &mut [String], shift: f32| {
+        let x: f32 = fields[column["Cartn_x"]].parse().unwrap();
+        fields[column["Cartn_x"]] = format!("{:.3}", x + shift);
+    };
+    let last = text
+        .lines()
+        .enumerate()
+        .filter(|&(_, line)| is_atom(line))
+        .map(|(index, _)| index)
+        .last()
+        .unwrap();
+
+    let mut lines: Vec<String> = Vec::new();
+    let mut second: Vec<String> = Vec::new();
+    for (index, line) in text.lines().enumerate() {
+        if !is_atom(line) {
+            lines.push(line.to_string());
+            continue;
+        }
+        let mut fields: Vec<String> = line.split_whitespace().map(String::from).collect();
+        let is_ligand = fields[column["auth_comp_id"]] == ligand;
+        let mut copy = fields.clone();
+        if is_ligand {
+            moved(&mut fields, nudge);
+        }
+        lines.push(fields.join(" "));
+
+        let serial: usize = copy[column["id"]].parse().unwrap();
+        let chain = copy[column["auth_asym_id"]].clone();
+        let name = if is_ligand {
+            "Y"
+        } else {
+            renamed[chain.as_str()]
+        };
+        copy[column["id"]] = (serial + 10_000).to_string();
+        copy[column["auth_asym_id"]] = name.to_string();
+        copy[column["label_asym_id"]] = format!("{}2", copy[column["label_asym_id"]]);
+        moved(&mut copy, 60.0);
+        second.push(copy.join(" "));
+        if index == last {
+            lines.append(&mut second);
+        }
+    }
+
+    let path = dir.join(format!("{id}-two-complexes.cif"));
+    std::fs::write(&path, lines.join("\n")).unwrap();
     path
 }
 
@@ -1099,6 +1206,94 @@ fn the_reference_ligand_can_be_picked_apart_from_the_poses() {
 
     let found = records(&poses_with(&reference_only, &fixture("1PPB"), &[&pose]));
     assert_eq!(found[0]["similarity"], 1.0, "{}", found[0]);
+}
+
+#[test]
+fn a_pose_holding_several_copies_of_the_ligand_is_scored_by_the_one_in_place() {
+    // A second inhibitor 40 A away, clear of the protein, written first.
+    let dir = tempfile::tempdir().unwrap();
+    let pose = with_another_copy("1HVR", dir.path(), "XK2", 40.0);
+
+    let run = poses_with(&["--ligand", "XK2"], &fixture("1HVR"), &[&pose]);
+    let found = records(&run);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0]["copy"], "A/263", "{}", found[0]);
+    assert_eq!(found[0]["similarity"], 1.0, "{}", found[0]);
+    assert_eq!(found[0]["rmsd"], 0.0, "{}", found[0]);
+    assert_eq!(found[0]["clashes"], 0, "{}", found[0]);
+    assert!(!run.stderr.contains("warning"), "{}", run.stderr);
+}
+
+#[test]
+fn each_copy_of_the_ligand_is_paired_with_the_chains_around_it() {
+    // A second complex 60 A away, as chains C and D, written after the first,
+    // whose inhibitor is nudged 1 A: a copy matches exactly only when paired
+    // through C and D.
+    let dir = tempfile::tempdir().unwrap();
+    let pose = with_another_complex("1HVR", dir.path(), &[("A", "C"), ("B", "D")], "XK2", 1.0);
+
+    let found = records(&poses_with(
+        &["--ligand", "XK2"],
+        &fixture("1HVR"),
+        &[&pose],
+    ));
+    assert_eq!(found[0]["copy"], "Y/263", "{}", found[0]);
+    assert_eq!(found[0]["similarity"], 1.0, "{}", found[0]);
+    assert_eq!(found[0]["rmsd"], 0.0, "{}", found[0]);
+    assert_eq!(found[0]["clashes"], 0, "{}", found[0]);
+}
+
+#[test]
+fn copies_named_otherwise_than_the_reference_ligand_are_still_told_apart() {
+    // Output from a SMILES input names the ligand as it likes.
+    let dir = tempfile::tempdir().unwrap();
+    let pose = with_another_copy("1HVR", dir.path(), "XK2", 40.0);
+    let text = std::fs::read_to_string(&pose).unwrap();
+    let renamed: Vec<String> = text
+        .lines()
+        .map(|line| match line.starts_with("HETATM") {
+            true => line.replace(" XK2 ", " LIG "),
+            false => line.to_string(),
+        })
+        .collect();
+    std::fs::write(&pose, renamed.join("\n")).unwrap();
+
+    let apart = ["--select", "resn LIG", "--reference-select", "resn XK2"];
+    let found = records(&poses_with(&apart, &fixture("1HVR"), &[&pose]));
+    assert_eq!(found[0]["copy"], "A/263", "{}", found[0]);
+    assert_eq!(found[0]["rmsd"], 0.0, "{}", found[0]);
+}
+
+#[test]
+fn a_ligand_in_pieces_that_are_not_all_copies_is_scored_as_one_with_a_warning() {
+    let dir = tempfile::tempdir().unwrap();
+    let pose = with_another_copy("1HVR", dir.path(), "XK2", 40.0);
+    let mixed = [
+        "--select",
+        "resn XK2 or (chain A and resi 25)",
+        "--reference-select",
+        "resn XK2",
+    ];
+
+    let run = poses_with(&mixed, &fixture("1HVR"), &[&pose]);
+    let found = records(&run);
+    assert_eq!(found[0]["copy"], serde_json::Value::Null, "{}", found[0]);
+    assert!(
+        run.stderr.contains("is 3 separate pieces"),
+        "{}",
+        run.stderr
+    );
+}
+
+#[test]
+fn a_reference_ligand_in_several_pieces_is_compared_whole() {
+    let dir = tempfile::tempdir().unwrap();
+    let both = with_another_copy("1HVR", dir.path(), "XK2", 40.0);
+
+    let found = records(&poses_with(&["--ligand", "XK2"], &both, &[&both]));
+    assert_eq!(found[0]["copy"], serde_json::Value::Null, "{}", found[0]);
+    assert_eq!(found[0]["similarity"], 1.0, "{}", found[0]);
+    assert_eq!(found[0]["rmsd"], 0.0, "{}", found[0]);
 }
 
 #[test]
