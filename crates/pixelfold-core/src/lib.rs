@@ -10,6 +10,7 @@ pub mod numbering;
 pub mod parser;
 pub mod pose;
 pub mod rin;
+pub mod rmsd;
 pub mod sasa;
 pub mod select;
 mod spatial;

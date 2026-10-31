@@ -238,6 +238,11 @@ Being explicit about what this does not do:
   as co-folding output often is, borrows the reference's by atom name; a ligand
   named differently in the two gets a warning that its contacts are incomplete.
   Water-mediated contacts are left out, since predicted poses carry no water.
+  The ligand RMSD is AlphaFold 3's pocket-aligned one, symmetry-corrected and
+  indifferent to the order of a ligand's copies; a pose whose ligand atoms pair
+  with the reference's neither by name nor by bond graph (a ligand missing atoms,
+  or one renamed and so distorted its bonds no longer read) gets none, with a
+  warning.
 - **No trajectories.** A multi-model file such as an NMR ensemble works model
   by model (`--model N`, or `--model all` for a report on every model), but a
   molecular-dynamics trajectory is not read.
@@ -265,8 +270,9 @@ pixelfold rin 4DFR --path A/23 A/94
 pixelfold rin 4DFR --mvsj -o scene.mvsj
 
 # Ligand poses, from co-folding, docking or an NMR ensemble, ranked by the
-# reference contacts each keeps, with their clashes; every model is a pose, and
-# residues are matched by sequence, so the numbering may differ
+# reference contacts each keeps, with their pocket-aligned RMSD and clashes;
+# every model is a pose, and residues are matched by sequence, so the numbering
+# may differ
 pixelfold poses --reference crystal.cif --ligand STI pose_*.cif
 pixelfold poses --reference 29SB 29SB --format tsv
 # One copy of a ligand the reference holds several of

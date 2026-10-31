@@ -468,7 +468,7 @@ fn ligand_atom(atom: &Atom) -> LigandAtom {
     (atom.residue_name, atom.name)
 }
 
-fn is_hydrogen(atom: &Atom) -> bool {
+pub(crate) fn is_hydrogen(atom: &Atom) -> bool {
     matches!(
         FixedStr::<2>::uppercased(atom.element.as_str()).as_str(),
         "H" | "D"

@@ -190,6 +190,17 @@ fn covalent_contacts(protein: &Protein) -> Vec<(usize, usize)> {
     found
 }
 
+/// True when two atoms lie close enough to be bonded by their covalent radii;
+/// never for water or an element the radius table leaves out.
+pub(crate) fn at_bonding_distance(a: &Atom, b: &Atom) -> bool {
+    match (covalent_radius(a), covalent_radius(b)) {
+        (Some(radius), Some(other)) => {
+            (a.position - b.position).length() < radius + other + COVALENT_TOLERANCE
+        }
+        _ => false,
+    }
+}
+
 /// The covalent radius of an atom's element, or nothing for water and for an
 /// element the table leaves out.
 fn covalent_radius(atom: &Atom) -> Option<f32> {

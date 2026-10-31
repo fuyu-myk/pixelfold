@@ -8,6 +8,7 @@ use pixelfold_core::components::Dictionary;
 use pixelfold_core::interactions::detect;
 use pixelfold_core::numbering::{self, Chain, ResidueKey, ResidueMap};
 use pixelfold_core::pose::{self, Attachments, Contact, Fingerprint};
+use pixelfold_core::rmsd::{POCKET_REACH, RmsdReference};
 use pixelfold_core::{Atom, AtomSet, ChainId, Protein};
 use serde::Serialize;
 
@@ -24,6 +25,9 @@ pub struct PoseRecord {
     pub shared: usize,
     pub recovery: f32,
     pub similarity: f32,
+    /// The ligand's heavy-atom RMSD in angstroms once the pose is superposed
+    /// on the reference's pocket, or `None` when it cannot be measured.
+    pub rmsd: Option<f32>,
     pub clashes: usize,
     pub lost: Vec<String>,
 }
@@ -37,6 +41,7 @@ impl Row for PoseRecord {
             "shared",
             "recovery",
             "similarity",
+            "rmsd",
             "clashes",
             "lost",
         ]
@@ -50,6 +55,7 @@ impl Row for PoseRecord {
             self.shared.to_string(),
             format!("{:.3}", self.recovery),
             format!("{:.3}", self.similarity),
+            self.rmsd.map_or(String::new(), |rmsd| format!("{rmsd:.2}")),
             self.clashes.to_string(),
             self.lost.join(", "),
         ]
@@ -72,13 +78,14 @@ impl Warnings {
 }
 
 /// What every pose is compared with: the reference ligand's contacts, its
-/// covalent attachments, the chains a pose's are aligned with, and the
-/// chemistry a pose may borrow.
+/// covalent attachments, the chains a pose's are aligned with, what its RMSD
+/// is measured against, and the chemistry a pose may borrow.
 pub struct Reference {
     components: Dictionary,
     fingerprint: Fingerprint,
     attachments: Attachments,
     chains: Vec<Chain>,
+    rmsd: RmsdReference,
 }
 
 impl Reference {
@@ -108,6 +115,13 @@ impl Reference {
             ));
         }
         warn_undefined(protein, &ligand, warnings);
+        let rmsd = RmsdReference::new(protein, &ligand);
+        if !rmsd.has_pocket() {
+            warnings.warn(format!(
+                "the ligand `{query}` has fewer than three protein backbone atoms within \
+                 {POCKET_REACH} A, so no pose gets an RMSD"
+            ));
+        }
 
         let fingerprint = pose::fingerprint(protein, &detect(protein), &ligand);
         if fingerprint.is_empty() {
@@ -119,6 +133,7 @@ impl Reference {
             fingerprint,
             attachments: pose::attachments(protein, &ligand),
             chains: numbering::polymer_chains(protein),
+            rmsd,
         })
     }
 
@@ -148,6 +163,15 @@ impl Reference {
         let map = pose::residue_map(&found, &chains, reference, &self.chains);
         self.check_pairing(&map, pose, warnings)?;
         let fingerprint = pose::renumbered(&found, reference, &map);
+        let rmsd = match self.rmsd.rmsd(&protein, &ligand, &map) {
+            Ok(rmsd) => Some(rounded(rmsd, 2)),
+            Err(reason) => {
+                if self.rmsd.has_pocket() {
+                    warnings.warn(format!("no RMSD for {pose}: {reason}"));
+                }
+                None
+            }
+        };
 
         Ok(PoseRecord {
             pose: pose.to_string(),
@@ -156,6 +180,7 @@ impl Reference {
             shared: fingerprint.shared(reference),
             recovery: rounded(fingerprint.recovery(reference), 3),
             similarity: rounded(fingerprint.similarity(reference), 3),
+            rmsd,
             clashes: pose::clashes(&protein, &ligand, &self.attachments.renumbered(&map)),
             lost: fingerprint.lost(reference).map(contact_label).collect(),
         })
@@ -266,6 +291,7 @@ mod tests {
             shared: 0,
             recovery,
             similarity,
+            rmsd: None,
             clashes,
             lost: Vec::new(),
         }

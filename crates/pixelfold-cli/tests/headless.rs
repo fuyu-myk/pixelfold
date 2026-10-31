@@ -956,6 +956,7 @@ fn poses_rank_by_the_reference_contacts_they_keep() {
     assert_eq!(same["similarity"], 1.0);
     assert_eq!(same["recovery"], 1.0);
     assert_eq!(same["clashes"], 0);
+    assert_eq!(same["rmsd"], 0.0);
     assert_eq!(same["lost"], serde_json::json!([]));
     assert!(same["contacts"].as_u64().unwrap() > 0);
     assert_eq!(same["contacts"], same["shared"]);
@@ -964,6 +965,26 @@ fn poses_rank_by_the_reference_contacts_they_keep() {
     assert!(moved["recovery"].as_f64().unwrap() < 1.0, "{moved}");
     assert!(moved["clashes"].as_u64().unwrap() > 0, "{moved}");
     assert!(!moved["lost"].as_array().unwrap().is_empty(), "{moved}");
+    // Every ligand atom moved 2 A and the pocket not at all.
+    assert_eq!(moved["rmsd"], 2.0, "{moved}");
+}
+
+#[test]
+fn a_pose_in_another_frame_is_superposed_on_the_pocket() {
+    // The whole complex turned a quarter about z and lifted 30 A, as a
+    // co-folding model sits in a frame of its own.
+    let dir = tempfile::tempdir().unwrap();
+    let turned = edited_fixture("1PPB", dir.path(), |fields, column| {
+        let [x, y, z] = ["Cartn_x", "Cartn_y", "Cartn_z"]
+            .map(|axis| fields[column[axis]].parse::<f32>().unwrap());
+        fields[column["Cartn_x"]] = format!("{:.3}", -y);
+        fields[column["Cartn_y"]] = format!("{:.3}", x);
+        fields[column["Cartn_z"]] = format!("{:.3}", z + 30.0);
+    });
+
+    let found = records(&poses_against(&fixture("1PPB"), &[&turned]));
+    assert_eq!(found[0]["rmsd"], 0.0, "{}", found[0]);
+    assert_eq!(found[0]["similarity"], 1.0, "{}", found[0]);
 }
 
 #[test]
@@ -1017,6 +1038,7 @@ fn a_pose_numbered_as_co_folding_output_is_aligned_with_the_reference() {
         "shared",
         "recovery",
         "similarity",
+        "rmsd",
         "clashes",
         "lost",
     ] {
@@ -1040,6 +1062,7 @@ fn a_homodimer_pose_with_its_chains_named_the_other_way_round_keeps_every_contac
     ));
     assert_eq!(found[0]["similarity"], 1.0, "{}", found[0]);
     assert_eq!(found[0]["clashes"], 0, "{}", found[0]);
+    assert_eq!(found[0]["rmsd"], 0.0, "{}", found[0]);
 }
 
 #[test]

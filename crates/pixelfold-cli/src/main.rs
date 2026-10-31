@@ -204,7 +204,8 @@ enum Command {
         #[command(flatten)]
         common: Common,
     },
-    /// Rank ligand poses by the reference contacts they keep, with their clashes.
+    /// Rank ligand poses by the reference contacts they keep, with their
+    /// pocket-aligned RMSD and their clashes.
     /// Every model of each pose file is a pose (or only --model N); the
     /// reference is its first model. Residues are matched with the reference's
     /// by aligning chain sequences, so a pose may number them as it likes
