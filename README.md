@@ -196,8 +196,8 @@ A Cargo workspace. `pixelfold-core` has no terminal or rendering dependencies, s
 the analysis is usable as a library.
 
 - [`pixelfold-core`](https://github.com/fuyu-myk/pixelfold/blob/main/crates/pixelfold-core/src): parsing, DSSP, SASA, the
-  interaction engine, the selection language, and the residue interaction network
-  with its graph analytics
+  interaction engine, the selection language, the residue interaction network
+  with its graph analytics, and ligand pose comparison
 - [`pixelfold-render`](https://github.com/fuyu-myk/pixelfold/blob/main/crates/pixelfold-render/src): a z-buffered
   sphere-impostor rasteriser writing one RGBA framebuffer, and the sinks that put
   it on a terminal (Kitty, iTerm2, truecolor half-blocks) or in a PNG
@@ -224,6 +224,13 @@ Being explicit about what this does not do:
   relative to RING too, mostly from rotatable hydrogens.
 - **No cartoons or ribbons, no molecular surfaces, no ray tracing.** Space-filling
   spheres and bonds only.
+- **Poses must number residues as the reference does.** `pixelfold poses` matches
+  residues by chain and number and refuses a pose that disagrees, so a crystal
+  structure in author numbering cannot yet be compared with a co-folding model
+  numbered from 1. A pose file without its ligand's chemical definitions, as
+  co-folding output often is, borrows the reference's by atom name; a ligand
+  named differently in the two gets a warning that its contacts are incomplete.
+  Water-mediated contacts are left out, since predicted poses carry no water.
 - **No trajectories.** A multi-model file such as an NMR ensemble works model
   by model (`--model N`, or `--model all` for a report on every model), but a
   molecular-dynamics trajectory is not read.
@@ -249,6 +256,11 @@ pixelfold rin 4DFR --format graphml -o network.graphml
 pixelfold rin 4DFR --analyze
 pixelfold rin 4DFR --path A/23 A/94
 pixelfold rin 4DFR --mvsj -o scene.mvsj
+
+# Ligand poses, from co-folding, docking or an NMR ensemble, ranked by the
+# reference contacts each keeps, with their clashes; every model is a pose
+pixelfold poses --reference crystal.cif --ligand STI pose_*.cif
+pixelfold poses --reference 29SB 29SB --format tsv
 
 # Secondary structure and solvent accessibility
 pixelfold ss 1UBQ --format tsv
