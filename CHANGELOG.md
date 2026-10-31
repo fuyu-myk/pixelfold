@@ -43,6 +43,26 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   column. Water-mediated contacts are left out, since predicted poses carry no
   water. The library gains the `pose`, `numbering` and `rmsd` modules and
   `Dictionary::with_fallback`.
+- **Interaction networks of an ensemble.** `pixelfold rin --model all` folds
+  every model of a file, an NMR bundle or the frames of a trajectory, into one
+  network whose edges are weighted by the fraction of models they are present
+  in, the probabilistic network of RING 3.0. An edge's count and energy are
+  summed over the models and its distance is the shortest in any; a residue
+  takes the secondary structure most models give it. `--min-frequency F` keeps
+  the edges present in at least that fraction of the models (the exact
+  fraction, not the rounded one shown), so `--analyze` and `--path`, which read
+  the network unweighted, can work on its consensus. The library gains `rin::Ensemble` and
+  `Network::frequency`.
+
+### Changed
+
+- **Every network edge carries `models` and `frequency`**: how many of the
+  network's models it is present in, and that as a fraction (to three places),
+  both 1 for a single structure. They are the TSV's last two columns and JSON
+  and GraphML edge attributes, and the JSON gains a top-level `models` count (a
+  graph attribute in GraphML). In the library, `rin::Edge` and `rin::Network`
+  each gain a public `models` field, so code that builds either with a struct
+  literal must set it: a breaking change for `pixelfold-core`.
 
 ## [3.0.0] (2026-10-30)
 

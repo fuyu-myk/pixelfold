@@ -672,14 +672,141 @@ fn single_model_commands_refuse_every_model() {
     let path = two_model_file(&dir);
     let png = dir.path().join("out.png");
 
-    for args in [
-        vec!["rin", "--model", "all"],
-        vec!["render", "--model", "all", "-o", png.to_str().unwrap()],
-    ] {
-        let run = run_on(&path, &args);
-        assert!(!run.ok, "{args:?} should refuse --model all");
-        assert!(run.stderr.contains("one model at a time"), "{}", run.stderr);
-    }
+    let run = run_on(
+        &path,
+        &["render", "--model", "all", "-o", png.to_str().unwrap()],
+    );
+    assert!(!run.ok, "render should refuse --model all");
+    assert!(run.stderr.contains("one model at a time"), "{}", run.stderr);
+}
+
+/// A copy of fixture `id` in `dir` with a second model after the first, the
+/// same but for residue `moved` of chain A, `shift` A along x.
+fn with_a_second_model(id: &str, dir: &Path, moved: i32, shift: f32) -> PathBuf {
+    let text = std::fs::read_to_string(fixture(id)).unwrap();
+    let column = atom_site_columns(&text);
+    let is_atom = |line: &str| line.starts_with("ATOM") || line.starts_with("HETATM");
+
+    let second: Vec<String> = text
+        .lines()
+        .filter(|line| is_atom(line))
+        .map(|line| {
+            let mut fields: Vec<String> = line.split_whitespace().map(String::from).collect();
+            let serial: usize = fields[column["id"]].parse().unwrap();
+            fields[column["id"]] = (serial + 10_000).to_string();
+            fields[column["pdbx_PDB_model_num"]] = "2".to_string();
+            if fields[column["auth_asym_id"]] == "A"
+                && fields[column["auth_seq_id"]] == moved.to_string()
+            {
+                let x: f32 = fields[column["Cartn_x"]].parse().unwrap();
+                fields[column["Cartn_x"]] = format!("{:.3}", x + shift);
+            }
+            fields.join(" ")
+        })
+        .collect();
+    let after = text
+        .lines()
+        .enumerate()
+        .filter(|&(_, line)| is_atom(line))
+        .last()
+        .unwrap()
+        .0
+        + 1;
+    let lines: Vec<String> = text
+        .lines()
+        .take(after)
+        .map(String::from)
+        .chain(second)
+        .chain(text.lines().skip(after).map(String::from))
+        .collect();
+
+    let path = dir.join(format!("{id}-two-models.cif"));
+    std::fs::write(&path, lines.join("\n")).unwrap();
+    path
+}
+
+// Crambin with Cys40 carried off in its second model: the 3-40 disulfide is
+// present in one model of two, the 4-32 disulfide in both.
+#[test]
+fn the_network_of_every_model_weighs_each_edge_by_the_models_it_is_in() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = with_a_second_model("1CRN", dir.path(), 40, 60.0);
+
+    let run = run_on(
+        &path,
+        &[
+            "rin",
+            "--model",
+            "all",
+            "--type",
+            "disulfide",
+            "--format",
+            "json",
+        ],
+    );
+    assert!(run.ok, "command failed: {}", run.stderr);
+    let network: serde_json::Value = serde_json::from_str(&run.stdout).unwrap();
+    assert_eq!(network["models"], 2);
+    let frequency = |source: &str, target: &str| {
+        network["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|edge| edge["source"] == source && edge["target"] == target)
+            .map(|edge| (edge["frequency"].as_f64().unwrap(), edge["models"].clone()))
+    };
+    assert_eq!(frequency("A/3", "A/40"), Some((0.5, 1.into())));
+    assert_eq!(frequency("A/4", "A/32"), Some((1.0, 2.into())));
+
+    let frequent = run_on(
+        &path,
+        &[
+            "rin",
+            "--model",
+            "all",
+            "--min-frequency",
+            "1",
+            "--format",
+            "tsv",
+        ],
+    );
+    assert!(frequent.ok, "command failed: {}", frequent.stderr);
+    assert!(frequent.stdout.starts_with("source\ttarget\t"));
+    assert!(
+        frequent
+            .stdout
+            .lines()
+            .next()
+            .unwrap()
+            .ends_with("\tmodels\tfrequency")
+    );
+    assert!(!frequent.rows().is_empty());
+    assert!(
+        frequent
+            .rows()
+            .iter()
+            .all(|row| !row.contains("A/40\t") && row.ends_with("\t2\t1.000")),
+        "{}",
+        frequent.stdout
+    );
+}
+
+#[test]
+fn a_frequency_threshold_needs_every_model_and_a_fraction() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = two_model_file(&dir);
+
+    let one = run_on(&path, &["rin", "--min-frequency", "0.5"]);
+    assert!(!one.ok);
+    assert!(one.stderr.contains("--model all"), "{}", one.stderr);
+
+    let beyond = run_on(&path, &["rin", "--model", "all", "--min-frequency", "1.5"]);
+    assert!(!beyond.ok);
+    assert!(
+        beyond.stderr.contains("between 0 and 1"),
+        "{}",
+        beyond.stderr
+    );
 }
 
 #[test]

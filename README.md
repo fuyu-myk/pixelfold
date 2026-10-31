@@ -257,8 +257,9 @@ Being explicit about what this does not do:
   with fewer than three neighbours inside the ligand selection (a glycan's
   anomeric carbon on its asparagine), or a double bond's E or Z.
 - **No trajectories.** A multi-model file such as an NMR ensemble works model
-  by model (`--model N`, or `--model all` for a report on every model), but a
-  molecular-dynamics trajectory is not read.
+  by model (`--model N`, or `--model all` for a report on every model and one
+  interaction network over them all), but a molecular-dynamics trajectory is
+  not read; frames written as the models of one file are.
 - **No cryo-EM density, no electrostatics, no structure building or refinement.**
 - **Rendering quality depends on your terminal.** Kitty and iTerm2 show real
   pixels; anywhere else falls back to half-blocks, which is coarse. Pass
@@ -303,6 +304,10 @@ pixelfold render 4HHB -o hemoglobin.png --width 1600 --height 1200
 # One model of an NMR ensemble, or every model with a model column
 pixelfold ss 1D3Z --model 3
 pixelfold sasa 1D3Z --model all --format tsv
+# One network over every model, each edge weighted by the share of models it
+# is in; the edges in at least nine models in ten, analysed
+pixelfold rin 1D3Z --model all --format tsv
+pixelfold rin 1D3Z --model all --min-frequency 0.9 --analyze
 
 # The biological assembly instead of the deposited coordinates; copies of a
 # chain are named A, A-2, A-3

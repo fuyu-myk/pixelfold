@@ -4,7 +4,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use pixelfold_core::parser::{AssemblyChoice, Load};
-use pixelfold_core::{AtomSet, InteractionKind, Protein};
+use pixelfold_core::rin::{self, Ensemble};
+use pixelfold_core::{AtomSet, InteractionKind, Network, Protein};
 
 mod analyse;
 mod graph;
@@ -58,7 +59,7 @@ struct Common {
 
     /// Which model of a multi-model file (an NMR ensemble, say) to load: its
     /// number, or `all` for ss, sasa and interactions to report on every model
-    /// (default: the first)
+    /// and rin to build one network over them (default: the first)
     #[arg(long, value_name = "N|all", value_parser = model_choice, global = true)]
     model: Option<ModelChoice>,
 
@@ -105,6 +106,14 @@ impl Common {
 enum ModelChoice {
     One(usize),
     All,
+}
+
+fn fraction(value: &str) -> Result<f32, String> {
+    value
+        .parse()
+        .ok()
+        .filter(|fraction| (0.0..=1.0).contains(fraction))
+        .ok_or_else(|| format!("expected a fraction between 0 and 1, not `{value}`"))
 }
 
 fn model_choice(value: &str) -> Result<ModelChoice, String> {
@@ -165,7 +174,9 @@ enum Command {
         #[arg(short, long, value_name = "CODE", conflicts_with = "select")]
         ligand: Option<String>,
     },
-    /// Build the residue interaction network
+    /// Build the residue interaction network.
+    /// With --model all, the network of the whole ensemble: every edge any model
+    /// has, weighted by the fraction of models it is present in
     Rin {
         /// Path to a .pdb/.cif file, or a 4-character PDB id
         structure: String,
@@ -177,6 +188,13 @@ enum Command {
         /// Include only these interaction types (repeatable)
         #[arg(short = 't', long = "type", value_enum, value_name = "TYPE")]
         types: Vec<KindArg>,
+
+        /// With --model all, keep only the edges present in at least this
+        /// fraction of the models, from 0 to 1 (default: every edge). The
+        /// fraction compared is exact, an edge's models over the network's, not
+        /// the frequency as rounded for display
+        #[arg(long, value_name = "FRACTION", value_parser = fraction)]
+        min_frequency: Option<f32>,
 
         /// How to write the network
         #[arg(long, value_enum, default_value_t = GraphFormat::Json)]
@@ -471,6 +489,7 @@ fn run(command: Command) -> Result<()> {
             structure,
             select,
             types,
+            min_frequency,
             format,
             analyze,
             path,
@@ -481,12 +500,14 @@ fn run(command: Command) -> Result<()> {
             if mvsj && common.assembly.is_some() {
                 anyhow::bail!("--mvsj cannot show a biological assembly yet; drop --assembly");
             }
-            let protein = loaded(&structure, &common)?;
-            let chosen = load::chosen(&protein, select.as_deref())?;
             let kinds: Vec<InteractionKind> = types.into_iter().map(Into::into).collect();
-
-            let interactions = analyse::selected(&protein, &chosen, &kinds);
-            let network = pixelfold_core::rin::build(&protein, &interactions);
+            let network = network_of(
+                &structure,
+                select.as_deref(),
+                &kinds,
+                min_frequency,
+                &common,
+            )?;
 
             if let Some(endpoints) = path {
                 let node_of = |id: &str| {
@@ -495,12 +516,15 @@ fn run(command: Command) -> Result<()> {
                         .iter()
                         .position(|node| node.id == id)
                         .with_context(|| {
-                            format!("residue {id} is not in the network (does it interact?)")
+                            let often = min_frequency.map_or(String::new(), |fraction| {
+                                format!(" in at least {fraction} of the models")
+                            });
+                            format!("residue {id} is not in the network (does it interact{often}?)")
                         })
                 };
                 let from = node_of(&endpoints[0])?;
                 let to = node_of(&endpoints[1])?;
-                let route = pixelfold_core::rin::shortest_path(&network, from, to);
+                let route = rin::shortest_path(&network, from, to);
 
                 emit_to(output.as_deref(), |out| {
                     graph::write_path(
@@ -518,7 +542,7 @@ fn run(command: Command) -> Result<()> {
                     graph::write_mvsj(out, &network, &url, parse_format, &title)
                 })
             } else if analyze {
-                let report = pixelfold_core::rin::analyze(&network);
+                let report = rin::analyze(&network);
                 emit_to(output.as_deref(), |out| {
                     graph::write_analysis(out, &network, &report)
                 })
@@ -670,13 +694,59 @@ where
         );
     }
     if !matched {
-        anyhow::bail!(
-            "the selection `{}` matched no atoms in any model",
-            query.unwrap_or("all")
-        );
+        return Err(matched_no_model(query));
     }
 
     emit(&records, analysis.format)
+}
+
+/// The residue interaction network of the `kinds` of interaction touching what
+/// `query` selects: in the model `--model` names, or, when it names `all`, in
+/// every model folded into one, keeping the edges present in at least
+/// `min_frequency` of them.
+fn network_of(
+    structure: &str,
+    query: Option<&str>,
+    kinds: &[InteractionKind],
+    min_frequency: Option<f32>,
+    common: &Common,
+) -> Result<Network> {
+    if common.model != Some(ModelChoice::All) {
+        if min_frequency.is_some() {
+            anyhow::bail!("--min-frequency weighs edges across models; pass --model all");
+        }
+        let protein = loaded(structure, common)?;
+        let chosen = load::chosen(&protein, query)?;
+        return Ok(rin::build(
+            &protein,
+            &analyse::selected(&protein, &chosen, kinds),
+        ));
+    }
+
+    let dir = cache_dir(common)?;
+    let parsed = load::parsed(structure, &dir)?;
+    let mut ensemble = Ensemble::default();
+    let mut matched = false;
+    for model in parsed.model_numbers() {
+        let protein = parsed
+            .protein(&common.load(Some(model)))
+            .with_context(|| format!("model {model}"))?;
+        let chosen = load::selection(&protein, query)?;
+        matched |= !chosen.is_empty();
+        ensemble.add(&protein, &analyse::selected(&protein, &chosen, kinds));
+    }
+    if !matched {
+        return Err(matched_no_model(query));
+    }
+
+    Ok(ensemble.network(min_frequency.unwrap_or(0.0)))
+}
+
+fn matched_no_model(query: Option<&str>) -> anyhow::Error {
+    anyhow::anyhow!(
+        "the selection `{}` matched no atoms in any model",
+        query.unwrap_or("all")
+    )
 }
 
 /// Score the `query` ligand of every pose against the `reference_query` ligand

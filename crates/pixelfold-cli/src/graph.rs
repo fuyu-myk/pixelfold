@@ -4,6 +4,9 @@
 //! GraphML that Cytoscape and Gephi import, and a flat edge list for a
 //! dataframe.
 //!
+//! Every edge carries how many of the network's models it is present in and
+//! that as a fraction: 1 for a single structure, from 0 to 1 for an ensemble.
+//!
 //! Every edge carries its summed interaction energy (kJ/mol) as a raw additive
 //! magnitude. A covalent disulfide (~251 kJ/mol) is an order of magnitude above
 //! any non-covalent contact, so a node-strength sum in a downstream tool will be
@@ -27,7 +30,7 @@ const TOP_COMPONENTS: usize = 10;
 /// How to write a network.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, ValueEnum)]
 pub enum GraphFormat {
-    /// Node-link JSON: `{ "nodes": [...], "edges": [...] }` (default)
+    /// Node-link JSON: `{ "models": N, "nodes": [...], "edges": [...] }` (default)
     #[default]
     Json,
     /// GraphML, for Cytoscape and Gephi
@@ -53,9 +56,13 @@ pub fn write_analysis<W: Write + ?Sized>(
     network: &Network,
     analysis: &RinAnalysis,
 ) -> Result<()> {
+    let over = match network.models {
+        1 => String::new(),
+        models => format!(" over {models} models"),
+    };
     writeln!(
         out,
-        "Residue interaction network: {} residues, {} edges, {} components",
+        "Residue interaction network{over}: {} residues, {} edges, {} components",
         network.nodes.len(),
         network.edges.len(),
         analysis.components.len()
@@ -216,8 +223,15 @@ fn round_2dp(value: f32) -> f32 {
     ((value as f64 * 100.0).round() / 100.0) as f32
 }
 
+/// A frequency to three places, for reading; the count of models beside it is
+/// exact.
+fn round_3dp(value: f32) -> f32 {
+    ((value as f64 * 1000.0).round() / 1000.0) as f32
+}
+
 #[derive(Serialize)]
 struct JsonNetwork<'a> {
+    models: usize,
     nodes: Vec<JsonNode<'a>>,
     edges: Vec<JsonEdge<'a>>,
 }
@@ -243,6 +257,8 @@ struct JsonEdge<'a> {
     interchain: bool,
     /// Summed interaction energy (kJ/mol).
     energy: f32,
+    models: usize,
+    frequency: f32,
 }
 
 fn json_node(node: &Node) -> JsonNode<'_> {
@@ -257,7 +273,7 @@ fn json_node(node: &Node) -> JsonNode<'_> {
     }
 }
 
-fn json_edge(edge: &Edge) -> JsonEdge<'_> {
+fn json_edge<'a>(network: &Network, edge: &'a Edge) -> JsonEdge<'a> {
     JsonEdge {
         source: &edge.source,
         target: &edge.target,
@@ -266,13 +282,20 @@ fn json_edge(edge: &Edge) -> JsonEdge<'_> {
         min_distance: round_2dp(edge.min_distance),
         interchain: edge.interchain,
         energy: round_2dp(edge.energy),
+        models: edge.models,
+        frequency: round_3dp(network.frequency(edge)),
     }
 }
 
 fn write_json<W: Write + ?Sized>(out: &mut W, network: &Network) -> Result<()> {
     let json = JsonNetwork {
+        models: network.models,
         nodes: network.nodes.iter().map(json_node).collect(),
-        edges: network.edges.iter().map(json_edge).collect(),
+        edges: network
+            .edges
+            .iter()
+            .map(|edge| json_edge(network, edge))
+            .collect(),
     };
     serde_json::to_writer_pretty(&mut *out, &json)?;
     writeln!(out)?;
@@ -286,14 +309,14 @@ fn write_json<W: Write + ?Sized>(out: &mut W, network: &Network) -> Result<()> {
 fn write_tsv<W: Write + ?Sized>(out: &mut W, network: &Network) -> Result<()> {
     writeln!(out, "{}", EDGE_COLUMNS.join("\t"))?;
     for edge in &network.edges {
-        writeln!(out, "{}", edge_cells(edge).join("\t"))?;
+        writeln!(out, "{}", edge_cells(network, edge).join("\t"))?;
     }
 
     Ok(())
 }
 
 /// The columns of the edge list, shared by the tab-separated and aligned writers.
-const EDGE_COLUMNS: [&str; 7] = [
+const EDGE_COLUMNS: [&str; 9] = [
     "source",
     "target",
     "kind",
@@ -301,10 +324,12 @@ const EDGE_COLUMNS: [&str; 7] = [
     "min_distance",
     "interchain",
     "energy",
+    "models",
+    "frequency",
 ];
 
-/// One edge as the seven column cells, in [`EDGE_COLUMNS`] order.
-fn edge_cells(edge: &Edge) -> [String; 7] {
+/// One edge as the nine column cells, in [`EDGE_COLUMNS`] order.
+fn edge_cells(network: &Network, edge: &Edge) -> [String; 9] {
     [
         edge.source.clone(),
         edge.target.clone(),
@@ -313,6 +338,8 @@ fn edge_cells(edge: &Edge) -> [String; 7] {
         format!("{:.2}", round_2dp(edge.min_distance)),
         edge.interchain.to_string(),
         format!("{:.2}", round_2dp(edge.energy)),
+        edge.models.to_string(),
+        format!("{:.3}", round_3dp(network.frequency(edge))),
     ]
 }
 
@@ -323,7 +350,11 @@ fn edge_cells(edge: &Edge) -> [String; 7] {
 /// picks this only when standard output is a terminal; a file or pipe still gets
 /// genuine tab-separated values from [`write_tsv`].
 pub fn write_tsv_aligned<W: Write + ?Sized>(out: &mut W, network: &Network) -> Result<()> {
-    let rows: Vec<[String; 7]> = network.edges.iter().map(edge_cells).collect();
+    let rows: Vec<[String; 9]> = network
+        .edges
+        .iter()
+        .map(|edge| edge_cells(network, edge))
+        .collect();
 
     // The widest cell in each column, header included, sets the column width.
     let mut widths = EDGE_COLUMNS.map(str::len);
@@ -345,8 +376,8 @@ pub fn write_tsv_aligned<W: Write + ?Sized>(out: &mut W, network: &Network) -> R
 /// between columns and no trailing spaces after the last cell.
 fn write_padded_row<W: Write + ?Sized>(
     out: &mut W,
-    cells: &[String; 7],
-    widths: &[usize; 7],
+    cells: &[String; 9],
+    widths: &[usize; 9],
 ) -> Result<()> {
     const GUTTER: usize = 2;
     let last = cells.len() - 1;
@@ -365,6 +396,8 @@ fn write_padded_row<W: Write + ?Sized>(
 
 /// The GraphML attribute keys, one per node and edge field.
 const KEYS: &str = concat!(
+    r#"  <key id="g_models" for="graph" attr.name="models" attr.type="int"/>"#,
+    "\n",
     r#"  <key id="v_chain" for="node" attr.name="chain" attr.type="string"/>"#,
     "\n",
     r#"  <key id="v_resi" for="node" attr.name="resi" attr.type="int"/>"#,
@@ -386,6 +419,10 @@ const KEYS: &str = concat!(
     r#"  <key id="e_interchain" for="edge" attr.name="interchain" attr.type="boolean"/>"#,
     "\n",
     r#"  <key id="e_energy" for="edge" attr.name="energy" attr.type="double"/>"#,
+    "\n",
+    r#"  <key id="e_models" for="edge" attr.name="models" attr.type="int"/>"#,
+    "\n",
+    r#"  <key id="e_frequency" for="edge" attr.name="frequency" attr.type="double"/>"#,
 );
 
 fn write_graphml<W: Write + ?Sized>(out: &mut W, network: &Network) -> Result<()> {
@@ -396,6 +433,7 @@ fn write_graphml<W: Write + ?Sized>(out: &mut W, network: &Network) -> Result<()
     )?;
     writeln!(out, "{KEYS}")?;
     writeln!(out, r#"  <graph edgedefault="undirected">"#)?;
+    writeln!(out, r#"    <data key="g_models">{}</data>"#, network.models)?;
 
     for node in &network.nodes {
         writeln!(out, r#"    <node id="{}">"#, escape(&node.id))?;
@@ -426,6 +464,12 @@ fn write_graphml<W: Write + ?Sized>(out: &mut W, network: &Network) -> Result<()
         )?;
         data(out, "e_interchain", &edge.interchain.to_string())?;
         data(out, "e_energy", &format!("{:.2}", round_2dp(edge.energy)))?;
+        data(out, "e_models", &edge.models.to_string())?;
+        data(
+            out,
+            "e_frequency",
+            &format!("{:.3}", round_3dp(network.frequency(edge))),
+        )?;
         writeln!(out, "    </edge>")?;
     }
 
@@ -495,7 +539,9 @@ mod tests {
                 min_distance: 3.456,
                 interchain: false,
                 energy: InteractionKind::SaltBridge.contact_energy_kj(),
+                models: 1,
             }],
+            models: 3,
         }
     }
 
@@ -511,6 +557,9 @@ mod tests {
         let parsed: serde_json::Value =
             serde_json::from_str(&rendered(GraphFormat::Json)).expect("valid json");
 
+        assert_eq!(parsed["models"], 3);
+        assert_eq!(parsed["edges"][0]["models"], 1);
+        assert_eq!(parsed["edges"][0]["frequency"], 0.333);
         assert_eq!(parsed["nodes"][1]["icode"], "B");
         assert_eq!(parsed["edges"][0]["kind"], "salt-bridge");
         assert_eq!(parsed["edges"][0]["min_distance"], 3.46);
@@ -533,6 +582,7 @@ mod tests {
             min_distance: 3.0,
             interchain: false,
             energy: 20.0,
+            models: 3,
         });
 
         let mut out = Vec::new();
@@ -556,9 +606,12 @@ mod tests {
 
         assert_eq!(
             lines[0],
-            "source\ttarget\tkind\tcount\tmin_distance\tinterchain\tenergy"
+            "source\ttarget\tkind\tcount\tmin_distance\tinterchain\tenergy\tmodels\tfrequency"
         );
-        assert_eq!(lines[1], "A/1\tA/2\tsalt-bridge\t1\t3.46\tfalse\t17.00");
+        assert_eq!(
+            lines[1],
+            "A/1\tA/2\tsalt-bridge\t1\t3.46\tfalse\t17.00\t1\t0.333"
+        );
     }
 
     #[test]
@@ -578,6 +631,12 @@ mod tests {
             )
         );
         assert!(text.contains("<data key=\"e_energy\">17.00</data>"));
+        assert!(text.contains(
+            r#"<graph edgedefault="undirected">
+    <data key="g_models">3</data>"#
+        ));
+        assert!(text.contains("<data key=\"e_models\">1</data>"));
+        assert!(text.contains("<data key=\"e_frequency\">0.333</data>"));
         // The insertion code reaches the node.
         assert!(text.contains("<data key=\"v_icode\">B</data>"));
         // Every open tag is closed.

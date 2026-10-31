@@ -3,9 +3,11 @@
 //! engine.
 
 mod analysis;
+mod ensemble;
 mod layout;
 mod network;
 
 pub use analysis::{RinAnalysis, analyze, shortest_path};
+pub use ensemble::Ensemble;
 pub use layout::{Layout, force_directed};
 pub use network::{Edge, Network, Node, build};

@@ -10,14 +10,14 @@
 //! residue pair joined by several interaction types has no single direction.
 //! The atom-level direction is kept by the interaction list itself.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::interactions::{Interaction, InteractionKind};
 use crate::structure::{Atom, Protein};
 
-type ResidueKey = (crate::structure::ChainId, i32, Option<char>);
+pub(super) type ResidueKey = (crate::structure::ChainId, i32, Option<char>);
 
-fn residue_key(atom: &Atom) -> ResidueKey {
+pub(super) fn residue_key(atom: &Atom) -> ResidueKey {
     (atom.chain_id, atom.residue_seq, atom.insertion_code)
 }
 
@@ -50,7 +50,8 @@ pub struct Edge {
     pub source: String,
     pub target: String,
     pub kind: InteractionKind,
-    /// How many atom-level interactions of this kind join the pair.
+    /// How many atom-level interactions of this kind join the pair, summed
+    /// over the network's models.
     pub count: usize,
     /// The shortest of those interactions' gate distances.
     pub min_distance: f32,
@@ -59,6 +60,9 @@ pub struct Edge {
     /// The summed interaction energy of this edge (kJ/mol): the per-contact weight
     /// of `kind` times `count`. See [`InteractionKind::contact_energy_kj`].
     pub energy: f32,
+    /// How many of the network's models the edge is present in: 1 for a single
+    /// structure. See [`crate::rin::Ensemble`].
+    pub models: usize,
 }
 
 /// A residue interaction network: the residues that interact and the typed
@@ -67,6 +71,15 @@ pub struct Edge {
 pub struct Network {
     pub nodes: Vec<Node>,
     pub edges: Vec<Edge>,
+    /// How many models the network is built over: 1 for a single structure.
+    pub models: usize,
+}
+
+impl Network {
+    /// The fraction of the network's models `edge` is present in.
+    pub fn frequency(&self, edge: &Edge) -> f32 {
+        edge.models as f32 / self.models as f32
+    }
 }
 
 /// What an edge accumulates before it is finished: the count and the running
@@ -135,40 +148,31 @@ pub fn build(protein: &Protein, interactions: &[Interaction]) -> Network {
             min_distance: stats.min_distance,
             interchain: stats.interchain,
             energy: kind.contact_energy_kj() * stats.count as f32,
+            models: 1,
         })
         .collect();
 
     Network {
         nodes: nodes(protein, &representative, &edges),
         edges,
+        models: 1,
     }
 }
 
-/// One node per residue that interacts, with its degree, the number of distinct
-/// residues it touches.
+/// One node per residue that interacts, with its degree.
 fn nodes(
     protein: &Protein,
     representative: &BTreeMap<ResidueKey, usize>,
     edges: &[Edge],
 ) -> Vec<Node> {
-    let mut partners: BTreeMap<&str, std::collections::BTreeSet<&str>> = BTreeMap::new();
-    for edge in edges {
-        partners
-            .entry(&edge.source)
-            .or_default()
-            .insert(&edge.target);
-        partners
-            .entry(&edge.target)
-            .or_default()
-            .insert(&edge.source);
-    }
+    let degrees = degrees(edges);
 
     representative
         .values()
         .map(|&index| {
             let atom = &protein.atoms[index];
             let id = node_id(atom);
-            let degree = partners.get(id.as_str()).map_or(0, |set| set.len());
+            let degree = degrees.get(id.as_str()).copied().unwrap_or(0);
 
             Node {
                 chain: atom.chain_id.as_str().to_string(),
@@ -180,6 +184,27 @@ fn nodes(
                 id,
             }
         })
+        .collect()
+}
+
+/// Each residue's degree in `edges`: the number of distinct residues it
+/// touches.
+pub(super) fn degrees(edges: &[Edge]) -> BTreeMap<&str, usize> {
+    let mut partners: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+    for edge in edges {
+        partners
+            .entry(&edge.source)
+            .or_default()
+            .insert(&edge.target);
+        partners
+            .entry(&edge.target)
+            .or_default()
+            .insert(&edge.source);
+    }
+
+    partners
+        .into_iter()
+        .map(|(id, set)| (id, set.len()))
         .collect()
 }
 
