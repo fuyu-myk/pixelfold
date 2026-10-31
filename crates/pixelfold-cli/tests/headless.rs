@@ -841,7 +841,7 @@ fn an_unknown_assembly_and_an_assembly_scene_are_refused() {
 fn edited_fixture(
     id: &str,
     dir: &Path,
-    edit: impl Fn(&mut [String], &HashMap<&str, usize>),
+    mut edit: impl FnMut(&mut [String], &HashMap<&str, usize>),
 ) -> PathBuf {
     let text = std::fs::read_to_string(fixture(id)).unwrap();
     let columns: HashMap<&str, usize> = text
@@ -871,20 +871,54 @@ fn edited_fixture(
 /// Run `poses` with 1PPB as the reference and its PPACK inhibitor (0G6) as the
 /// ligand, written as JSON.
 fn poses_against(reference: &Path, poses: &[&Path]) -> Run {
-    let head = [
-        "poses",
-        "--ligand",
-        "0G6",
-        "--format",
-        "json",
-        "--reference",
-    ]
-    .map(OsStr::new);
+    poses_with(&["--ligand", "0G6"], reference, poses)
+}
+
+/// Run `poses` with the ligand picked by `ligand`, written as JSON.
+fn poses_with(ligand: &[&str], reference: &Path, poses: &[&Path]) -> Run {
+    let head = ["poses", "--format", "json"]
+        .into_iter()
+        .chain(ligand.iter().copied())
+        .chain(["--reference"])
+        .map(OsStr::new);
     run_args(
-        head.into_iter()
-            .chain([reference.as_os_str()])
+        head.chain([reference.as_os_str()])
             .chain(poses.iter().map(|pose| pose.as_os_str())),
     )
+}
+
+/// A copy of fixture `id` as co-folding output writes it: each polymer chain
+/// renamed by `chains` and numbered from 1 without insertion codes, and the
+/// `ligand` component a chain of its own, moved `shift` A along x.
+fn cofolded(id: &str, dir: &Path, chains: &[(&str, &str)], ligand: &str, shift: f32) -> PathBuf {
+    let renamed: HashMap<&str, &str> = chains.iter().copied().collect();
+    let mut numbers: HashMap<(String, String, String), usize> = HashMap::new();
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    let own = dir.join(format!("cofolded-{shift}"));
+    std::fs::create_dir_all(&own).unwrap();
+    edited_fixture(id, &own, |fields, column| {
+        let chain = fields[column["auth_asym_id"]].clone();
+        if fields[column["auth_comp_id"]] == ligand {
+            fields[column["auth_asym_id"]] = "Z".to_string();
+            fields[column["auth_seq_id"]] = "1".to_string();
+            let x: f32 = fields[column["Cartn_x"]].parse().unwrap();
+            fields[column["Cartn_x"]] = format!("{:.3}", x + shift);
+        } else if let Some(name) = renamed.get(chain.as_str()) {
+            let residue = (
+                chain.clone(),
+                fields[column["auth_seq_id"]].clone(),
+                fields[column["pdbx_PDB_ins_code"]].clone(),
+            );
+            let number = *numbers.entry(residue).or_insert_with(|| {
+                let count = counts.entry(chain).or_insert(0);
+                *count += 1;
+                *count
+            });
+            fields[column["auth_asym_id"]] = name.to_string();
+            fields[column["auth_seq_id"]] = number.to_string();
+            fields[column["pdbx_PDB_ins_code"]] = "?".to_string();
+        }
+    })
 }
 
 fn records(run: &Run) -> Vec<serde_json::Value> {
@@ -956,24 +990,92 @@ fn a_pose_without_ligand_chemistry_borrows_the_reference_definition() {
     );
 }
 
+/// 1PPB's chains as co-folding names them: the light chain first, as A.
+const THROMBIN_CHAINS: [(&str, &str); 2] = [("L", "A"), ("H", "B")];
+
 #[test]
-fn a_pose_numbered_unlike_the_reference_is_refused() {
+fn a_pose_numbered_as_co_folding_output_is_aligned_with_the_reference() {
     let dir = tempfile::tempdir().unwrap();
-    let shifted = edited_fixture("1PPB", dir.path(), |fields, column| {
-        if fields[column["group_PDB"]] == "ATOM" && fields[column["auth_asym_id"]] == "H" {
-            let number: i32 = fields[column["auth_seq_id"]].parse().unwrap();
-            fields[column["auth_seq_id"]] = (number + 1).to_string();
+    let same = cofolded("1PPB", dir.path(), &THROMBIN_CHAINS, "0G6", 0.0);
+
+    let found = records(&poses_against(&fixture("1PPB"), &[&same]));
+    assert_eq!(found[0]["similarity"], 1.0, "{}", found[0]);
+    assert_eq!(found[0]["clashes"], 0, "{}", found[0]);
+
+    // A displaced pose scores the same in either numbering, and its lost
+    // contacts are named in the reference's, insertion codes and all.
+    let displaced = edited_fixture("1PPB", dir.path(), |fields, column| {
+        if fields[column["auth_comp_id"]] == "0G6" {
+            let x: f32 = fields[column["Cartn_x"]].parse().unwrap();
+            fields[column["Cartn_x"]] = format!("{:.3}", x + 2.0);
+        }
+    });
+    let renumbered = cofolded("1PPB", dir.path(), &THROMBIN_CHAINS, "0G6", 2.0);
+    let found = records(&poses_against(&fixture("1PPB"), &[&displaced, &renumbered]));
+    for field in [
+        "contacts",
+        "shared",
+        "recovery",
+        "similarity",
+        "clashes",
+        "lost",
+    ] {
+        assert_eq!(found[0][field], found[1][field], "{field}");
+    }
+    let lost = found[1]["lost"].to_string();
+    assert!(lost.contains(" H/60A "), "{lost}");
+}
+
+#[test]
+fn a_homodimer_pose_with_its_chains_named_the_other_way_round_keeps_every_contact() {
+    // HIV-1 protease binds its inhibitor between two identical chains, so only
+    // the contacts tell which pose chain stands for which reference chain.
+    let dir = tempfile::tempdir().unwrap();
+    let swapped = cofolded("1HVR", dir.path(), &[("A", "B"), ("B", "A")], "XK2", 0.0);
+
+    let found = records(&poses_with(
+        &["--ligand", "XK2"],
+        &fixture("1HVR"),
+        &[&swapped],
+    ));
+    assert_eq!(found[0]["similarity"], 1.0, "{}", found[0]);
+    assert_eq!(found[0]["clashes"], 0, "{}", found[0]);
+}
+
+#[test]
+fn a_pose_of_another_protein_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let unrelated = edited_fixture("1PPB", dir.path(), |fields, column| {
+        if fields[column["group_PDB"]] == "ATOM" {
+            fields[column["auth_comp_id"]] = "ALA".to_string();
+            fields[column["label_comp_id"]] = "ALA".to_string();
         }
     });
 
-    let run = poses_against(&fixture("1PPB"), &[&shifted]);
+    let run = poses_against(&fixture("1PPB"), &[&unrelated]);
     assert!(!run.ok, "expected a failure, got: {}", run.stdout);
     assert!(
-        run.stderr
-            .contains("in the reference; a pose must number its residues as the reference does"),
+        run.stderr.contains("aligns by sequence"),
         "unhelpful error: {}",
         run.stderr
     );
+}
+
+#[test]
+fn the_reference_ligand_can_be_picked_apart_from_the_poses() {
+    // A selection naming the reference's chain finds no ligand in a pose that
+    // puts it in a chain of its own; --reference-select picks it apart.
+    let dir = tempfile::tempdir().unwrap();
+    let pose = cofolded("1PPB", dir.path(), &THROMBIN_CHAINS, "0G6", 0.0);
+    let reference_only = [
+        "--ligand",
+        "0G6",
+        "--reference-select",
+        "chain H and resn 0G6",
+    ];
+
+    let found = records(&poses_with(&reference_only, &fixture("1PPB"), &[&pose]));
+    assert_eq!(found[0]["similarity"], 1.0, "{}", found[0]);
 }
 
 #[test]

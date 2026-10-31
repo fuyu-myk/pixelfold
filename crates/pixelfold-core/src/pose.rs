@@ -10,15 +10,17 @@
 //! the ones it loses, and by recovery, the share of the reference's contacts it
 //! keeps.
 //!
-//! Residues match by chain, number and insertion code, so a pose must number
-//! them as the reference does; [`first_renumbered`] finds where one does not.
+//! A pose need not number its residues as the reference does: [`residue_map`]
+//! pairs them by sequence, and [`renumbered`] moves a pose's fingerprint into
+//! the reference's numbering before the two are compared.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use glam::Vec3;
 
 use crate::fixed_str::FixedStr;
 use crate::interactions::{Interaction, InteractionKind, classify, connectivity, topology};
+use crate::numbering::{self, Chain, Residue, ResidueKey, ResidueMap, residue_key};
 use crate::sasa::get_vdw_radius;
 use crate::select::AtomSet;
 use crate::spatial::Grid;
@@ -33,9 +35,6 @@ pub const CLASH_RATIO: f32 = 0.75;
 /// the van der Waals table holds (iodine, 1.98 A).
 const CLASH_REACH: f32 = 3.0;
 
-/// A residue's identity: chain, number and insertion code.
-pub type ResidueKey = (ChainId, i32, Option<char>);
-
 /// One element of a fingerprint: a residue the ligand touches, and how.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Contact {
@@ -48,12 +47,16 @@ pub struct Contact {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Fingerprint {
     contacts: BTreeSet<Contact>,
+    /// Contacts with residues that have no counterpart in the numbering the
+    /// fingerprint was moved into, which count but can match nothing.
+    unmatched: usize,
 }
 
 impl FromIterator<Contact> for Fingerprint {
     fn from_iter<I: IntoIterator<Item = Contact>>(contacts: I) -> Self {
         Self {
             contacts: contacts.into_iter().collect(),
+            unmatched: 0,
         }
     }
 }
@@ -61,16 +64,20 @@ impl FromIterator<Contact> for Fingerprint {
 impl Fingerprint {
     /// How many contacts there are.
     pub fn len(&self) -> usize {
-        self.contacts.len()
+        self.contacts.len() + self.unmatched
     }
 
     pub fn is_empty(&self) -> bool {
-        self.contacts.is_empty()
+        self.len() == 0
     }
 
-    /// The contacts, ordered by residue and then kind.
+    /// The contacts that can match, ordered by residue and then kind.
     pub fn contacts(&self) -> impl Iterator<Item = &Contact> {
         self.contacts.iter()
+    }
+
+    pub fn contains(&self, contact: &Contact) -> bool {
+        self.contacts.contains(contact)
     }
 
     /// How many contacts this fingerprint and `other` both hold.
@@ -81,12 +88,13 @@ impl Fingerprint {
     /// The Tanimoto similarity to `other`: shared contacts over all contacts
     /// either holds. Two empty fingerprints are identical.
     pub fn similarity(&self, other: &Fingerprint) -> f32 {
-        let either = self.contacts.union(&other.contacts).count();
+        let shared = self.shared(other);
+        let either = self.len() + other.len() - shared;
         if either == 0 {
             return 1.0;
         }
 
-        self.shared(other) as f32 / either as f32
+        shared as f32 / either as f32
     }
 
     /// The share of `reference`'s contacts this fingerprint keeps, 1 when the
@@ -141,6 +149,133 @@ pub fn fingerprint(
         .collect()
 }
 
+/// How the residues of a pose correspond to the reference's: chains paired by
+/// sequence and, where several pairings are possible, the one under which the
+/// `pose` fingerprint keeps the most of the `reference` one.
+pub fn residue_map(
+    pose: &Fingerprint,
+    pose_chains: &[Chain],
+    reference: &Fingerprint,
+    reference_chains: &[Chain],
+) -> ResidueMap {
+    // The chains the reference ligand touches win a tie, so a pose that keeps
+    // nothing still pairs with the copy the ligand sits on.
+    let touched: Vec<ChainId> = reference_chains
+        .iter()
+        .filter(|chain| {
+            reference
+                .contacts()
+                .any(|contact| chain.contains(&contact.residue))
+        })
+        .map(|chain| chain.id)
+        .collect();
+
+    numbering::residue_map(pose_chains, reference_chains, &touched, |pair| {
+        pose.contacts()
+            .filter(|contact| {
+                pair.reference_residue(&contact.residue)
+                    .is_some_and(|(residue, residue_name)| {
+                        reference.contains(&Contact {
+                            residue,
+                            residue_name,
+                            kind: contact.kind,
+                        })
+                    })
+            })
+            .count()
+    })
+}
+
+/// `pose`, a fingerprint in a pose's numbering, in the reference's.
+///
+/// A polymer residue becomes the one `map` aligns it with, and takes its name,
+/// so a contact at a substituted position counts when its kind agrees. Any
+/// other residue, a cofactor or an ion, keeps its identity where the reference
+/// touches a residue of the same identity and component; the rest become
+/// residues of the same component that `reference` touches, paired to share the
+/// most contacts, since a co-folding tool numbers each such molecule as a chain
+/// of its own and nothing but its component tells which it is.
+pub fn renumbered(pose: &Fingerprint, reference: &Fingerprint, map: &ResidueMap) -> Fingerprint {
+    let others = other_residues(pose, reference, map);
+    let mut contacts = BTreeSet::new();
+    let mut unmatched = pose.unmatched;
+    for contact in pose.contacts() {
+        let counterpart = if map.is_pose_polymer(&contact.residue) {
+            map.reference_residue(&contact.residue)
+        } else {
+            others.get(&contact.residue).copied()
+        };
+        match counterpart {
+            Some((residue, residue_name)) => {
+                contacts.insert(Contact {
+                    residue,
+                    residue_name,
+                    kind: contact.kind,
+                });
+            }
+            None => unmatched += 1,
+        }
+    }
+
+    Fingerprint {
+        contacts,
+        unmatched,
+    }
+}
+
+/// The residues outside the polymer that `pose` touches, each paired with one
+/// that `reference` touches: the same residue where both hold it, and
+/// otherwise one of the same component, so as to share the most contacts.
+fn other_residues(
+    pose: &Fingerprint,
+    reference: &Fingerprint,
+    map: &ResidueMap,
+) -> HashMap<ResidueKey, Residue> {
+    let all_theirs = touched(pose, |residue| !map.is_pose_polymer(residue));
+    let all_ours = touched(reference, |residue| !map.is_reference_polymer(residue));
+    let in_both = |residue: &Residue, others: &[(Residue, BTreeSet<InteractionKind>)]| {
+        others.iter().any(|(other, _)| other == residue)
+    };
+    let (same, theirs): (Vec<_>, Vec<_>) = all_theirs
+        .into_iter()
+        .partition(|(residue, _)| in_both(residue, &all_ours));
+    let ours: Vec<_> = all_ours
+        .into_iter()
+        .filter(|(residue, _)| !in_both(residue, &same))
+        .collect();
+
+    let pairing = numbering::best_pairing(theirs.len(), ours.len(), |p, r| {
+        let ((_, pose_name), pose_kinds) = &theirs[p];
+        let ((_, reference_name), reference_kinds) = &ours[r];
+        (pose_name == reference_name).then(|| pose_kinds.intersection(reference_kinds).count())
+    });
+
+    same.iter()
+        .map(|&(residue, _)| (residue.0, residue))
+        .chain(pairing.into_iter().map(|(p, r)| (theirs[p].0.0, ours[r].0)))
+        .collect()
+}
+
+/// The residues of `fingerprint` that `include` admits, each with the kinds of
+/// contact the ligand makes with it.
+fn touched(
+    fingerprint: &Fingerprint,
+    include: impl Fn(&ResidueKey) -> bool,
+) -> Vec<(Residue, BTreeSet<InteractionKind>)> {
+    let mut residues: BTreeMap<Residue, BTreeSet<InteractionKind>> = BTreeMap::new();
+    for contact in fingerprint
+        .contacts()
+        .filter(|contact| include(&contact.residue))
+    {
+        residues
+            .entry((contact.residue, contact.residue_name))
+            .or_default()
+            .insert(contact.kind);
+    }
+
+    residues.into_iter().collect()
+}
+
 /// A protein atom's identity across structures: residue and atom name.
 type AtomIdentity = (ChainId, i32, Option<char>, FixedStr<4>);
 
@@ -160,6 +295,30 @@ type LigandAtom = (FixedStr<6>, FixedStr<4>);
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Attachments {
     pairs: Vec<(LigandAtom, AtomIdentity)>,
+}
+
+impl Attachments {
+    /// These attachments in a pose's numbering, each polymer atom moved to the
+    /// residue `map` aligns its own with, or dropped when its residue has no
+    /// counterpart. An atom outside the polymer, of a cofactor or another
+    /// component, keeps its identity.
+    pub fn renumbered(&self, map: &ResidueMap) -> Attachments {
+        let pairs = self
+            .pairs
+            .iter()
+            .filter_map(|&(near, (chain, seq, icode, name))| {
+                let residue = (chain, seq, icode);
+                let (chain, seq, icode) = if map.is_reference_polymer(&residue) {
+                    map.pose_residue(&residue)?
+                } else {
+                    residue
+                };
+                Some((near, (chain, seq, icode, name)))
+            })
+            .collect();
+
+        Attachments { pairs }
+    }
 }
 
 /// The covalent attachments of the `ligand` atoms in `reference`.
@@ -296,38 +455,6 @@ pub fn undefined_ligand_residues(
     undefined.into_iter().collect()
 }
 
-/// A residue the reference makes a contact with that a pose numbers
-/// differently: another residue under the same number, or none.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Renumbered {
-    pub residue: ResidueKey,
-    pub expected: FixedStr<6>,
-    pub found: Option<FixedStr<6>>,
-}
-
-/// The first residue of `reference` that `pose` does not hold under the same
-/// number and name.
-pub fn first_renumbered(reference: &Fingerprint, pose: &Protein) -> Option<Renumbered> {
-    let names: HashMap<ResidueKey, FixedStr<6>> = pose
-        .atoms
-        .iter()
-        .map(|atom| (residue_key(atom), atom.residue_name))
-        .collect();
-
-    reference.contacts().find_map(|contact| {
-        let found = names.get(&contact.residue).copied();
-        (found != Some(contact.residue_name)).then_some(Renumbered {
-            residue: contact.residue,
-            expected: contact.residue_name,
-            found,
-        })
-    })
-}
-
-fn residue_key(atom: &Atom) -> ResidueKey {
-    (atom.chain_id, atom.residue_seq, atom.insertion_code)
-}
-
 fn identity(atom: &Atom) -> AtomIdentity {
     (
         atom.chain_id,
@@ -354,7 +481,7 @@ mod tests {
     use crate::components::Dictionary;
     use crate::select;
     use crate::structure::{Molecule, SecondaryStructure};
-    use InteractionKind::{HydrogenBond, Hydrophobic, SaltBridge, WaterBridge};
+    use InteractionKind::{HydrogenBond, Hydrophobic, PiStacking, SaltBridge, WaterBridge};
     use glam::Vec3;
 
     fn atom(seq: i32, residue: &str, name: &str, element: &str, position: Vec3) -> Atom {
@@ -365,7 +492,7 @@ mod tests {
             residue_name: FixedStr::new(residue),
             residue_seq: seq,
             chain_id: FixedStr::new("A"),
-            is_hetatm: matches!(residue, "LIG" | "HOH" | "ZN"),
+            is_hetatm: matches!(residue, "LIG" | "HOH" | "ZN" | "HEM"),
             molecule: Molecule::Unknown,
             altloc: None,
             occupancy: 1.0,
@@ -624,28 +751,179 @@ LIG C1 C2 sing N 1
         );
     }
 
+    fn in_chain(chain: &str, atom: Atom) -> Atom {
+        Atom {
+            chain_id: FixedStr::new(chain),
+            ..atom
+        }
+    }
+
+    fn contact_in(chain: &str, seq: i32, residue: &str, kind: InteractionKind) -> Contact {
+        Contact {
+            residue: (FixedStr::new(chain), seq, None),
+            ..contact(seq, residue, kind)
+        }
+    }
+
+    /// One alpha carbon for each of `residues` in `chain`, numbered from `first`.
+    fn backbone(chain: &str, first: i32, residues: &[&str]) -> Vec<Atom> {
+        residues
+            .iter()
+            .zip(first..)
+            .map(|(residue, seq)| in_chain(chain, atom(seq, residue, "CA", "C", Vec3::ZERO)))
+            .collect()
+    }
+
+    fn mapped(pose: &Protein, reference: &Protein) -> ResidueMap {
+        let (pose_chains, reference_chains) = (
+            numbering::polymer_chains(pose),
+            numbering::polymer_chains(reference),
+        );
+        let none = Fingerprint::default();
+
+        residue_map(&none, &pose_chains, &none, &reference_chains)
+    }
+
     #[test]
-    fn a_pose_that_numbers_a_contact_residue_differently_is_caught() {
-        let structure = site();
-        let fingerprint_of = |seq, residue| -> Fingerprint {
-            [contact(seq, residue, HydrogenBond)].into_iter().collect()
+    fn a_pose_fingerprint_moves_into_the_reference_numbering() {
+        let reference = protein(backbone("H", 15, &["GLY", "LYS", "ASP"]));
+        let pose = protein(backbone("A", 1, &["GLY", "LYS", "ASP"]));
+        let in_reference: Fingerprint = [
+            contact_in("H", 16, "LYS", HydrogenBond),
+            contact_in("H", 17, "ASP", Hydrophobic),
+        ]
+        .into_iter()
+        .collect();
+        let in_pose: Fingerprint = [
+            contact_in("A", 2, "LYS", HydrogenBond),
+            contact_in("A", 3, "ASP", Hydrophobic),
+        ]
+        .into_iter()
+        .collect();
+
+        let map = residue_map(
+            &in_pose,
+            &numbering::polymer_chains(&pose),
+            &in_reference,
+            &numbering::polymer_chains(&reference),
+        );
+        let moved = renumbered(&in_pose, &in_reference, &map);
+
+        assert_eq!(moved, in_reference);
+        assert_eq!(moved.similarity(&in_reference), 1.0);
+    }
+
+    #[test]
+    fn a_contact_without_a_counterpart_counts_but_matches_nothing() {
+        let reference = protein(backbone("A", 1, &["GLY", "LYS", "ASP"]));
+        // The same chain name and a lysine under the same number, but no
+        // sequence to pair with.
+        let pose = protein(backbone("A", 1, &["TRP", "LYS", "MET", "PRO", "PRO"]));
+        let in_reference: Fingerprint = [contact(2, "LYS", HydrogenBond)].into_iter().collect();
+
+        let moved = renumbered(
+            &in_reference.clone(),
+            &in_reference,
+            &mapped(&pose, &reference),
+        );
+
+        assert_eq!(moved.len(), 1);
+        assert_eq!(moved.shared(&in_reference), 0);
+        assert_eq!(moved.similarity(&in_reference), 0.0);
+    }
+
+    #[test]
+    fn a_cofactor_matches_the_reference_residue_of_its_component_it_agrees_with() {
+        let mut reference = protein(backbone("A", 1, &["GLY", "HIS"]));
+        reference
+            .atoms
+            .push(atom(401, "HEM", "FE", "FE", Vec3::ZERO));
+        reference
+            .atoms
+            .push(atom(402, "HEM", "FE", "FE", Vec3::ZERO));
+        let mut pose = protein(backbone("A", 1, &["GLY", "HIS"]));
+        pose.atoms
+            .push(in_chain("C", atom(1, "HEM", "FE", "FE", Vec3::ZERO)));
+        let in_reference: Fingerprint = [
+            contact(2, "HIS", HydrogenBond),
+            contact(401, "HEM", PiStacking),
+            contact(402, "HEM", Hydrophobic),
+        ]
+        .into_iter()
+        .collect();
+        let in_pose: Fingerprint = [
+            contact_in("A", 2, "HIS", HydrogenBond),
+            contact_in("C", 1, "HEM", Hydrophobic),
+        ]
+        .into_iter()
+        .collect();
+
+        let moved = renumbered(&in_pose, &in_reference, &mapped(&pose, &reference));
+
+        let expected: Fingerprint = [
+            contact(2, "HIS", HydrogenBond),
+            contact(402, "HEM", Hydrophobic),
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(moved, expected);
+    }
+
+    #[test]
+    fn an_attachment_follows_its_anchor_into_the_pose_numbering() {
+        let reference = attached();
+        let attached_in_reference = attachments(&reference, &ligand_of(&reference));
+
+        // The serine renumbered from 1 in chain B, the ligand a chain of its own.
+        let mut pose = attached();
+        for atom in &mut pose.atoms {
+            let (chain, seq) = if atom.residue_name == "LIG" {
+                ("C", 1)
+            } else {
+                ("B", 1)
+            };
+            atom.chain_id = FixedStr::new(chain);
+            atom.residue_seq = seq;
+        }
+        let ligand = ligand_of(&pose);
+
+        assert_eq!(clashes(&pose, &ligand, &attached_in_reference), 3);
+        let renumbered = attached_in_reference.renumbered(&mapped(&pose, &reference));
+        assert_eq!(clashes(&pose, &ligand, &renumbered), 0);
+    }
+
+    #[test]
+    fn a_residue_outside_the_polymer_keeps_its_own_identity_where_both_share_it() {
+        // Two sulfates, numbered alike in pose and reference: the pose's salt
+        // bridge is to 502, which the reference only hydrogen-bonds.
+        let mut reference = protein(backbone("A", 1, &["GLY", "LYS", "ASP"]));
+        reference
+            .atoms
+            .extend([501, 502].map(|seq| atom(seq, "SO4", "S", "S", Vec3::ZERO)));
+        let pose = reference.clone();
+        let in_reference: Fingerprint = [
+            contact(501, "SO4", SaltBridge),
+            contact(502, "SO4", HydrogenBond),
+        ]
+        .into_iter()
+        .collect();
+        let in_pose: Fingerprint = [contact(502, "SO4", SaltBridge)].into_iter().collect();
+
+        let moved = renumbered(&in_pose, &in_reference, &mapped(&pose, &reference));
+
+        assert_eq!(moved, in_pose);
+        assert_eq!(moved.shared(&in_reference), 0);
+    }
+
+    #[test]
+    fn an_attachment_to_a_residue_outside_the_polymer_keeps_its_identity() {
+        let heme = (FixedStr::new("A"), 401, None, FixedStr::new("CMA"));
+        let attached = Attachments {
+            pairs: vec![((FixedStr::new("LIG"), FixedStr::new("C1")), heme)],
         };
 
-        assert_eq!(
-            first_renumbered(&fingerprint_of(10, "LYS"), &structure),
-            None
-        );
-        assert_eq!(
-            first_renumbered(&fingerprint_of(20, "LYS"), &structure),
-            Some(Renumbered {
-                residue: (FixedStr::new("A"), 20, None),
-                expected: FixedStr::new("LYS"),
-                found: Some(FixedStr::new("ASP")),
-            })
-        );
-        assert_eq!(
-            first_renumbered(&fingerprint_of(30, "GLY"), &structure).map(|missing| missing.found),
-            Some(None)
-        );
+        let renumbered = attached.renumbered(&ResidueMap::default());
+
+        assert_eq!(renumbered, attached);
     }
 }

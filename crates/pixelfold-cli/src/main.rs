@@ -206,8 +206,8 @@ enum Command {
     },
     /// Rank ligand poses by the reference contacts they keep, with their clashes.
     /// Every model of each pose file is a pose (or only --model N); the
-    /// reference is its first model. Residues must be numbered as in the
-    /// reference
+    /// reference is its first model. Residues are matched with the reference's
+    /// by aligning chain sequences, so a pose may number them as it likes
     Poses {
         /// The pose files: .pdb/.cif paths or 4-character PDB ids
         #[arg(required = true, value_name = "POSE")]
@@ -224,6 +224,12 @@ enum Command {
         /// Shorthand for --select 'resn CODE'
         #[arg(short, long, value_name = "CODE", conflicts_with = "select")]
         ligand: Option<String>,
+
+        /// Which atoms are the ligand in the reference, when they are not the
+        /// ones --select or --ligand picks there, such as one copy of a ligand
+        /// the reference holds several of
+        #[arg(long, value_name = "QUERY")]
+        reference_select: Option<String>,
 
         /// How to write the result
         #[arg(long, value_enum, default_value_t = Format::Table)]
@@ -527,12 +533,21 @@ fn run(command: Command) -> Result<()> {
             reference,
             select,
             ligand,
+            reference_select,
             format,
             common,
         } => {
             let query = ligand.map_or(select, |code| format!("resn {code}"));
+            let reference_query = reference_select.unwrap_or_else(|| query.clone());
 
-            compare_poses(&reference, &poses, &query, format, &common)
+            compare_poses(
+                &reference,
+                &reference_query,
+                &poses,
+                &query,
+                format,
+                &common,
+            )
         }
 
         Command::Ss { analysis } => {
@@ -660,10 +675,12 @@ where
     emit(&records, analysis.format)
 }
 
-/// Score the `query` ligand of every pose against the reference's, best first.
-/// Each pose file is parsed once and its models built in turn.
+/// Score the `query` ligand of every pose against the `reference_query` ligand
+/// of the reference, best first. Each pose file is parsed once and its models
+/// built in turn.
 fn compare_poses(
     reference: &str,
+    reference_query: &str,
     poses: &[String],
     query: &str,
     format: Format,
@@ -672,7 +689,7 @@ fn compare_poses(
     let dir = cache_dir(common)?;
     let mut warnings = poses::Warnings::default();
     let reference = load::analysis_structure(reference, &dir, &common.load(None))
-        .and_then(|protein| poses::Reference::new(&protein, query, &mut warnings))
+        .and_then(|protein| poses::Reference::new(&protein, reference_query, &mut warnings))
         .with_context(|| format!("the reference {reference}"))?;
 
     let mut records = Vec::new();
@@ -903,6 +920,7 @@ mod tests {
             reference,
             select,
             ligand,
+            reference_select,
             ..
         }) = cli.command
         else {
@@ -912,6 +930,26 @@ mod tests {
         assert_eq!(reference, "ref.cif");
         assert_eq!(select, "ligand");
         assert_eq!(ligand, None);
+        assert_eq!(reference_select, None);
+
+        let apart = [
+            "pixelfold",
+            "poses",
+            "-r",
+            "ref.cif",
+            "--ligand",
+            "STI",
+            "--reference-select",
+            "chain A and resn STI",
+            "a.cif",
+        ];
+        let Some(Command::Poses {
+            reference_select, ..
+        }) = Cli::try_parse_from(apart).expect("parses").command
+        else {
+            panic!("expected the poses command");
+        };
+        assert_eq!(reference_select.as_deref(), Some("chain A and resn STI"));
 
         let no_poses = ["pixelfold", "poses", "--reference", "ref.cif"];
         assert!(Cli::try_parse_from(no_poses).is_err());

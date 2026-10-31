@@ -224,11 +224,18 @@ Being explicit about what this does not do:
   relative to RING too, mostly from rotatable hydrogens.
 - **No cartoons or ribbons, no molecular surfaces, no ray tracing.** Space-filling
   spheres and bonds only.
-- **Poses must number residues as the reference does.** `pixelfold poses` matches
-  residues by chain and number and refuses a pose that disagrees, so a crystal
-  structure in author numbering cannot yet be compared with a co-folding model
-  numbered from 1. A pose file without its ligand's chemical definitions, as
-  co-folding output often is, borrows the reference's by atom name; a ligand
+- **Poses are matched to the reference by sequence, not by structure.**
+  `pixelfold poses` pairs each pose chain with the reference chain it aligns
+  with, so a co-folding model numbered from 1 compares with a crystal structure
+  in author numbering. Of identical chains, as in a homodimer, the pairing that
+  keeps the most reference contacts wins; a cofactor or an ion matches the
+  reference residue of the same component. A chain must share at least half its
+  residues with its partner (a peptide must match whole), so a pose of another
+  protein is refused, and a contact at a substituted residue counts when its kind
+  agrees. A
+  reference holding several copies of the ligand needs one picked with
+  `--reference-select`. A pose file without its ligand's chemical definitions,
+  as co-folding output often is, borrows the reference's by atom name; a ligand
   named differently in the two gets a warning that its contacts are incomplete.
   Water-mediated contacts are left out, since predicted poses carry no water.
 - **No trajectories.** A multi-model file such as an NMR ensemble works model
@@ -258,9 +265,12 @@ pixelfold rin 4DFR --path A/23 A/94
 pixelfold rin 4DFR --mvsj -o scene.mvsj
 
 # Ligand poses, from co-folding, docking or an NMR ensemble, ranked by the
-# reference contacts each keeps, with their clashes; every model is a pose
+# reference contacts each keeps, with their clashes; every model is a pose, and
+# residues are matched by sequence, so the numbering may differ
 pixelfold poses --reference crystal.cif --ligand STI pose_*.cif
 pixelfold poses --reference 29SB 29SB --format tsv
+# One copy of a ligand the reference holds several of
+pixelfold poses --reference 1IEP --reference-select 'chain A and resn STI' --ligand STI model.cif
 
 # Secondary structure and solvent accessibility
 pixelfold ss 1UBQ --format tsv

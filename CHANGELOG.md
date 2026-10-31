@@ -20,9 +20,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Waals radii, PoseBusters' default; a covalent ligand's bonds to the protein,
   read off the reference, are not clashes. A pose file without its ligand's
   chemical definitions, as co-folding output often is, borrows the reference's.
-  Residues are matched by chain and number, and a pose numbered otherwise is
-  refused. Water-mediated contacts are left out, since predicted poses carry no
-  water. The library gains the `pose` module and `Dictionary::with_fallback`.
+  Residues are matched with the reference's by aligning chain sequences, so a
+  co-folding model numbered from 1 compares with a crystal structure in author
+  numbering: of identical chains, as in a homodimer, the pairing that keeps the
+  most reference contacts wins, a cofactor or an ion matches by component, and a
+  pose of another protein is refused. `--reference-select` picks the reference's
+  ligand apart from the poses', such as one copy of a ligand the reference holds
+  several of. Water-mediated contacts are left out, since predicted poses carry
+  no water. The library gains the `pose` and `numbering` modules and
+  `Dictionary::with_fallback`.
 
 ## [3.0.0] (2026-10-30)
 

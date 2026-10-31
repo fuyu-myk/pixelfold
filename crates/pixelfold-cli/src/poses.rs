@@ -1,13 +1,14 @@
 //! `pixelfold poses`: ligand poses ranked against a reference by the contacts
 //! the ligand makes, with the clashes each suffers.
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use anyhow::Result;
 use pixelfold_core::components::Dictionary;
 use pixelfold_core::interactions::detect;
-use pixelfold_core::pose::{self, Attachments, Contact, Fingerprint, ResidueKey};
-use pixelfold_core::{AtomSet, Protein};
+use pixelfold_core::numbering::{self, Chain, ResidueKey, ResidueMap};
+use pixelfold_core::pose::{self, Attachments, Contact, Fingerprint};
+use pixelfold_core::{Atom, AtomSet, ChainId, Protein};
 use serde::Serialize;
 
 use crate::analyse::rounded;
@@ -71,28 +72,39 @@ impl Warnings {
 }
 
 /// What every pose is compared with: the reference ligand's contacts, its
-/// covalent attachments, and the chemistry a pose may borrow.
+/// covalent attachments, the chains a pose's are aligned with, and the
+/// chemistry a pose may borrow.
 pub struct Reference {
     components: Dictionary,
     fingerprint: Fingerprint,
     attachments: Attachments,
+    chains: Vec<Chain>,
 }
 
 impl Reference {
     /// The reference made of the `query` atoms of `protein`.
     pub fn new(protein: &Protein, query: &str, warnings: &mut Warnings) -> Result<Self> {
         let ligand = load::chosen(protein, Some(query))?;
-        let components: BTreeSet<&str> = ligand
-            .iter()
-            .map(|atom| protein.atoms[atom].residue_name.as_str())
-            .collect();
-        if components.len() > 1 {
-            let names: Vec<&str> = components.into_iter().collect();
+        let residues = ligand_residues(protein, &ligand, |_| true);
+        if residues.len() > 1 {
+            let names: Vec<&str> = residues.keys().copied().collect();
             warnings.warn(format!(
                 "the ligand `{query}` covers {} components ({}); pass --ligand CODE if only \
                  one is meant",
                 names.len(),
                 names.join(", ")
+            ));
+        }
+        // A peptide repeats its residue names by nature; only a small molecule
+        // repeated is a copy.
+        let small = ligand_residues(protein, &ligand, |atom| !atom.is_polymer());
+        for (name, copies) in small.iter().filter(|(_, copies)| copies.len() > 1) {
+            let ids: Vec<String> = copies.iter().map(|&residue| residue_id(residue)).collect();
+            warnings.warn(format!(
+                "the ligand `{query}` covers {} residues of {name} ({}); if they are copies of \
+                 one ligand, pick one with --reference-select",
+                copies.len(),
+                ids.join(", ")
             ));
         }
         warn_undefined(protein, &ligand, warnings);
@@ -106,13 +118,15 @@ impl Reference {
             components: protein.components.clone(),
             fingerprint,
             attachments: pose::attachments(protein, &ligand),
+            chains: numbering::polymer_chains(protein),
         })
     }
 
     /// Score model `model` of the pose file `pose` against the reference.
     ///
     /// A ligand the pose file does not define takes the reference's definition
-    /// of the same component, matched by atom name.
+    /// of the same component, matched by atom name. The pose's residues are
+    /// matched with the reference's by aligning chain sequences.
     pub fn assess(
         &self,
         protein: Protein,
@@ -126,21 +140,14 @@ impl Reference {
             ..protein
         };
         let ligand = load::chosen(&protein, Some(query))?;
-        if let Some(renumbered) = pose::first_renumbered(&self.fingerprint, &protein) {
-            let found = renumbered
-                .found
-                .map_or_else(|| "absent".to_string(), |name| name.to_string());
-            anyhow::bail!(
-                "residue {} is {found} here but {} in the reference; a pose must number its \
-                 residues as the reference does",
-                residue_id(renumbered.residue),
-                renumbered.expected
-            );
-        }
         warn_undefined(&protein, &ligand, warnings);
 
-        let fingerprint = pose::fingerprint(&protein, &detect(&protein), &ligand);
         let reference = &self.fingerprint;
+        let found = pose::fingerprint(&protein, &detect(&protein), &ligand);
+        let chains = numbering::polymer_chains(&protein);
+        let map = pose::residue_map(&found, &chains, reference, &self.chains);
+        self.check_pairing(&map, pose, warnings)?;
+        let fingerprint = pose::renumbered(&found, reference, &map);
 
         Ok(PoseRecord {
             pose: pose.to_string(),
@@ -149,10 +156,61 @@ impl Reference {
             shared: fingerprint.shared(reference),
             recovery: rounded(fingerprint.recovery(reference), 3),
             similarity: rounded(fingerprint.similarity(reference), 3),
-            clashes: pose::clashes(&protein, &ligand, &self.attachments),
+            clashes: pose::clashes(&protein, &ligand, &self.attachments.renumbered(&map)),
             lost: fingerprint.lost(reference).map(contact_label).collect(),
         })
     }
+
+    /// Fail when no chain of the pose aligns with any reference chain the
+    /// ligand touches, and warn of each such chain left without a counterpart.
+    fn check_pairing(&self, map: &ResidueMap, pose: &str, warnings: &mut Warnings) -> Result<()> {
+        let touched: BTreeSet<ChainId> = self
+            .fingerprint
+            .contacts()
+            .filter(|contact| map.is_reference_polymer(&contact.residue))
+            .map(|contact| contact.residue.0)
+            .collect();
+        if !touched.is_empty() && !touched.iter().any(|chain| map.is_alignable(chain)) {
+            let names: Vec<String> = touched.iter().map(|chain| chain.to_string()).collect();
+            let chains = if names.len() == 1 { "chain" } else { "chains" };
+            anyhow::bail!(
+                "no chain here aligns by sequence with the reference's {chains} {}, which the \
+                 ligand touches",
+                names.join(", ")
+            );
+        }
+
+        let paired: BTreeSet<ChainId> = map.chains().map(|&(_, reference)| reference).collect();
+        for chain in touched.difference(&paired) {
+            warnings.warn(format!(
+                "chain {chain} of the reference has no counterpart in {pose}, so the contacts \
+                 the ligand makes with it are lost"
+            ));
+        }
+
+        Ok(())
+    }
+}
+
+/// The residues of the ligand atoms that `include` admits, by component.
+fn ligand_residues<'a>(
+    protein: &'a Protein,
+    ligand: &AtomSet,
+    include: impl Fn(&Atom) -> bool,
+) -> BTreeMap<&'a str, BTreeSet<ResidueKey>> {
+    let mut residues: BTreeMap<&str, BTreeSet<ResidueKey>> = BTreeMap::new();
+    for atom in ligand
+        .iter()
+        .map(|atom| &protein.atoms[atom])
+        .filter(|atom| include(atom))
+    {
+        residues
+            .entry(atom.residue_name.as_str())
+            .or_default()
+            .insert((atom.chain_id, atom.residue_seq, atom.insertion_code));
+    }
+
+    residues
 }
 
 /// The records best first: most similar, then most recovered, then fewest

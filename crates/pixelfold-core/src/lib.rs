@@ -6,6 +6,7 @@ pub mod components;
 mod dssp;
 pub mod fixed_str;
 pub mod interactions;
+pub mod numbering;
 pub mod parser;
 pub mod pose;
 pub mod rin;
