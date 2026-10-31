@@ -1,0 +1,14 @@
+NodeId1	Interaction	NodeId2	Distance	Angle	Atom1	Atom2	Donor	Positive	Cation	Orientation	Model
+A:1:_:0DC	VDW:LIG_LIG	A:2:_:0DG	3.049	nan	O4'	N1					1
+A:1:_:0DC	VDW:LIG_LIG	A:2:_:0DG	3.251	nan	C3'	O5'					1
+A:1:_:0DC	VDW:LIG_LIG	A:2:_:0DG	3.473	nan	C4'	P					1
+A:3:_:0DC	VDW:LIG_LIG	A:4:_:0DG	3.469	nan	C4'	P					1
+A:3:_:0DC	VDW:LIG_LIG	B:9:_:0DC	3.404	nan	C4	C4					1
+A:4:_:0DG	VDW:LIG_LIG	A:5:_:0DC	3.241	nan	C3'	OP2					1
+A:5:_:0DC	VDW:LIG_LIG	A:6:_:0DG	3.195	nan	C3'	O5'					1
+A:5:_:0DC	VDW:LIG_LIG	A:6:_:0DG	3.512	nan	C4'	P					1
+B:9:_:0DC	VDW:LIG_LIG	B:10:_:0DG	3.045	nan	O4'	N1					1
+B:9:_:0DC	VDW:LIG_LIG	B:10:_:0DG	3.233	nan	C3'	O5'					1
+B:9:_:0DC	VDW:LIG_LIG	B:10:_:0DG	3.487	nan	C4'	P					1
+B:11:_:0DC	VDW:LIG_LIG	B:12:_:0DG	3.048	nan	O4'	N3					1
+B:11:_:0DC	VDW:LIG_LIG	B:12:_:0DG	3.388	nan	C4'	C4					1

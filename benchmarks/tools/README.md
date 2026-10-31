@@ -57,9 +57,10 @@ fewer than three positions apart (`sequence_separation: 3`). Positions count
 residues rather than author numbers, so an insertion code widens the distance,
 and ligands, modified residues and nucleotides pair at any distance. The harness
 drops pixelfold's edges outside that scope before scoring, as it does for PLIP's
-ligand scope. Every server reply is kept under `benchmarks/ring-cache/`
-(gitignored) and parsed in place of a new job, so changing the type mapping never
-costs the server a rerun.
+ligand scope. Every server reply is kept under `benchmarks/ring-cache/` and
+parsed in place of a new job, so changing the type mapping never costs the server
+a rerun. The replies are committed: a full run takes the server about a day and a
+half, and with them the RING goldens regenerate offline.
 
 RING's types map onto pixelfold's as follows; the rest are left out of the golden
 and unscored.

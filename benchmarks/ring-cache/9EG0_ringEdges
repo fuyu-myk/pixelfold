@@ -1,0 +1,24 @@
+NodeId1	Interaction	NodeId2	Distance	Angle	Atom1	Atom2	Donor	Positive	Cation	Orientation	Model
+A:2:_:LEU	HBOND:MC_LIG	A:3:_:AIB	2.246	151.648	O	N	A:3:_:AIB				1
+A:2:_:LEU	HBOND:MC_LIG	A:5:_:AIB	3.222	165.393	O	N	A:5:_:AIB				1
+A:2:_:LEU	VDW:MC_LIG	A:5:_:AIB	2.896	nan	C	H2					1
+A:4:_:GLU	HBOND:MC_MC	A:8:_:ALA	2.837	154.844	O	N	A:8:_:ALA				1
+A:4:_:GLU	VDW:SC_LIG	A:3:_:AIB	2.712	nan	HA	O					1
+A:4:_:GLU	HBOND:MC_LIG	A:5:_:AIB	2.251	157.499	O	N	A:5:_:AIB				1
+A:4:_:GLU	VDW:MC_LIG	A:5:_:AIB	2.722	nan	O	H2					1
+A:4:_:GLU	VDW:MC_LIG	A:5:_:AIB	2.754	nan	N	H					1
+A:4:_:GLU	VDW:SC_LIG	A:5:_:AIB	2.775	nan	HB2	N					1
+A:6:_:LEU	VDW:MC_SC	A:10:_:LEU	2.743	nan	O	H					1
+A:6:_:LEU	VDW:SC_LIG	A:5:_:AIB	2.395	nan	H	H2					1
+A:6:_:LEU	HBOND:MC_LIG	A:9:_:AIB	3.224	153.891	O	N	A:9:_:AIB				1
+A:6:_:LEU	VDW:MC_LIG	A:9:_:AIB	2.928	nan	C	H2					1
+A:7:_:HIS	HBOND:MC_LIG	A:3:_:AIB	3.097	159.078	N	O	A:7:_:HIS				1
+A:7:_:HIS	VDW:MC_LIG	A:3:_:AIB	3.097	nan	N	O					1
+A:7:_:HIS	VDW:MC_LIG	A:11:_:NH2	3.044	nan	O	N					1
+A:8:_:ALA	HBOND:MC_LIG	A:9:_:AIB	2.256	158.257	O	N	A:9:_:AIB				1
+A:8:_:ALA	VDW:MC_LIG	A:9:_:AIB	2.731	nan	N	H					1
+A:8:_:ALA	VDW:MC_LIG	A:9:_:AIB	2.745	nan	O	H2					1
+A:8:_:ALA	VDW:MC_LIG	A:11:_:NH2	3.077	nan	O	N					1
+A:10:_:LEU	VDW:MC_LIG	A:9:_:AIB	3.245	nan	C	O					1
+A:1:_:ACE	VDW:LIG_LIG	A:5:_:AIB	2.737	nan	O	H2					1
+A:5:_:AIB	VDW:LIG_LIG	A:9:_:AIB	3.071	nan	O	N					1
