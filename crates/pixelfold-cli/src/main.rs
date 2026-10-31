@@ -9,6 +9,7 @@ use pixelfold_core::{AtomSet, InteractionKind, Protein};
 mod analyse;
 mod graph;
 mod load;
+mod poses;
 mod render;
 mod report;
 mod resolve;
@@ -199,6 +200,34 @@ enum Command {
         /// Write to this file instead of standard output
         #[arg(short, long, value_name = "FILE")]
         output: Option<PathBuf>,
+
+        #[command(flatten)]
+        common: Common,
+    },
+    /// Rank ligand poses by the reference contacts they keep, with their clashes.
+    /// Every model of each pose file is a pose (or only --model N); the
+    /// reference is its first model. Residues must be numbered as in the
+    /// reference
+    Poses {
+        /// The pose files: .pdb/.cif paths or 4-character PDB ids
+        #[arg(required = true, value_name = "POSE")]
+        poses: Vec<String>,
+
+        /// The structure whose ligand contacts the poses are compared with
+        #[arg(short, long, value_name = "STRUCTURE")]
+        reference: String,
+
+        /// Which atoms are the ligand, in the reference and in every pose
+        #[arg(short, long, value_name = "QUERY", default_value = "ligand")]
+        select: String,
+
+        /// Shorthand for --select 'resn CODE'
+        #[arg(short, long, value_name = "CODE", conflicts_with = "select")]
+        ligand: Option<String>,
+
+        /// How to write the result
+        #[arg(long, value_enum, default_value_t = Format::Table)]
+        format: Format,
 
         #[command(flatten)]
         common: Common,
@@ -493,6 +522,19 @@ fn run(command: Command) -> Result<()> {
             }
         }
 
+        Command::Poses {
+            poses,
+            reference,
+            select,
+            ligand,
+            format,
+            common,
+        } => {
+            let query = ligand.map_or(select, |code| format!("resn {code}"));
+
+            compare_poses(&reference, &poses, &query, format, &common)
+        }
+
         Command::Ss { analysis } => {
             emit_analysis(&analysis, analysis.select.as_deref(), analyse::secondary)
         }
@@ -616,6 +658,40 @@ where
     }
 
     emit(&records, analysis.format)
+}
+
+/// Score the `query` ligand of every pose against the reference's, best first.
+/// Each pose file is parsed once and its models built in turn.
+fn compare_poses(
+    reference: &str,
+    poses: &[String],
+    query: &str,
+    format: Format,
+    common: &Common,
+) -> Result<()> {
+    let dir = cache_dir(common)?;
+    let mut warnings = poses::Warnings::default();
+    let reference = load::analysis_structure(reference, &dir, &common.load(None))
+        .and_then(|protein| poses::Reference::new(&protein, query, &mut warnings))
+        .with_context(|| format!("the reference {reference}"))?;
+
+    let mut records = Vec::new();
+    for pose in poses {
+        let parsed = load::parsed(pose, &dir)?;
+        let models = match common.model {
+            Some(ModelChoice::One(number)) => vec![number],
+            _ => parsed.model_numbers(),
+        };
+        for model in models {
+            let record = parsed
+                .protein(&common.load(Some(model)))
+                .and_then(|protein| reference.assess(protein, query, pose, model, &mut warnings))
+                .with_context(|| format!("{pose}, model {model}"))?;
+            records.push(record);
+        }
+    }
+
+    emit(&poses::ranked(records), format)
 }
 
 /// The URL and parse format a MolViewSpec scene should load the structure from.
@@ -808,5 +884,48 @@ mod tests {
         assert_eq!(structure, "4HHB");
         assert_eq!(format, GraphFormat::Graphml);
         assert_eq!(output.as_deref(), Some(Path::new("net.graphml")));
+    }
+
+    #[test]
+    fn poses_take_a_reference_and_any_number_of_pose_files() {
+        let cli = Cli::try_parse_from([
+            "pixelfold",
+            "poses",
+            "--reference",
+            "ref.cif",
+            "a.cif",
+            "b.cif",
+        ])
+        .expect("parses");
+
+        let Some(Command::Poses {
+            poses,
+            reference,
+            select,
+            ligand,
+            ..
+        }) = cli.command
+        else {
+            panic!("expected the poses command");
+        };
+        assert_eq!(poses, ["a.cif", "b.cif"]);
+        assert_eq!(reference, "ref.cif");
+        assert_eq!(select, "ligand");
+        assert_eq!(ligand, None);
+
+        let no_poses = ["pixelfold", "poses", "--reference", "ref.cif"];
+        assert!(Cli::try_parse_from(no_poses).is_err());
+        let both = [
+            "pixelfold",
+            "poses",
+            "-r",
+            "ref.cif",
+            "--ligand",
+            "STI",
+            "--select",
+            "chain B",
+            "a.cif",
+        ];
+        assert!(Cli::try_parse_from(both).is_err());
     }
 }

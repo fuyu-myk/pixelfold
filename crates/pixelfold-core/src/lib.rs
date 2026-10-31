@@ -7,6 +7,7 @@ mod dssp;
 pub mod fixed_str;
 pub mod interactions;
 pub mod parser;
+pub mod pose;
 pub mod rin;
 pub mod sasa;
 pub mod select;

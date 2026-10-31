@@ -5,6 +5,8 @@
 //! every clean checkout, and these tests used to skip themselves when it was,
 //! so CI passed them without running the binary once.
 
+use std::collections::HashMap;
+use std::ffi::OsStr;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -47,9 +49,13 @@ fn pixelfold(id: &str, args: &[&str]) -> Run {
 
 /// Run the binary against a structure file.
 fn run_on(structure: &Path, args: &[&str]) -> Run {
+    run_args(args.iter().map(OsStr::new).chain([structure.as_os_str()]))
+}
+
+/// Run the binary with exactly these arguments.
+fn run_args<'a>(args: impl IntoIterator<Item = &'a OsStr>) -> Run {
     let output = Command::new(env!("CARGO_BIN_EXE_pixelfold"))
         .args(args)
-        .arg(structure)
         .output()
         .expect("the binary runs");
 
@@ -828,4 +834,160 @@ fn an_unknown_assembly_and_an_assembly_scene_are_refused() {
     let scene = run_on(&path, &["rin", "--mvsj", "--assembly"]);
     assert!(!scene.ok);
     assert!(scene.stderr.contains("--mvsj"), "{}", scene.stderr);
+}
+
+/// A copy of fixture `id` in `dir`, with `edit` applied to the fields of every
+/// atom row; `edit` gets the column indices by name.
+fn edited_fixture(
+    id: &str,
+    dir: &Path,
+    edit: impl Fn(&mut [String], &HashMap<&str, usize>),
+) -> PathBuf {
+    let text = std::fs::read_to_string(fixture(id)).unwrap();
+    let columns: HashMap<&str, usize> = text
+        .lines()
+        .filter_map(|line| line.strip_prefix("_atom_site."))
+        .enumerate()
+        .map(|(index, name)| (name.trim(), index))
+        .collect();
+
+    let edited: Vec<String> = text
+        .lines()
+        .map(|line| {
+            if !(line.starts_with("ATOM") || line.starts_with("HETATM")) {
+                return line.to_string();
+            }
+            let mut fields: Vec<String> = line.split_whitespace().map(String::from).collect();
+            edit(&mut fields, &columns);
+            fields.join(" ")
+        })
+        .collect();
+
+    let path = dir.join(format!("{id}-edited.cif"));
+    std::fs::write(&path, edited.join("\n")).unwrap();
+    path
+}
+
+/// Run `poses` with 1PPB as the reference and its PPACK inhibitor (0G6) as the
+/// ligand, written as JSON.
+fn poses_against(reference: &Path, poses: &[&Path]) -> Run {
+    let head = [
+        "poses",
+        "--ligand",
+        "0G6",
+        "--format",
+        "json",
+        "--reference",
+    ]
+    .map(OsStr::new);
+    run_args(
+        head.into_iter()
+            .chain([reference.as_os_str()])
+            .chain(poses.iter().map(|pose| pose.as_os_str())),
+    )
+}
+
+fn records(run: &Run) -> Vec<serde_json::Value> {
+    assert!(run.ok, "command failed: {}", run.stderr);
+    let parsed: serde_json::Value = serde_json::from_str(&run.stdout).expect("valid json");
+
+    parsed.as_array().expect("an array").clone()
+}
+
+#[test]
+fn poses_rank_by_the_reference_contacts_they_keep() {
+    let dir = tempfile::tempdir().unwrap();
+    // The inhibitor slid 2 A along x, into the protein.
+    let displaced = edited_fixture("1PPB", dir.path(), |fields, column| {
+        if fields[column["auth_comp_id"]] == "0G6" {
+            let x: f32 = fields[column["Cartn_x"]].parse().unwrap();
+            fields[column["Cartn_x"]] = format!("{:.3}", x + 2.0);
+        }
+    });
+
+    let found = records(&poses_against(
+        &fixture("1PPB"),
+        &[&displaced, &fixture("1PPB")],
+    ));
+    assert_eq!(found.len(), 2);
+
+    // The identical pose ranks first, whatever the order given: every contact
+    // kept, and its covalent bonds to Ser195 and His57 are not clashes.
+    let same = &found[0];
+    assert!(
+        same["pose"].as_str().unwrap().ends_with("1PPB.cif"),
+        "{same}"
+    );
+    assert_eq!(same["model"], 1);
+    assert_eq!(same["similarity"], 1.0);
+    assert_eq!(same["recovery"], 1.0);
+    assert_eq!(same["clashes"], 0);
+    assert_eq!(same["lost"], serde_json::json!([]));
+    assert!(same["contacts"].as_u64().unwrap() > 0);
+    assert_eq!(same["contacts"], same["shared"]);
+
+    let moved = &found[1];
+    assert!(moved["recovery"].as_f64().unwrap() < 1.0, "{moved}");
+    assert!(moved["clashes"].as_u64().unwrap() > 0, "{moved}");
+    assert!(!moved["lost"].as_array().unwrap().is_empty(), "{moved}");
+}
+
+#[test]
+fn a_pose_without_ligand_chemistry_borrows_the_reference_definition() {
+    // The legacy PDB file carries no component definitions; the mmCIF does.
+    let borrowed = poses_against(&fixture("1PPB"), &[&pdb_fixture("1PPB")]);
+    let found = records(&borrowed);
+    assert_eq!(found[0]["similarity"], 1.0, "{}", found[0]);
+    assert!(!borrowed.stderr.contains("warning"), "{}", borrowed.stderr);
+
+    // Neither file defines the inhibitor when the reference is the PDB file, so
+    // it makes no contacts at all and there is nothing to rank against.
+    let undefined = poses_against(&pdb_fixture("1PPB"), &[&pdb_fixture("1PPB")]);
+    assert!(
+        !undefined.ok,
+        "expected a failure, got: {}",
+        undefined.stdout
+    );
+    assert!(
+        undefined.stderr.contains("warning: ligand 0G6 H/1")
+            && undefined.stderr.contains("makes no contacts"),
+        "{}",
+        undefined.stderr
+    );
+}
+
+#[test]
+fn a_pose_numbered_unlike_the_reference_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let shifted = edited_fixture("1PPB", dir.path(), |fields, column| {
+        if fields[column["group_PDB"]] == "ATOM" && fields[column["auth_asym_id"]] == "H" {
+            let number: i32 = fields[column["auth_seq_id"]].parse().unwrap();
+            fields[column["auth_seq_id"]] = (number + 1).to_string();
+        }
+    });
+
+    let run = poses_against(&fixture("1PPB"), &[&shifted]);
+    assert!(!run.ok, "expected a failure, got: {}", run.stdout);
+    assert!(
+        run.stderr
+            .contains("in the reference; a pose must number its residues as the reference does"),
+        "unhelpful error: {}",
+        run.stderr
+    );
+}
+
+#[test]
+fn a_ligand_in_a_chain_of_its_own_keeps_its_covalent_attachment() {
+    // Co-folding output writes the ligand as its own chain, numbered from 1.
+    let dir = tempfile::tempdir().unwrap();
+    let rechained = edited_fixture("1PPB", dir.path(), |fields, column| {
+        if fields[column["auth_comp_id"]] == "0G6" {
+            fields[column["auth_asym_id"]] = "X".to_string();
+            fields[column["auth_seq_id"]] = "1".to_string();
+        }
+    });
+
+    let found = records(&poses_against(&fixture("1PPB"), &[&rechained]));
+    assert_eq!(found[0]["similarity"], 1.0, "{}", found[0]);
+    assert_eq!(found[0]["clashes"], 0, "{}", found[0]);
 }

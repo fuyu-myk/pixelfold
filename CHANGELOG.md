@@ -4,6 +4,26 @@ All notable changes to PixelFold are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`pixelfold poses`**, ranking ligand poses against a reference by the
+  contacts the ligand keeps: `pixelfold poses --reference crystal.cif --ligand
+  STI pose_*.cif`. Every model of each pose file is a pose, so co-folding
+  samples, docking output and an NMR ensemble all read the same way. A pose's
+  fingerprint is the set of residues its ligand touches, each with the kind of
+  interaction; each pose reports its contacts, those it shares with the
+  reference, its recovery (the share of the reference's contacts it keeps), its
+  Tanimoto similarity, its clashes and the contacts it lost, best first. A clash
+  is a ligand-protein heavy-atom pair closer than 0.75 of their summed van der
+  Waals radii, PoseBusters' default; a covalent ligand's bonds to the protein,
+  read off the reference, are not clashes. A pose file without its ligand's
+  chemical definitions, as co-folding output often is, borrows the reference's.
+  Residues are matched by chain and number, and a pose numbered otherwise is
+  refused. Water-mediated contacts are left out, since predicted poses carry no
+  water. The library gains the `pose` module and `Dictionary::with_fallback`.
+
 ## [3.0.0] (2026-10-30)
 
 Pixelfold now detects pi-hydrogen bonds, and the validation harness scores

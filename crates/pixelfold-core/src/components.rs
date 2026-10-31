@@ -224,6 +224,17 @@ impl Dictionary {
         self.components.get(component_id)
     }
 
+    /// This dictionary, plus `fallback`'s definition of every component it lacks.
+    pub fn with_fallback(mut self, fallback: &Dictionary) -> Dictionary {
+        for (id, component) in &fallback.components {
+            self.components
+                .entry(id.clone())
+                .or_insert_with(|| component.clone());
+        }
+
+        self
+    }
+
     /// How many components are defined.
     pub fn len(&self) -> usize {
         self.components.len()
@@ -286,6 +297,32 @@ LIG C2 H4  sing N 6
         assert!(dictionary.get("ALA").is_some());
         assert!(dictionary.get("LIG").is_some());
         assert!(dictionary.get("ABSENT").is_none());
+    }
+
+    #[test]
+    fn a_fallback_fills_only_the_components_a_dictionary_lacks() {
+        // A second file defining LIG differently and adding GOL.
+        let other = Dictionary::parse(
+            "\
+data_OTHER
+loop_
+_chem_comp_atom.comp_id
+_chem_comp_atom.atom_id
+_chem_comp_atom.type_symbol
+_chem_comp_atom.pdbx_aromatic_flag
+_chem_comp_atom.pdbx_ordinal
+LIG X1 C N 1
+GOL O1 O N 1
+GOL C1 C N 2
+#
+",
+        );
+        let own = Dictionary::parse(SAMPLE);
+        let merged = Dictionary::parse(SAMPLE).with_fallback(&other);
+
+        assert_eq!(merged.len(), 3);
+        assert_eq!(merged.get("LIG"), own.get("LIG"));
+        assert_eq!(merged.get("GOL"), other.get("GOL"));
     }
 
     #[test]

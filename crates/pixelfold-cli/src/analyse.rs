@@ -18,7 +18,7 @@ fn code(insertion: Option<char>) -> String {
 }
 
 /// Round to `places` decimals.
-fn rounded(value: f32, places: u32) -> f32 {
+pub(crate) fn rounded(value: f32, places: u32) -> f32 {
     let scale = 10f32.powi(places as i32);
 
     (value * scale).round() / scale
