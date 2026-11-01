@@ -411,9 +411,15 @@ pub fn view(path: &Path, load: Load, protocol: ViewProtocol) -> Result<()> {
 
 /// Run the interactive viewer on ligand poses ranked best first, listed in a
 /// table under the structure; the pose picked is drawn on the reference's
-/// pocket. `load` names the assembly and altloc policy of every pose's model.
-pub fn view_poses(poses: Vec<Pose>, load: Load, protocol: ViewProtocol) -> Result<()> {
-    run_viewer(protocol, |app, _, _| app.load_poses(poses, load))
+/// pocket. SD file poses are laid into `receptor`. `load` names the assembly
+/// and altloc policy of every pose's model.
+pub fn view_poses(
+    poses: Vec<Pose>,
+    receptor: Option<Protein>,
+    load: Load,
+    protocol: ViewProtocol,
+) -> Result<()> {
+    run_viewer(protocol, |app, _, _| app.load_poses(poses, receptor, load))
 }
 
 /// Run the viewer on what `open` shows, framed in the terminal's pixels.

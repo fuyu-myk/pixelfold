@@ -7,7 +7,7 @@ use crate::fixed_str::FixedStr;
 /// biological assembly places the chain more than once.
 pub type ChainId = FixedStr<8>;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Atom {
     pub serial: u32,
     pub name: FixedStr<4>,
@@ -104,6 +104,30 @@ pub struct Protein {
     /// informing a ligand's connectivity. Empty when the file declared, as a
     /// legacy PDB file does not.
     pub components: crate::components::Dictionary,
+}
+
+impl Protein {
+    /// This structure without the atoms `removed` picks, each given with its
+    /// index. Its backbone hydrogen bonds are found again, since they index
+    /// atoms.
+    pub fn without(&self, removed: impl Fn(usize, &Atom) -> bool) -> Protein {
+        let mut atoms: Vec<Atom> = self
+            .atoms
+            .iter()
+            .enumerate()
+            .filter(|&(index, atom)| !removed(index, atom))
+            .map(|(_, atom)| atom.clone())
+            .collect();
+        let hbonds = crate::dssp::assign(&mut atoms);
+
+        Protein {
+            atoms,
+            hbonds,
+            title: self.title.clone(),
+            assembly: self.assembly.clone(),
+            components: self.components.clone(),
+        }
+    }
 }
 
 /// A biological assembly whose symmetry expansion differs from the deposited
@@ -345,6 +369,32 @@ mod tests {
             b_factor: b,
             secondary_structure: SecondaryStructure::Coil,
         }
+    }
+
+    #[test]
+    fn a_structure_without_some_atoms_finds_its_hydrogen_bonds_again() {
+        let atoms: Vec<Atom> = [1.0, 2.0, 3.0].map(atom_with_bfactor).to_vec();
+        let stale = HBond {
+            donor_residue: 0,
+            acceptor_residue: 2,
+            donor_atom_idx: 0,
+            acceptor_atom_idx: 2,
+            energy: -1.0,
+        };
+        let structure = Protein {
+            atoms,
+            title: "T".to_string(),
+            hbonds: vec![stale],
+            assembly: None,
+            components: Default::default(),
+        };
+
+        let kept = structure.without(|index, _| index == 1);
+
+        let b_factors: Vec<f32> = kept.atoms.iter().map(|atom| atom.b_factor).collect();
+        assert_eq!(b_factors, [1.0, 3.0]);
+        assert!(kept.hbonds.is_empty(), "a bond to an atom gone is gone too");
+        assert_eq!(kept.title, "T");
     }
 
     #[test]

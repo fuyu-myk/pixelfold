@@ -3,14 +3,15 @@
 
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use pixelfold_core::components::Dictionary;
 use pixelfold_core::interactions::{Interaction, detect};
 use pixelfold_core::numbering::{self, Chain, ResidueKey, ResidueMap};
 use pixelfold_core::pose::{self, Attachments, Contact, Contents, Fingerprint};
 use pixelfold_core::rmsd::{AtomId, NoRmsd, POCKET_REACH, RmsdReference, Superposition};
+use pixelfold_core::sdf;
 use pixelfold_core::{Atom, AtomSet, ChainId, Protein};
 use serde::Serialize;
 
@@ -44,6 +45,9 @@ pub struct PoseRecord {
     /// What lays the pose on the reference's pocket, for the viewer.
     #[serde(skip)]
     pub superposition: Option<Superposition>,
+    /// An SD file pose's ligand as laid into the receptor, for the viewer.
+    #[serde(skip)]
+    pub docked: Option<Vec<Atom>>,
 }
 
 impl Row for PoseRecord {
@@ -110,6 +114,8 @@ pub struct Reference {
     /// What the reference ligand holds, when it is one covalent piece: a pose
     /// ligand in several pieces that each hold as much holds copies of it.
     copy: Option<Contents>,
+    /// The components the reference ligand's non-polymer residues are of.
+    components_named: BTreeSet<String>,
 }
 
 /// One copy of a pose's ligand scored, with what the warnings about it need.
@@ -176,6 +182,7 @@ impl Reference {
             rmsd,
             copy: (pose::pieces(protein, &ligand).len() == 1)
                 .then(|| Contents::of(protein, &ligand)),
+            components_named: small.keys().map(|name| name.to_string()).collect(),
         })
     }
 
@@ -202,19 +209,99 @@ impl Reference {
         warn_undefined(&protein, &ligand, warnings);
 
         let copies = self.copies(&protein, &ligand, query, pose, warnings);
+        self.best(&protein, &copies, pose, model, warnings)
+    }
+
+    /// Score record `model` of the SD file `pose`, its ligand laid into
+    /// `receptor` and named after the reference's by bond graph.
+    pub fn assess_docked(
+        &self,
+        molecule: &sdf::Record,
+        receptor: &Protein,
+        pose: &str,
+        model: usize,
+        warnings: &mut Warnings,
+    ) -> Result<PoseRecord> {
+        let docked = molecule.docked(receptor, &self.rmsd);
+        match docked.naming {
+            sdf::Naming::Named => {}
+            sdf::Naming::BondOrdersDiffer => warnings.warn(format!(
+                "a ligand in {pose} has the reference ligand's bonds but not its bond orders, \
+                 as another tautomer would, so the reference's chemistry it borrows may not fit"
+            )),
+            sdf::Naming::Unpaired => warnings.warn(format!(
+                "a ligand in {pose} is not the reference's molecule by its bond graph, so it \
+                 borrows none of the reference's chemistry and its contacts are incomplete"
+            )),
+        }
+
+        let ligand = std::slice::from_ref(&docked.ligand);
+        let mut record = self.best(&docked.protein, ligand, pose, model, warnings)?;
+        record.docked = Some(
+            docked
+                .ligand
+                .iter()
+                .map(|atom| docked.protein.atoms[atom].clone())
+                .collect(),
+        );
+
+        Ok(record)
+    }
+
+    /// `structure`, given as the protein SD file poses were docked into,
+    /// without its own copies of the reference ligand: the non-polymer
+    /// residues named as the reference ligand's components, which a crystal
+    /// structure holds and a docking receptor does not. The reference's
+    /// definitions come first, since the docked ligands take the reference's
+    /// names: a co-folding receptor's `LIG` is another molecule.
+    pub fn receptor(&self, structure: Protein, warnings: &mut Warnings) -> Protein {
+        let own = |atom: &Atom| {
+            !atom.is_polymer() && self.components_named.contains(atom.residue_name.as_str())
+        };
+        let left_out: BTreeSet<&str> = structure
+            .atoms
+            .iter()
+            .filter(|atom| own(atom))
+            .map(|atom| atom.residue_name.as_str())
+            .collect();
+        if !left_out.is_empty() {
+            let names: Vec<&str> = left_out.into_iter().collect();
+            warnings.warn(format!(
+                "the receptor's own {} is left out, as the poses take its place",
+                names.join(", ")
+            ));
+        }
+
+        let receptor = structure.without(|_, atom| own(atom));
+        Protein {
+            components: self.components.clone().with_fallback(&receptor.components),
+            ..receptor
+        }
+    }
+
+    /// The best scored of the `copies` of the ligand in model `number` of the
+    /// pose file `pose`.
+    fn best(
+        &self,
+        protein: &Protein,
+        copies: &[AtomSet],
+        pose: &str,
+        number: usize,
+        warnings: &mut Warnings,
+    ) -> Result<PoseRecord> {
         let model = Model {
             pose,
-            number: model,
-            protein: &protein,
-            interactions: detect(&protein),
-            chains: numbering::polymer_chains(&protein),
+            number,
+            protein,
+            interactions: detect(protein),
+            chains: numbering::polymer_chains(protein),
         };
         let mut best = copies
             .iter()
             .map(|copy| self.score(&model, copy, copies.len() > 1))
             .min_by(|a, b| preferred(&a.record, &b.record))
             .expect("copies holds at least the whole ligand");
-        best.record.superposition = self.rmsd.superposition(&protein, &best.map).ok();
+        best.record.superposition = self.rmsd.superposition(protein, &best.map).ok();
 
         self.check_pairing(&best.map, pose, warnings)?;
         if let Some(reason) = &best.no_rmsd
@@ -284,6 +371,7 @@ impl Reference {
             lost: fingerprint.lost(reference).map(contact_label).collect(),
             ligand: copy.iter().collect(),
             superposition: None,
+            docked: None,
         };
 
         Scored {
@@ -356,6 +444,46 @@ fn copy_label(protein: &Protein, copy: &AtomSet) -> String {
         .unwrap_or_default()
 }
 
+/// The reference `structure` as the receptor of SD file poses: without the
+/// `query` atoms, its ligand, whose place the poses take.
+pub fn reference_receptor(structure: &Protein, query: &str) -> Result<Protein> {
+    let ligand = load::chosen(structure, Some(query))?;
+    Ok(structure.without(|index, _| ligand.contains(index)))
+}
+
+/// Every record of the SD file `pose` scored against `reference`, its ligand
+/// laid into `receptor`, or only record `chosen` when one is.
+pub fn docked(
+    reference: &Reference,
+    receptor: &Protein,
+    pose: &str,
+    chosen: Option<usize>,
+    warnings: &mut Warnings,
+) -> Result<Vec<PoseRecord>> {
+    let molecules = sdf::read(Path::new(pose))?;
+    let numbers: Vec<usize> = match chosen {
+        Some(number) => {
+            let count = molecules.len();
+            anyhow::ensure!(
+                (1..=count).contains(&number),
+                "{pose} holds {count} {}, so it has no model {number}",
+                if count == 1 { "record" } else { "records" }
+            );
+            vec![number]
+        }
+        None => (1..=molecules.len()).collect(),
+    };
+
+    numbers
+        .into_iter()
+        .map(|number| {
+            reference
+                .assess_docked(&molecules[number - 1], receptor, pose, number, warnings)
+                .with_context(|| format!("{pose}, model {number}"))
+        })
+        .collect()
+}
+
 /// The records best first: most similar, then most recovered, then fewest
 /// clashes, ties kept in the order given.
 pub fn ranked(mut records: Vec<PoseRecord>) -> Vec<PoseRecord> {
@@ -391,6 +519,7 @@ pub fn viewed(
                 lost: record.lost,
                 ligand: record.ligand,
                 superposition: record.superposition,
+                docked: record.docked,
             })
         })
         .collect()
@@ -461,6 +590,7 @@ mod tests {
             lost: Vec::new(),
             ligand: Vec::new(),
             superposition: None,
+            docked: None,
         }
     }
 

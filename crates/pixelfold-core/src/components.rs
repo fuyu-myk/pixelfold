@@ -28,6 +28,18 @@ pub enum BondOrder {
 }
 
 impl BondOrder {
+    /// The bond's order counted in half bonds, so that an aromatic bond is
+    /// three: an atom's sum is then the same whether a file writes its ring
+    /// aromatic or in a Kekule structure.
+    pub(crate) fn halves(self) -> u8 {
+        match self {
+            BondOrder::Single => 2,
+            BondOrder::Double => 4,
+            BondOrder::Triple => 6,
+            BondOrder::Aromatic => 3,
+        }
+    }
+
     fn parse(value: &str) -> Self {
         match value.to_ascii_uppercase().as_str() {
             "DOUB" => BondOrder::Double,

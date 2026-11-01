@@ -5,6 +5,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use pixelfold_core::Protein;
 use pixelfold_core::parser::{Load, ParsedStructure};
 
 use crate::framing::frame_pose;
@@ -27,11 +28,17 @@ fn placement(pose: &Pose) -> Placement<'_> {
 
 impl App {
     /// Triage `poses`, given best first: the table lists them and the best is
-    /// drawn, framed once the pane is. `load` names the assembly and altloc
-    /// policy of every pose's model.
-    pub(crate) fn load_poses(&mut self, poses: Vec<Pose>, load: Load) -> Result<()> {
+    /// drawn, framed once the pane is. SD file poses are laid into
+    /// `receptor`. `load` names the assembly and altloc policy of every pose's
+    /// model.
+    pub(crate) fn load_poses(
+        &mut self,
+        poses: Vec<Pose>,
+        receptor: Option<Protein>,
+        load: Load,
+    ) -> Result<()> {
         anyhow::ensure!(!poses.is_empty(), "there are no poses to show");
-        self.poses = Some(PoseTable::new(poses));
+        self.poses = Some(PoseTable::new(poses, receptor));
         self.load = load;
         // Space-filling atoms bury a ligand in its pocket; the trace does not.
         self.display_mode = DisplayMode::Backbone;
@@ -81,21 +88,32 @@ impl App {
         let reframe = replaced.is_none_or(|shown| placement(shown) != placement(pose));
         let (path, model, superposition) = (pose.path.clone(), pose.model, pose.superposition);
         let beyond = pose.ligand.last().copied();
-
-        let source = match self.source.clone().filter(|_| !reread) {
-            Some(source) => source,
-            None => Arc::new(
-                ParsedStructure::read(&path)
-                    .with_context(|| format!("failed to load {}", path.display()))?,
-            ),
-        };
         let load = Load {
             model: Some(model),
             ..self.load.clone()
         };
-        let mut protein = source
-            .protein(&load)
-            .with_context(|| format!("{}, model {model}", path.display()))?;
+
+        let (mut protein, source) = match (&pose.docked, &table.receptor) {
+            (Some(ligand), Some(receptor)) => {
+                let mut protein = receptor.clone();
+                protein.atoms.extend(ligand.iter().cloned());
+                (protein, None)
+            }
+            (Some(_), None) => anyhow::bail!("no receptor to lay {} into", path.display()),
+            (None, _) => {
+                let source = match self.source.clone().filter(|_| !reread) {
+                    Some(source) => source,
+                    None => Arc::new(
+                        ParsedStructure::read(&path)
+                            .with_context(|| format!("failed to load {}", path.display()))?,
+                    ),
+                };
+                let protein = source
+                    .protein(&load)
+                    .with_context(|| format!("{}, model {model}", path.display()))?;
+                (protein, Some(source))
+            }
+        };
         if beyond.is_some_and(|atom| atom >= protein.atoms.len()) {
             anyhow::bail!("{} has changed since it was scored", path.display());
         }
@@ -105,9 +123,11 @@ impl App {
             }
         }
 
-        self.models = source.model_numbers();
+        self.models = source
+            .as_ref()
+            .map_or_else(|| vec![model], |source| source.model_numbers());
         self.model_position = self.models.iter().position(|&m| m == model).unwrap_or(0);
-        self.source = Some(source);
+        self.source = source;
         self.load = load;
         if let Some(table) = self.poses.as_mut() {
             table.shown = Some(rank);
@@ -252,6 +272,7 @@ mod tests {
             lost: Vec::new(),
             ligand: vec![3],
             superposition,
+            docked: None,
         }
     }
 
@@ -265,7 +286,7 @@ mod tests {
     /// An app triaging `poses`, drawn once in 64 by 64 pixels.
     fn app_of(poses: Vec<Pose>) -> App {
         let mut app = App::new();
-        app.load_poses(poses, Load::default()).unwrap();
+        app.load_poses(poses, None, Load::default()).unwrap();
         app.frame_pose_if_asked(64.0, 64.0);
         app
     }
@@ -386,7 +407,7 @@ mod tests {
     fn the_first_pose_waits_for_the_pane_to_be_framed_and_f_frames_it_again() {
         let path = poses_file("first-frame", &[0.0]);
         let mut app = App::new();
-        app.load_poses(vec![pose(&path, 1, None)], Load::default())
+        app.load_poses(vec![pose(&path, 1, None)], None, Load::default())
             .unwrap();
         let _ = std::fs::remove_file(&path);
         assert_eq!(app.camera.zoom, Camera::new().zoom, "no pane to fit yet");
@@ -576,5 +597,44 @@ mod tests {
         assert!(app.pick_pose(10, 4));
         let _ = std::fs::remove_file(&path);
         assert_eq!(shown(&app), 2, "the third row drawn");
+    }
+
+    #[test]
+    fn a_docked_pose_is_drawn_in_the_receptor_and_read_from_no_file() {
+        // The receptor is the poses file's model without its ligand; each
+        // docked ligand is a copy of that ligand moved along x, and the SD
+        // file they came from no longer exists.
+        let path = poses_file("receptor", &[0.0]);
+        let model = ParsedStructure::read(&path)
+            .unwrap()
+            .protein(&Load::default())
+            .unwrap();
+        let _ = std::fs::remove_file(&path);
+        let receptor = model.without(|index, _| index == 3);
+        let gone = std::env::temp_dir().join("pf_tui_poses_docked_gone.sdf");
+        let docked = |number: usize, shift: f32| {
+            let mut ligand = model.atoms[3].clone();
+            ligand.position.x += shift;
+            Pose {
+                docked: Some(vec![ligand]),
+                ..pose(&gone, number, Some(shifted_back(0.0)))
+            }
+        };
+
+        let mut app = App::new();
+        app.load_poses(
+            vec![docked(1, 0.0), docked(2, 5.0)],
+            Some(receptor),
+            Load::default(),
+        )
+        .unwrap();
+        app.step_pose(1);
+
+        let table = app.poses.as_ref().unwrap();
+        assert_eq!(table.error, None);
+        assert_eq!(shown(&app), 1);
+        let atoms = &app.protein.as_ref().unwrap().atoms;
+        assert_eq!(atoms.len(), 4);
+        assert_eq!(atoms[3].position, Vec3::new(7.0, 2.0, -2.0));
     }
 }

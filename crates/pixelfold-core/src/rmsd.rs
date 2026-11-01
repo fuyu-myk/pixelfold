@@ -19,6 +19,7 @@ use std::fmt;
 use glam::Vec3;
 use nalgebra::{Matrix3, Vector3};
 
+use crate::components::BondOrder;
 use crate::fixed_str::FixedStr;
 use crate::interactions::connectivity;
 use crate::numbering::{ResidueKey, ResidueMap, residue_key};
@@ -99,6 +100,8 @@ pub struct RmsdReference {
     keys: Vec<AtomKey>,
     atoms: Vec<AtomId>,
     graph: LigandGraph,
+    /// Each atom's bond orders summed, when its definition gives them.
+    order_sums: Option<Vec<u8>>,
     stereocentres: Vec<Stereocentre>,
     pocket: Vec<Vec<PocketAtom>>,
 }
@@ -123,6 +126,7 @@ impl RmsdReference {
                 &graph.positions,
                 &graph.neighbours,
             ),
+            order_sums: bond_order_sums(reference, &heavy, &graph),
             graph,
             pocket: pocket(reference, ligand, &heavy),
         }
@@ -222,6 +226,59 @@ impl RmsdReference {
             .ok_or(NoRmsd::Pocket)
     }
 
+    /// The reference ligand's atoms in order, each with the one of a
+    /// molecule's `elements` that stands for it: the pairing nearest in place,
+    /// with `positions` taken as they are, among those that keep elements and
+    /// the molecule's `bonds`. `None` when the two bond graphs differ.
+    ///
+    /// With `sums`, each atom's bond orders summed, a pairing must also keep
+    /// those, where the reference's definitions give its own.
+    pub(crate) fn counterparts(
+        &self,
+        elements: &[FixedStr<2>],
+        positions: &[Vec3],
+        bonds: &[(usize, usize)],
+        sums: Option<&[u8]>,
+    ) -> Option<Vec<(AtomId, usize)>> {
+        let mut neighbours = vec![Vec::new(); elements.len()];
+        for &(a, b) in bonds {
+            if a != b && !neighbours[a].contains(&b) {
+                neighbours[a].push(b);
+                neighbours[b].push(a);
+            }
+        }
+        let (labels, own) = match (sums, &self.order_sums) {
+            (Some(sums), Some(own)) => (sums.to_vec(), own.clone()),
+            _ => (vec![0; elements.len()], vec![0; self.graph.elements.len()]),
+        };
+        let molecule = LigandGraph {
+            elements: elements
+                .iter()
+                .map(|element| FixedStr::uppercased(element.as_str()))
+                .collect(),
+            positions: positions.to_vec(),
+            neighbours,
+            labels,
+        };
+        let reference = LigandGraph {
+            labels: own,
+            ..self.graph.clone()
+        };
+
+        let (_, pairing) = closest_pairing(&molecule, &reference, &[])?;
+        let mut standing = vec![0; pairing.len()];
+        for (atom, &partner) in pairing.iter().enumerate() {
+            standing[partner] = atom;
+        }
+
+        Some(self.atoms.iter().copied().zip(standing).collect())
+    }
+
+    /// Whether the reference's definitions give its atoms' bond orders.
+    pub(crate) fn has_bond_orders(&self) -> bool {
+        self.order_sums.is_some()
+    }
+
     /// The reference's bond graph with each atom at the `placed` position of
     /// the pose atom of the same key and element, when every pose atom has
     /// one: the pose is then measured on the reference's bonds, so a distorted
@@ -246,6 +303,39 @@ impl RmsdReference {
         let positions = positions.into_iter().collect::<Option<Vec<Vec3>>>()?;
         Some(self.graph.placed_at(positions))
     }
+}
+
+/// Each of the `heavy` atoms' bond orders summed, in half bonds, over its
+/// bonds to the others: within a residue as the residue's definition orders
+/// them, between residues (`graph`'s) as single bonds. `None` when a
+/// definition is missing or lacks one of the atoms.
+fn bond_order_sums(protein: &Protein, heavy: &[usize], graph: &LigandGraph) -> Option<Vec<u8>> {
+    let present: HashSet<(ResidueKey, FixedStr<4>)> = heavy
+        .iter()
+        .map(|&atom| (residue_key(&protein.atoms[atom]), protein.atoms[atom].name))
+        .collect();
+
+    heavy
+        .iter()
+        .enumerate()
+        .map(|(at, &index)| {
+            let atom = &protein.atoms[index];
+            let residue = residue_key(atom);
+            let component = protein.components.get(atom.residue_name.as_str())?;
+            component.element_of(atom.name.as_str())?;
+            let within: u8 = component
+                .bonded(atom.name.as_str())
+                .filter(|(name, _)| present.contains(&(residue, FixedStr::new(name))))
+                .map(|(_, order)| order.halves())
+                .sum();
+            let between = graph.neighbours[at]
+                .iter()
+                .filter(|&&other| residue_key(&protein.atoms[heavy[other]]) != residue)
+                .count() as u8;
+
+            Some(within + between * BondOrder::Single.halves())
+        })
+        .collect()
 }
 
 /// The ligand atoms that are not hydrogen, in order.
@@ -284,6 +374,9 @@ struct LigandGraph {
     elements: Vec<FixedStr<2>>,
     positions: Vec<Vec3>,
     neighbours: Vec<Vec<usize>>,
+    /// What each atom must share with its partner beside its element: its
+    /// bond orders summed where both graphs know them, else nothing (0).
+    labels: Vec<u8>,
 }
 
 impl LigandGraph {
@@ -311,6 +404,7 @@ impl LigandGraph {
                 .map(|&atom| protein.atoms[atom].position)
                 .collect(),
             neighbours,
+            labels: vec![0; atoms.len()],
         }
     }
 
@@ -322,14 +416,15 @@ impl LigandGraph {
         }
     }
 
-    /// Each atom's element and number of bonds, sorted, which two graphs that
-    /// can pair share.
-    fn signature(&self) -> Vec<(FixedStr<2>, usize)> {
-        let mut signature: Vec<(FixedStr<2>, usize)> = self
+    /// Each atom's element, number of bonds and label, sorted, which two
+    /// graphs that can pair share.
+    fn signature(&self) -> Vec<(FixedStr<2>, usize, u8)> {
+        let mut signature: Vec<(FixedStr<2>, usize, u8)> = self
             .elements
             .iter()
             .zip(&self.neighbours)
-            .map(|(&element, bonded)| (element, bonded.len()))
+            .zip(&self.labels)
+            .map(|((&element, bonded), &label)| (element, bonded.len(), label))
             .collect();
         signature.sort();
         signature
@@ -463,6 +558,7 @@ impl Pairing<'_> {
             .filter(|&other| {
                 self.owner[other].is_none()
                     && target.elements[other] == mobile.elements[atom]
+                    && target.labels[other] == mobile.labels[atom]
                     && target.neighbours[other].len() == mobile.neighbours[atom].len()
             })
             .map(|other| {

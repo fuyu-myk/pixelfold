@@ -240,7 +240,13 @@ Being explicit about what this does not do:
   Pieces that are not all copies are scored as one, with a warning. A pose file
   without its ligand's chemical definitions, as co-folding output often is,
   borrows the reference's by atom name; a ligand named differently in the two
-  gets a warning that its contacts are incomplete.
+  gets a warning that its contacts are incomplete. An SD file's atoms carry no
+  names, so a docked ligand takes the reference's names, and with them its
+  chemistry, by pairing the two bond graphs, bond orders included where they
+  agree; a ligand whose bond orders agree in no pairing, as another tautomer's
+  would not, is paired by its bonds alone with a warning, and a molecule other
+  than the reference's ligand is scored untyped, with a warning. Only V2000 SD
+  files are read, and a docked ligand's charges are not used.
   Water-mediated contacts are left out, since predicted poses carry no water.
   The ligand RMSD is AlphaFold 3's pocket-aligned one, symmetry-corrected and
   indifferent to the order of a ligand's copies; a pose whose ligand atoms pair
@@ -296,6 +302,10 @@ pixelfold poses --reference 1IEP --reference-select 'chain A and resn STI' --lig
 # The same ranking as a table in the viewer, each pose drawn on the reference's
 # pocket
 pixelfold poses --reference crystal.cif --ligand STI pose_*.cif --view
+# Docked ligands from SD files, each record a pose, laid into the reference
+# without its ligand, or into the receptor they were docked into
+pixelfold poses --reference crystal.cif --ligand STI docked.sdf
+pixelfold poses --reference crystal.cif --ligand STI --receptor receptor.pdb rank*.sdf
 
 # Secondary structure and solvent accessibility
 pixelfold ss 1UBQ --format tsv

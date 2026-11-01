@@ -231,7 +231,8 @@ enum Command {
     /// pose holding several copies of the ligand is scored by the copy most
     /// like the reference's, named in the copy column
     Poses {
-        /// The pose files: .pdb/.cif paths or 4-character PDB ids
+        /// The pose files: .pdb/.cif paths, 4-character PDB ids, or .sdf files
+        /// of docked ligands, each record a pose
         #[arg(required = true, value_name = "POSE")]
         poses: Vec<String>,
 
@@ -252,6 +253,12 @@ enum Command {
         /// the reference holds several of
         #[arg(long, value_name = "QUERY")]
         reference_select: Option<String>,
+
+        /// The protein the .sdf poses were docked into, its own copies of the
+        /// reference ligand left out [default: the reference without its
+        /// ligand]
+        #[arg(long, value_name = "STRUCTURE")]
+        receptor: Option<String>,
 
         /// How to write the result
         #[arg(long, value_enum, default_value_t = Format::Table)]
@@ -571,6 +578,7 @@ fn run(command: Command) -> Result<()> {
             select,
             ligand,
             reference_select,
+            receptor,
             format,
             view,
             protocol,
@@ -583,6 +591,7 @@ fn run(command: Command) -> Result<()> {
             compare_poses(
                 &reference,
                 &reference_query,
+                receptor.as_deref(),
                 &poses,
                 &query,
                 shown.map_or(Output::Format(format), Output::View),
@@ -769,32 +778,68 @@ enum Output {
 
 /// Score the `query` ligand of every pose against the `reference_query` ligand
 /// of the reference, best first. Each pose file is parsed once and its models
-/// built in turn.
+/// built in turn; each record of an SD file is a pose, its ligand laid into
+/// `receptor`, or into the reference without its ligand.
 fn compare_poses(
     reference: &str,
     reference_query: &str,
+    receptor: Option<&str>,
     poses: &[String],
     query: &str,
     output: Output,
     common: &Common,
 ) -> Result<()> {
+    let docking = poses
+        .iter()
+        .any(|pose| pixelfold_core::sdf::is_sdf(Path::new(pose)));
+    anyhow::ensure!(
+        docking || receptor.is_none(),
+        "--receptor is the protein .sdf poses were docked into, and no pose is an .sdf file"
+    );
     let dir = cache_dir(common)?;
     let mut warnings = poses::Warnings::default();
-    let reference = load::analysis_structure(reference, &dir, &common.load(None))
-        .and_then(|protein| poses::Reference::new(&protein, reference_query, &mut warnings))
+    let structure = load::analysis_structure(reference, &dir, &common.load(None))
         .with_context(|| format!("the reference {reference}"))?;
+    let scoring = poses::Reference::new(&structure, reference_query, &mut warnings)
+        .with_context(|| format!("the reference {reference}"))?;
+    let receptor = match (docking, receptor) {
+        (false, _) => None,
+        (true, Some(given)) => Some(
+            load::analysis_structure(given, &dir, &common.load(None))
+                .map(|protein| scoring.receptor(protein, &mut warnings))
+                .with_context(|| format!("the receptor {given}"))?,
+        ),
+        (true, None) => Some(poses::reference_receptor(&structure, reference_query)?),
+    };
+    let chosen = match common.model {
+        Some(ModelChoice::One(number)) => Some(number),
+        _ => None,
+    };
 
     let mut records = Vec::new();
     for pose in poses {
+        if let Some(receptor) = receptor
+            .as_ref()
+            .filter(|_| pixelfold_core::sdf::is_sdf(Path::new(pose)))
+        {
+            records.extend(poses::docked(
+                &scoring,
+                receptor,
+                pose,
+                chosen,
+                &mut warnings,
+            )?);
+            continue;
+        }
         let parsed = load::parsed(pose, &dir)?;
-        let models = match common.model {
-            Some(ModelChoice::One(number)) => vec![number],
-            _ => parsed.model_numbers(),
+        let models = match chosen {
+            Some(number) => vec![number],
+            None => parsed.model_numbers(),
         };
         for model in models {
             let record = parsed
                 .protein(&common.load(Some(model)))
-                .and_then(|protein| reference.assess(protein, query, pose, model, &mut warnings))
+                .and_then(|protein| scoring.assess(protein, query, pose, model, &mut warnings))
                 .with_context(|| format!("{pose}, model {model}"))?;
             records.push(record);
         }
@@ -807,6 +852,7 @@ fn compare_poses(
             anyhow::ensure!(!ranked.is_empty(), "no pose file holds a model to view");
             pixelfold_tui::view_poses(
                 poses::viewed(ranked, |pose| load::structure_path(pose, &dir))?,
+                receptor,
                 common.load(None),
                 protocol.into(),
             )

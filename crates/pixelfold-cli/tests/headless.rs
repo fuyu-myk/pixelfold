@@ -1286,18 +1286,22 @@ fn a_pose_that_inverts_a_stereocentre_of_the_ligand_names_it() {
     );
 }
 
-#[test]
-fn a_pose_in_another_frame_is_superposed_on_the_pocket() {
-    // The whole complex turned a quarter about z and lifted 30 A, as a
-    // co-folding model sits in a frame of its own.
-    let dir = tempfile::tempdir().unwrap();
-    let turned = edited_fixture("1PPB", dir.path(), |fields, column| {
+/// A copy of fixture `id` in `dir`, the whole complex turned a quarter about z
+/// and lifted 30 A, as a co-folding model sits in a frame of its own.
+fn turned_fixture(id: &str, dir: &Path) -> PathBuf {
+    edited_fixture(id, dir, |fields, column| {
         let [x, y, z] = ["Cartn_x", "Cartn_y", "Cartn_z"]
             .map(|axis| fields[column[axis]].parse::<f32>().unwrap());
         fields[column["Cartn_x"]] = format!("{:.3}", -y);
         fields[column["Cartn_y"]] = format!("{:.3}", x);
         fields[column["Cartn_z"]] = format!("{:.3}", z + 30.0);
-    });
+    })
+}
+
+#[test]
+fn a_pose_in_another_frame_is_superposed_on_the_pocket() {
+    let dir = tempfile::tempdir().unwrap();
+    let turned = turned_fixture("1PPB", dir.path());
 
     let found = records(&poses_against(&fixture("1PPB"), &[&turned]));
     assert_eq!(found[0]["rmsd"], 0.0, "{}", found[0]);
@@ -1520,4 +1524,178 @@ fn a_ligand_in_a_chain_of_its_own_keeps_its_covalent_attachment() {
     let found = records(&poses_against(&fixture("1PPB"), &[&rechained]));
     assert_eq!(found[0]["similarity"], 1.0, "{}", found[0]);
     assert_eq!(found[0]["clashes"], 0, "{}", found[0]);
+}
+
+/// An SD file in `dir` with a record per offset in `shifts`: the heavy atoms
+/// of the `ligand` component of the mmCIF file `source`, listed last first as
+/// a docking program orders them by its own lights, moved along x by the
+/// offset, with the bonds their distances imply.
+fn docked_sdf(source: &Path, ligand: &str, dir: &Path, shifts: &[f32]) -> PathBuf {
+    let text = std::fs::read_to_string(source).unwrap();
+    let column = atom_site_columns(&text);
+    let mut atoms: Vec<(String, [f32; 3])> = text
+        .lines()
+        .filter(|line| line.starts_with("HETATM"))
+        .map(|line| line.split_whitespace().collect::<Vec<&str>>())
+        .filter(|fields| {
+            fields[column["auth_comp_id"]] == ligand
+                && fields[column["type_symbol"]] != "H"
+                && matches!(fields[column["label_alt_id"]], "." | "A")
+        })
+        .map(|fields| {
+            let position = ["Cartn_x", "Cartn_y", "Cartn_z"]
+                .map(|axis| fields[column[axis]].parse::<f32>().unwrap());
+            (fields[column["type_symbol"]].to_string(), position)
+        })
+        .collect();
+    atoms.reverse();
+    let mut bonds = Vec::new();
+    for (a, (_, first)) in atoms.iter().enumerate() {
+        for (b, (_, second)) in atoms.iter().enumerate().skip(a + 1) {
+            let squared: f32 = (0..3)
+                .map(|axis| (first[axis] - second[axis]).powi(2))
+                .sum();
+            if squared < 1.9 * 1.9 {
+                bonds.push((a + 1, b + 1));
+            }
+        }
+    }
+
+    let mut out = String::new();
+    for shift in shifts {
+        out.push_str(&format!(
+            "{ligand}\n  docked\n\n{:>3}{:>3}  0  0  0  0  0  0  0  0999 V2000\n",
+            atoms.len(),
+            bonds.len()
+        ));
+        for (element, [x, y, z]) in &atoms {
+            out.push_str(&format!(
+                "{:>10.4}{y:>10.4}{z:>10.4} {element:<3} 0  0  0  0  0  0  0  0  0  0  0  0\n",
+                x + shift
+            ));
+        }
+        for (a, b) in &bonds {
+            out.push_str(&format!("{a:>3}{b:>3}  1  0\n"));
+        }
+        out.push_str("M  END\n$$$$\n");
+    }
+
+    let path = dir.join(format!("{ligand}-docked.sdf"));
+    std::fs::write(&path, out).unwrap();
+    path
+}
+
+#[test]
+fn a_docked_copy_of_the_reference_ligand_scores_as_the_reference_itself_does() {
+    // The receptor is the reference with its ligand left out, so each record
+    // sits where the reference's ligand did, the second moved 2 A.
+    let dir = tempfile::tempdir().unwrap();
+    let docked = docked_sdf(&fixture("1PPB"), "0G6", dir.path(), &[0.0, 2.0]);
+
+    let found = records(&poses_against(
+        &fixture("1PPB"),
+        &[&fixture("1PPB"), &docked],
+    ));
+    let itself = found
+        .iter()
+        .find(|record| record["pose"].as_str().unwrap().ends_with(".cif"))
+        .unwrap();
+    let model = |number: u64| {
+        found
+            .iter()
+            .find(|record| {
+                record["pose"].as_str().unwrap().ends_with(".sdf") && record["model"] == number
+            })
+            .unwrap()
+    };
+    for key in [
+        "contacts",
+        "similarity",
+        "rmsd",
+        "clashes",
+        "inverted",
+        "lost",
+    ] {
+        assert_eq!(model(1)[key], itself[key], "{key}: {}", model(1));
+    }
+    assert_eq!(model(1)["rmsd"], 0.0, "{}", model(1));
+    assert!(model(1).get("docked").is_none(), "{}", model(1));
+    let moved = model(2)["rmsd"].as_f64().unwrap();
+    assert!((1.5..=2.0).contains(&moved), "{}", model(2));
+}
+
+#[test]
+fn a_docked_pose_in_a_receptor_of_its_own_is_laid_on_the_reference_pocket() {
+    // The receptor, turned into a frame of its own, still holds its copy of
+    // the ligand, which is left out.
+    // Its definition of the ligand calls every nitrogen a carbon; the docked
+    // ligand is named as the reference's, so the reference's definition holds.
+    let dir = tempfile::tempdir().unwrap();
+    let turned = misdefined(&turned_fixture("1PPB", dir.path()), "0G6");
+    let docked = docked_sdf(&turned, "0G6", dir.path(), &[0.0]);
+
+    let run = poses_with(
+        &["--ligand", "0G6", "--receptor", turned.to_str().unwrap()],
+        &fixture("1PPB"),
+        &[&docked],
+    );
+    let found = records(&run);
+    assert_eq!(found[0]["rmsd"], 0.0, "{}", found[0]);
+    assert_eq!(found[0]["similarity"], 1.0, "{}", found[0]);
+    assert!(run.stderr.contains("0G6"), "{}", run.stderr);
+}
+
+#[test]
+fn a_receptor_needs_an_sd_file_pose_and_a_model_its_record() {
+    let dir = tempfile::tempdir().unwrap();
+    let reference = fixture("1PPB");
+
+    let stray = poses_with(
+        &["--ligand", "0G6", "--receptor", reference.to_str().unwrap()],
+        &reference,
+        &[&reference],
+    );
+    assert!(
+        !stray.ok && stray.stderr.contains("--receptor"),
+        "{}",
+        stray.stderr
+    );
+
+    let docked = docked_sdf(&reference, "0G6", dir.path(), &[0.0, 2.0]);
+    let beyond = poses_with(&["--ligand", "0G6", "--model", "3"], &reference, &[&docked]);
+    assert!(
+        !beyond.ok && beyond.stderr.contains("2 records"),
+        "{}",
+        beyond.stderr
+    );
+}
+
+/// A copy of the mmCIF file `path` beside it whose definition of `component`
+/// gives each of its nitrogens as carbon.
+fn misdefined(path: &Path, component: &str) -> PathBuf {
+    let text = std::fs::read_to_string(path).unwrap();
+    let mut in_atoms = false;
+    let lines: Vec<String> = text
+        .lines()
+        .map(|line| {
+            if line.starts_with("_chem_comp_atom.") {
+                in_atoms = true;
+            } else if in_atoms && (line.starts_with('#') || line.starts_with("loop_")) {
+                in_atoms = false;
+            }
+            let mut fields: Vec<&str> = line.split_whitespace().collect();
+            if in_atoms && fields.first() == Some(&component) && fields.get(2) == Some(&"N") {
+                fields[2] = "C";
+                return fields.join(" ");
+            }
+            line.to_string()
+        })
+        .collect();
+
+    let copy = path.with_file_name(format!(
+        "{}-misdefined.cif",
+        path.file_stem().unwrap().to_string_lossy()
+    ));
+    std::fs::write(&copy, lines.join("\n")).unwrap();
+    copy
 }

@@ -4,6 +4,7 @@
 use std::path::{Path, PathBuf};
 
 use pixelfold_core::rmsd::Superposition;
+use pixelfold_core::{Atom, Protein};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Position, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -38,6 +39,9 @@ pub struct Pose {
     /// What lays the pose on the reference's pocket, or `None` when too few
     /// pocket atoms have a counterpart.
     pub superposition: Option<Superposition>,
+    /// An SD file pose's ligand, laid into the receptor the viewer is given;
+    /// `None` for a pose drawn from its file.
+    pub docked: Option<Vec<Atom>>,
 }
 
 /// What the pose table is sorted by, best first; ties keep the rank.
@@ -102,6 +106,8 @@ fn elided(label: &str, width: usize) -> String {
 /// The poses, in rank order, as the table lists them under its sort.
 pub(crate) struct PoseTable {
     pub(crate) poses: Vec<Pose>,
+    /// What SD file poses are laid into.
+    pub(crate) receptor: Option<Protein>,
     pub(crate) order: Vec<usize>,
     pub(crate) sort: PoseSort,
     /// The pose drawn, by rank.
@@ -119,8 +125,9 @@ pub(crate) struct PoseTable {
 }
 
 impl PoseTable {
-    /// The table of `poses`, given best first, listed by rank.
-    pub(crate) fn new(mut poses: Vec<Pose>) -> Self {
+    /// The table of `poses`, given best first, listed by rank, SD file poses
+    /// laid into `receptor`.
+    pub(crate) fn new(mut poses: Vec<Pose>, receptor: Option<Protein>) -> Self {
         for pose in &mut poses {
             pose.ligand.sort_unstable();
         }
@@ -128,6 +135,7 @@ impl PoseTable {
         Self {
             order: PoseSort::Rank.order(&poses),
             poses,
+            receptor,
             sort: PoseSort::Rank,
             shown: None,
             visible: true,
@@ -362,6 +370,7 @@ mod tests {
             lost: Vec::new(),
             ligand: Vec::new(),
             superposition: None,
+            docked: None,
         }
     }
 
@@ -373,12 +382,15 @@ mod tests {
 
     #[test]
     fn the_sort_steps_through_clashes_and_inversions_back_to_the_rank() {
-        let mut table = PoseTable::new(vec![
-            scored(3, Some(&[])),
-            scored(0, None),
-            scored(3, Some(&["LIG B/1 C1"])),
-            scored(1, Some(&[])),
-        ]);
+        let mut table = PoseTable::new(
+            vec![
+                scored(3, Some(&[])),
+                scored(0, None),
+                scored(3, Some(&["LIG B/1 C1"])),
+                scored(1, Some(&[])),
+            ],
+            None,
+        );
 
         table.cycle_sort();
         table.cycle_sort();

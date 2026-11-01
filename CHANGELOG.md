@@ -4,6 +4,27 @@ All notable changes to PixelFold are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Docked poses from SD files.** `pixelfold poses` takes `.sdf`, `.sd` and
+  `.mol` files beside structure files, each record a pose, as docking programs
+  such as DiffDock, Gnina and Vina (through Meeko) write them. A record holds
+  the ligand alone, so it is laid into a receptor: by default the reference
+  without its ligand, or the structure `--receptor` names, which is superposed
+  on the reference's pocket like any pose and loses its own copies of the
+  reference ligand, whose definitions give way to the reference's. An SD file
+  names no atoms, so the ligand's heavy atoms are paired with the reference
+  ligand's by bond graph, bond orders included, and take their names and
+  chemical definitions, so a pose turned end for end is not credited with the
+  reference's hydrogen bonds; a ligand whose bond orders agree in no pairing,
+  as another tautomer's would not, is paired by its bonds alone with a warning,
+  and a molecule that does not pair is scored untyped, with a warning.
+  `--model N` picks one record, and `--view` draws docked poses in their
+  receptor. Only the V2000 layout is read, gzipped (`.sdf.gz`, as Gnina writes
+  it) or not. The library gains the `sdf` module and `Protein::without`.
+
 ## [4.0.0] (2026-11-01)
 
 Pixelfold now triages ligand poses: `pixelfold poses` ranks every model of the
