@@ -27,6 +27,8 @@ pub struct Ensemble {
     /// interacts in, so the letter does not hang on the interactions asked for.
     ss: HashMap<ResidueKey, Vec<(char, usize)>>,
     edges: BTreeMap<(ResidueKey, ResidueKey, InteractionKind), Tally>,
+    /// How many models each residue pair interacts in, by any kind.
+    pairs: BTreeMap<(ResidueKey, ResidueKey), usize>,
 }
 
 /// What an edge gathers across models.
@@ -67,13 +69,14 @@ impl Ensemble {
                 .entry(key_of(node))
                 .or_insert_with(|| node.clone());
         }
+        let mut paired = HashSet::new();
         for edge in &network.edges {
+            let pair = (key[edge.source.as_str()], key[edge.target.as_str()]);
+            if paired.insert(pair) {
+                *self.pairs.entry(pair).or_default() += 1;
+            }
             self.edges
-                .entry((
-                    key[edge.source.as_str()],
-                    key[edge.target.as_str()],
-                    edge.kind,
-                ))
+                .entry((pair.0, pair.1, edge.kind))
                 .and_modify(|tally| {
                     tally.models += 1;
                     tally.count += edge.count;
@@ -137,6 +140,22 @@ impl Ensemble {
             edges,
             models: self.models,
         }
+    }
+}
+
+impl Ensemble {
+    /// Each residue pair that interacts in any model, as the ids of its two
+    /// residues, and how many models it interacts in by any kind: a pair
+    /// hydrogen-bonded in some models and in hydrophobic contact in the rest
+    /// interacts in every one, which no single edge of the network says.
+    pub fn contacts(&self) -> impl Iterator<Item = (&str, &str, usize)> {
+        self.pairs.iter().map(|((source, target), &models)| {
+            (
+                self.residues[source].id.as_str(),
+                self.residues[target].id.as_str(),
+                models,
+            )
+        })
     }
 }
 
@@ -306,6 +325,27 @@ mod tests {
         ensemble.add(&residues(Helix), &[interaction(Hydrophobic, 0, 2, 3.9)]);
 
         assert_eq!(ensemble.network(0.0).nodes[0].ss, 'C');
+    }
+
+    #[test]
+    fn a_pair_touching_by_one_kind_or_another_touches_in_every_model() {
+        let mut ensemble = Ensemble::default();
+        ensemble.add(&residues(Helix), &[interaction(HydrogenBond, 0, 1, 2.9)]);
+        ensemble.add(
+            &residues(Helix),
+            &[
+                interaction(HydrogenBond, 0, 1, 2.9),
+                interaction(Hydrophobic, 0, 1, 3.9),
+            ],
+        );
+        ensemble.add(&residues(Helix), &[interaction(Hydrophobic, 0, 1, 3.9)]);
+        ensemble.add(&residues(Helix), &[]);
+
+        let contacts: Vec<_> = ensemble.contacts().collect();
+
+        assert_eq!(contacts, [("A/1", "A/2", 3)]);
+        let network = ensemble.network(0.0);
+        assert!(network.edges.iter().all(|edge| edge.models == 2));
     }
 
     #[test]

@@ -332,6 +332,7 @@ pixelfold interactions 1STP --select 'byres within 5 of resn BTN'
 | `t` `y` | Filter network edges by interaction type, by chain |
 | `k` `[` `]` `,` `.` | Slab: toggle, move, and resize a depth slice |
 | `m`/`M` | Next, previous model of a multi-model file |
+| `n` | Network of the whole ensemble, edges brightened by the share of models they are in; again for those in half, then nearly all, of the models; again for the shown model's |
 | `u` | Biological assembly on or off |
 | `f`, `q` | Reset the view, quit |
 

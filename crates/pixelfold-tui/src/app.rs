@@ -15,16 +15,12 @@ pub(crate) fn run_app(
         // Install a finished network build.
         if let Some(rx) = &app.network_build {
             match rx.try_recv() {
-                Ok(view) => {
-                    app.network_view = Some(view);
-                    app.network_build = None;
-                    app.redraw_needed = true;
-                }
+                Ok(built) => app.install_network(built),
                 Err(std::sync::mpsc::TryRecvError::Empty) => {}
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                    // The worker died before sending; drop the build so a later
-                    // toggle can start a new one.
-                    app.network_build = None;
+                    // The worker died before sending; say so, and let a later
+                    // toggle start a new build.
+                    app.install_network(Err(crate::BUILD_STOPPED.to_string()));
                 }
             }
         }

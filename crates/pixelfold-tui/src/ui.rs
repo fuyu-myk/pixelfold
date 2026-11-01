@@ -135,8 +135,23 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App, picker: &Picker) {
         if let Some(area) = net_area {
             if let Some(view) = app.network_view.as_mut() {
                 view.render(frame, area, selected_node, &app.camera);
+            } else if let Some(error) = app.network_error.as_deref() {
+                render_network_message(
+                    frame,
+                    area,
+                    &format!("Could not build the network: {error}"),
+                    Color::Red,
+                );
             } else if app.network_build.is_some() {
-                render_network_building(frame, area);
+                let shown = app.models.get(app.model_position).copied().unwrap_or(1);
+                let message = if app.network_remap {
+                    format!("Laying the network over model {shown}...")
+                } else if app.network_scope.is_ensemble() {
+                    format!("Computing the network of {} models...", app.models.len())
+                } else {
+                    "Computing interaction network...".to_string()
+                };
+                render_network_message(frame, area, &message, Color::Gray);
             }
         }
         app.network_area = net_area;
@@ -154,7 +169,7 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App, picker: &Picker) {
         Paragraph::new(format!(
             "WASD rotate  ·  +/- zoom  ·  arrows pan  ·  i inspect  ·  g network  ·  l layout  ·  e color  ·  t/y filter  ·  1/2 atoms/Cα  ·  c b h  ·  k [ ] , . slab{}  ·  f reset  ·  q quit",
             [
-                (app.models.len() > 1, "  ·  m/M model"),
+                (app.models.len() > 1, "  ·  m/M model  ·  n ensemble"),
                 (!app.assemblies.is_empty(), "  ·  u assembly"),
             ]
             .iter()
@@ -168,8 +183,9 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App, picker: &Picker) {
     );
 }
 
-/// The network pane's placeholder while the graph is built on a worker thread.
-fn render_network_building(frame: &mut Frame, area: Rect) {
+/// The network pane's placeholder while the graph is built on a worker thread,
+/// or why it could not be.
+fn render_network_message(frame: &mut Frame, area: Rect, message: &str, color: Color) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::DarkGray))
@@ -181,9 +197,9 @@ fn render_network_building(frame: &mut Frame, area: Rect) {
         let row = inner.y + inner.height / 2;
         let line = Rect::new(inner.x, row, inner.width, 1);
         frame.render_widget(
-            Paragraph::new("Computing interaction network...")
+            Paragraph::new(message)
                 .alignment(Alignment::Center)
-                .style(Style::default().fg(Color::Gray)),
+                .style(Style::default().fg(color)),
             line,
         );
     }
@@ -438,7 +454,8 @@ fn ss_name(ss: SecondaryStructure) -> &'static str {
 
 /// The compact residue block shown under the network graph: the identity and
 /// secondary structure of the selected residue, at the residue scale the network
-/// is read at.
+/// is read at, and for an ensemble's network the residues it touches, by the
+/// share of the models it touches each in.
 fn render_residue_summary(frame: &mut Frame, app: &App, atom_idx: usize, area: Rect) {
     let Some(protein) = app.protein.as_ref() else {
         return;
@@ -448,7 +465,7 @@ fn render_residue_summary(frame: &mut Frame, app: &App, atom_idx: usize, area: R
     let (r, g, b) = atom.secondary_structure.color_rgb();
 
     let label = Style::default().fg(Color::Gray);
-    let lines = vec![
+    let mut lines = vec![
         Line::from(vec![
             Span::styled(
                 format!("{}/{}", atom.chain_id, atom.residue_seq),
@@ -471,6 +488,27 @@ fn render_residue_summary(frame: &mut Frame, app: &App, atom_idx: usize, area: R
             ),
         ]),
     ];
+    if let Some(view) = app
+        .network_view
+        .as_ref()
+        .filter(|_| app.network_scope.is_ensemble())
+        && let Some(node) = view.node_of_atom(atom_idx)
+    {
+        let models = view.network().models;
+        let partners: Vec<String> = view
+            .partners(node)
+            .into_iter()
+            .map(|(id, touching)| format!("{id} {touching}/{models}"))
+            .collect();
+        lines.push(Line::from(Span::styled(
+            "Touches, in this many models, by any kind",
+            label,
+        )));
+        lines.push(Line::from(Span::styled(
+            fitted(&partners, area.width.saturating_sub(2) as usize),
+            Style::default().fg(Color::White),
+        )));
+    }
 
     frame.render_widget(
         Paragraph::new(lines).style(Style::default().bg(BG)).block(
@@ -481,6 +519,38 @@ fn render_residue_summary(frame: &mut Frame, app: &App, atom_idx: usize, area: R
         ),
         area,
     );
+}
+
+/// As many of `items`, joined by dots, as fit in `width` columns, with a count
+/// of those left out.
+fn fitted(items: &[String], width: usize) -> String {
+    const JOIN: &str = " · ";
+    let mut line = String::new();
+    for (shown, item) in items.iter().enumerate() {
+        let left = items.len() - shown - 1;
+        let more = if left > 0 {
+            format!("{JOIN}+{left} more")
+        } else {
+            String::new()
+        };
+        let next = if line.is_empty() {
+            item.clone()
+        } else {
+            format!("{line}{JOIN}{item}")
+        };
+        if next.chars().count() + more.chars().count() > width {
+            let rest = items.len() - shown;
+            let tail = format!("+{rest} more");
+            return if line.is_empty() {
+                tail
+            } else {
+                format!("{line}{JOIN}{tail}")
+            };
+        }
+        line = next;
+    }
+
+    line
 }
 
 fn render_help(frame: &mut Frame, area: Rect) {
@@ -508,6 +578,18 @@ mod tests {
 
     fn area(width: u16, height: u16) -> Rect {
         Rect::new(0, 0, width, height)
+    }
+
+    #[test]
+    fn partners_that_do_not_fit_are_counted() {
+        let items: Vec<String> = ["A/65 10/10", "A/61 1/10", "A/3 1/10"]
+            .map(String::from)
+            .to_vec();
+
+        assert_eq!(fitted(&items, 80), "A/65 10/10 · A/61 1/10 · A/3 1/10");
+        assert_eq!(fitted(&items, 30), "A/65 10/10 · +2 more");
+        assert_eq!(fitted(&items, 5), "+3 more");
+        assert_eq!(fitted(&[], 10), "");
     }
 
     #[test]

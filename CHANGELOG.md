@@ -51,8 +51,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   takes the secondary structure most models give it. `--min-frequency F` keeps
   the edges present in at least that fraction of the models (the exact
   fraction, not the rounded one shown), so `--analyze` and `--path`, which read
-  the network unweighted, can work on its consensus. The library gains `rin::Ensemble` and
-  `Network::frequency`.
+  the network unweighted, can work on its consensus. The library gains
+  `rin::Ensemble` (with `contacts`, how many models each residue pair
+  interacts in by any kind) and `Network::frequency`.
+- **The ensemble's network in the viewer.** For a multi-model file, `n` turns
+  the network pane to the network of every model, each edge brightened by the
+  share of models it is present in; pressing it again hides the edges in fewer
+  than half of the models, then in fewer than nine in ten, then returns to the
+  shown model's network. The network stays as `m` steps through the models,
+  laid over each one's atoms, and a selected residue lists the residues it
+  touches and in how many models, by any kind of interaction.
 
 ### Changed
 

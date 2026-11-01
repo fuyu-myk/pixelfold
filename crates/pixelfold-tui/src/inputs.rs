@@ -131,6 +131,10 @@ pub(crate) fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers
         KeyCode::Char('m') => app.step_model(1)?,
         KeyCode::Char('M') => app.step_model(-1)?,
 
+        // Step the network pane through the shown model's network, the
+        // ensemble's, and the ensemble's frequent edges only.
+        KeyCode::Char('n') => app.cycle_network_scope(),
+
         // Switch between the deposited coordinates and the biological assembly.
         KeyCode::Char('u') => {
             let frame = app
@@ -237,12 +241,12 @@ pub(crate) fn handle_mouse(app: &mut App, mouse: event::MouseEvent) -> Result<()
     if let Some(area) = app.network_area
         && within(area, mouse.column, mouse.row)
     {
-        if let Some(node) = app
-            .network_view
-            .as_ref()
-            .and_then(|view| view.pick(mouse.column, mouse.row))
-        {
-            let atom = app.network_view.as_ref().unwrap().atom_of_node(node);
+        // A residue of an ensemble's network the shown model lacks has no atom
+        // to select.
+        if let Some(atom) = app.network_view.as_ref().and_then(|view| {
+            view.pick(mouse.column, mouse.row)
+                .and_then(|node| view.atom_of_node(node))
+        }) {
             app.selected_atom_idx = Some(atom);
             crate::update_highlighted_atoms(app);
             app.redraw_needed = true;

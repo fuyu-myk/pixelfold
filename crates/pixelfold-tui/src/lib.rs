@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::path::Path;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use pixelfold_core::parser::{AssemblyChoice, Load, ParsedStructure};
@@ -28,6 +29,12 @@ pub(crate) enum DisplayMode {
     AllAtoms,
     Backbone,
 }
+
+/// Why a network build that delivered nothing failed: its worker stopped.
+pub(crate) const BUILD_STOPPED: &str = "the network build stopped";
+
+/// The result a network build's worker delivers: the view, or why none.
+pub(crate) type NetworkBuild = std::sync::mpsc::Receiver<Result<network::NetworkView, String>>;
 
 pub(crate) struct RenderedFrame {
     pub(crate) fb: Framebuffer,
@@ -62,12 +69,19 @@ pub(crate) struct App {
     pub(crate) network_view: Option<network::NetworkView>,
     /// A network build running on a worker thread, delivering its result here.
     /// Set while the pane is computing to prevent blocking of the event loop.
-    pub(crate) network_build: Option<std::sync::mpsc::Receiver<network::NetworkView>>,
+    pub(crate) network_build: Option<NetworkBuild>,
+    /// Whether the build in flight only lays a network already built over the
+    /// shown model, rather than detecting its interactions.
+    pub(crate) network_remap: bool,
+    /// Why the last network build failed, shown in the pane in its place.
+    pub(crate) network_error: Option<String>,
     /// Where the network pane last drew, for routing clicks to it.
     pub(crate) network_area: Option<Rect>,
+    /// Whose network the pane shows, and the ensemble's frequency floor.
+    pub(crate) network_scope: network::NetworkScope,
     /// The parsed file the shown model came from, kept so stepping between
-    /// models never re-reads it.
-    pub(crate) source: Option<ParsedStructure>,
+    /// models never re-reads it, and shared with an ensemble network's build.
+    pub(crate) source: Option<Arc<ParsedStructure>>,
     /// The model, assembly, and altloc policy of what is shown.
     pub(crate) load: Load,
     /// The file's model numbers, and the position of the shown one among them.
@@ -107,7 +121,10 @@ impl App {
             show_network: false,
             network_view: None,
             network_build: None,
+            network_remap: false,
+            network_error: None,
             network_area: None,
+            network_scope: network::NetworkScope::default(),
             source: None,
             load: Load::default(),
             models: Vec::new(),
@@ -132,7 +149,7 @@ impl App {
             .and_then(|number| self.models.iter().position(|&m| m == number))
             .unwrap_or(0);
         self.assemblies = source.assembly_ids();
-        self.source = Some(source);
+        self.source = Some(Arc::new(source));
         self.load = load;
 
         renderer::auto_frame_protein(&protein, &mut self.camera, width, height);
@@ -198,12 +215,20 @@ impl App {
 
     /// Build what `load` names from the kept file in place of what is shown.
     /// The selection and the network pane, which index the old atoms, start
-    /// over.
+    /// over; an ensemble's network, unchanged by which model is shown, is only
+    /// laid over the new model's atoms.
     fn show(&mut self, load: Load) -> Result<()> {
         let Some(source) = self.source.as_ref() else {
             return Ok(());
         };
 
+        let same_ensemble = Load {
+            model: None,
+            ..load.clone()
+        } == Load {
+            model: None,
+            ..self.load.clone()
+        };
         self.protein = Some(source.protein(&load)?);
         self.load = load;
         self.compute_static_geometry();
@@ -211,14 +236,71 @@ impl App {
         self.selected_atom_idx = None;
         self.residue_highlight = false;
         self.highlighted_atom_indices.clear();
-        self.network_view = None;
-        self.network_build = None;
-        if self.show_network {
-            self.start_network_build();
+        let relay = self.network_scope.is_ensemble() && same_ensemble;
+        match (relay, self.network_view.take(), self.network_build.take()) {
+            (true, Some(view), _) => {
+                self.network_remap = true;
+                self.start_network_remap(move || Ok(view));
+            }
+            // A build or remap still in flight is waited for, not repeated.
+            (true, None, Some(pending)) => self.start_network_remap(move || {
+                pending
+                    .recv()
+                    .map_err(|_| BUILD_STOPPED.to_string())
+                    .and_then(|built| built)
+            }),
+            _ if self.show_network => self.start_network_build(),
+            _ => {}
         }
         self.redraw_needed = true;
 
         Ok(())
+    }
+
+    /// Step the network pane through the shown model's network, the
+    /// ensemble's, and the ensemble's with ever fewer rare edges, then back,
+    /// opening the pane; a closed pane showing an ensemble only opens. Does
+    /// nothing for a file of one model.
+    pub(crate) fn cycle_network_scope(&mut self) {
+        if self.models.len() < 2 {
+            return;
+        }
+
+        self.redraw_needed = true;
+        if !self.show_network {
+            self.show_network = true;
+            if self.network_scope.is_ensemble() {
+                if self.network_view.is_none() && self.network_build.is_none() {
+                    self.start_network_build();
+                }
+                return;
+            }
+        }
+
+        let next = self.network_scope.next();
+        let rebuild = next.is_ensemble() != self.network_scope.is_ensemble();
+        self.network_scope = next;
+        if rebuild {
+            self.network_view = None;
+            self.start_network_build();
+        } else if let Some(view) = self.network_view.as_mut() {
+            view.set_min_frequency(next.min_frequency());
+        }
+    }
+
+    /// Show a finished network build: the view, under the floor the scope has
+    /// now, or why it failed.
+    pub(crate) fn install_network(&mut self, built: Result<network::NetworkView, String>) {
+        match built {
+            Ok(mut view) => {
+                view.set_min_frequency(self.network_scope.min_frequency());
+                self.network_view = Some(view);
+            }
+            Err(error) => self.network_error = Some(error),
+        }
+        self.network_build = None;
+        self.network_remap = false;
+        self.redraw_needed = true;
     }
 
     /// Build the network pane's view on a worker thread, so a large structure's
@@ -228,13 +310,44 @@ impl App {
         let Some(protein) = self.protein.clone() else {
             return;
         };
+        let ensemble = self
+            .source
+            .clone()
+            .filter(|_| self.network_scope.is_ensemble())
+            .map(|source| (source, self.load.clone(), self.models.clone()));
 
         let (tx, rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
-            let view = network::NetworkView::build(&protein);
-            tx.send(view).ok();
+            let built = match ensemble {
+                Some((source, load, models)) => {
+                    network::NetworkView::build_ensemble(&protein, &source, &load, &models)
+                        .map_err(|error| format!("{error:#}"))
+                }
+                None => Ok(network::NetworkView::build(&protein)),
+            };
+            tx.send(built).ok();
         });
         self.network_build = Some(rx);
+        self.network_remap = false;
+        self.network_error = None;
+    }
+
+    /// Lay the view `built` gives over the shown model on a worker thread, as
+    /// [`App::start_network_build`] builds one.
+    fn start_network_remap(
+        &mut self,
+        built: impl FnOnce() -> Result<network::NetworkView, String> + Send + 'static,
+    ) {
+        let Some(protein) = self.protein.clone() else {
+            return;
+        };
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            tx.send(built().map(|view| view.remapped(&protein))).ok();
+        });
+        self.network_build = Some(rx);
+        self.network_error = None;
     }
 
     /// Pre-compute geometry that does not change as the camera moves.
@@ -479,6 +592,122 @@ ATOM 4 C CA GLY A 2 4.3 0.0 0.0 2
         assert_eq!(shown(&app), 1);
         app.step_model(-1).unwrap();
         assert_eq!(shown(&app), 2);
+    }
+
+    /// Install the network build in flight, once it finishes.
+    fn finish_network_build(app: &mut App) -> &network::NetworkView {
+        let built = app
+            .network_build
+            .take()
+            .expect("a network build in flight")
+            .recv()
+            .expect("the build finishes");
+        app.install_network(built);
+        app.network_view.as_ref().expect("the build succeeds")
+    }
+
+    /// An app showing a file of three models, Cys1 and Cys2 bridged in the
+    /// first two.
+    fn three_models(name: &str) -> App {
+        let cif = "\
+data_NMR
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.label_seq_id
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+_atom_site.pdbx_PDB_model_num
+ATOM 1 S SG CYS A 1 0.0 0.0 0.0 1
+ATOM 2 S SG CYS A 2 2.05 0.0 0.0 1
+ATOM 3 S SG CYS A 1 0.0 0.0 0.0 2
+ATOM 4 S SG CYS A 2 2.05 0.0 0.0 2
+ATOM 5 S SG CYS A 1 0.0 0.0 0.0 3
+ATOM 6 S SG CYS A 2 6.0 0.0 0.0 3
+";
+        let path = std::env::temp_dir().join(format!("pf_tui_{name}.cif"));
+        std::fs::write(&path, cif).unwrap();
+        let mut app = App::new();
+        app.load_protein(&path, 64.0, 64.0, Load::default())
+            .unwrap();
+        let _ = std::fs::remove_file(&path);
+        app
+    }
+
+    /// The network's model count and its one edge's frequency.
+    fn bridged(view: &network::NetworkView) -> (usize, f32) {
+        let network = view.network();
+        (network.models, network.frequency(&network.edges[0]))
+    }
+
+    fn shown(app: &App) -> usize {
+        app.protein.as_ref().unwrap().atoms[0].model_number
+    }
+
+    #[test]
+    fn the_ensemble_network_spans_every_model_and_outlives_a_model_step() {
+        let mut app = three_models("ensemble");
+
+        app.cycle_network_scope();
+        assert!(app.show_network, "the scope opens the pane");
+        assert_eq!(bridged(finish_network_build(&mut app)), (3, 2.0 / 3.0));
+
+        // The next model keeps the network and its floor, laid over its atoms.
+        app.cycle_network_scope();
+        app.step_model(1).unwrap();
+        assert!(app.network_remap);
+        let view = finish_network_build(&mut app);
+        assert_eq!(bridged(view), (3, 2.0 / 3.0));
+        assert_eq!(view.min_frequency(), 0.5);
+
+        // The last floor, then back to the shown model's own network.
+        app.cycle_network_scope();
+        assert!(app.network_build.is_none(), "a floor needs no build");
+        app.cycle_network_scope();
+        assert_eq!(bridged(finish_network_build(&mut app)), (1, 1.0));
+
+        let mut lone = App::new();
+        lone.cycle_network_scope();
+        assert!(!lone.show_network, "a single model has no ensemble");
+    }
+
+    // Keys pressed before a build lands: a floor is not lost and a model step
+    // waits for the build in flight rather than starting the ensemble again.
+    #[test]
+    fn keys_pressed_while_the_ensemble_builds_are_not_lost() {
+        let mut app = three_models("racing");
+
+        app.cycle_network_scope();
+        app.cycle_network_scope();
+        app.step_model(1).unwrap();
+        app.step_model(1).unwrap();
+        assert!(!app.network_remap, "still waiting on the first build");
+        let view = finish_network_build(&mut app);
+
+        assert_eq!(bridged(view), (3, 2.0 / 3.0));
+        assert_eq!(view.min_frequency(), 0.5);
+        assert_eq!(shown(&app), 3);
+        let atoms = app.protein.as_ref().unwrap().atoms.len();
+        let view = app.network_view.as_ref().unwrap();
+        assert!((0..2).all(|node| view.atom_of_node(node).is_some_and(|atom| atom < atoms)));
+    }
+
+    #[test]
+    fn reopening_the_pane_on_an_ensemble_keeps_its_floor() {
+        let mut app = three_models("reopen");
+        app.cycle_network_scope();
+        finish_network_build(&mut app);
+
+        app.show_network = false;
+        app.cycle_network_scope();
+
+        assert!(app.show_network);
+        assert_eq!(app.network_view.as_ref().unwrap().min_frequency(), 0.0);
     }
 
     #[test]
