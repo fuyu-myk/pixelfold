@@ -293,6 +293,9 @@ pixelfold poses --reference 29SB 29SB --format tsv
 # One copy of a ligand the reference holds several of; a pose holding several
 # is scored by the copy most like the reference's
 pixelfold poses --reference 1IEP --reference-select 'chain A and resn STI' --ligand STI model.cif
+# The same ranking as a table in the viewer, each pose drawn on the reference's
+# pocket
+pixelfold poses --reference crystal.cif --ligand STI pose_*.cif --view
 
 # Secondary structure and solvent accessibility
 pixelfold ss 1UBQ --format tsv
@@ -331,7 +334,8 @@ pixelfold interactions 1STP --select 'byres within 5 of resn BTN'
 | `l` `e` | Network layout (force or spatial), node colour (structure or burial) |
 | `t` `y` | Filter network edges by interaction type, by chain |
 | `k` `[` `]` `,` `.` | Slab: toggle, move, and resize a depth slice |
-| `m`/`M` | Next, previous model of a multi-model file |
+| `m`/`M` | Next, previous model of a multi-model file, or pose of the pose table |
+| `o` `p` | Pose table (`poses --view`): sort by the next column, hide or show |
 | `n` | Network of the whole ensemble, edges brightened by the share of models they are in; again for those in half, then nearly all, of the models; again for the shown model's |
 | `u` | Biological assembly on or off |
 | `f`, `q` | Reset the view, quit |

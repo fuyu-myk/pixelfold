@@ -198,8 +198,8 @@ impl RmsdReference {
     }
 
     /// The superposition of `pose` on the first pocket chain with at least
-    /// three atoms `map` finds a counterpart for.
-    fn superposition(&self, pose: &Protein, map: &ResidueMap) -> Result<Superposition, NoRmsd> {
+    /// three atoms `map` finds a counterpart for, whatever the pose's ligand.
+    pub fn superposition(&self, pose: &Protein, map: &ResidueMap) -> Result<Superposition, NoRmsd> {
         let mut positions: HashMap<(ResidueKey, FixedStr<4>), Vec3> = HashMap::new();
         for atom in &pose.atoms {
             positions
@@ -554,7 +554,7 @@ fn pocket(protein: &Protein, ligand: &AtomSet, heavy: &[usize]) -> Vec<Vec<Pocke
 /// The rotation and translation that best superpose one set of points on
 /// another, pair by pair, by least squares (Kabsch, Acta Cryst A32:922, 1976).
 #[derive(Clone, Copy, Debug)]
-struct Superposition {
+pub struct Superposition {
     rotation: Matrix3<f64>,
     from: Vector3<f64>,
     to: Vector3<f64>,
@@ -563,7 +563,7 @@ struct Superposition {
 impl Superposition {
     /// The superposition of `mobile` on `target`, which pair index by index;
     /// neither may be empty.
-    fn of(mobile: &[Vec3], target: &[Vec3]) -> Superposition {
+    pub fn of(mobile: &[Vec3], target: &[Vec3]) -> Superposition {
         let centre = |points: &[Vec3]| {
             points.iter().map(|&p| vector(p)).sum::<Vector3<f64>>() / points.len() as f64
         };
@@ -593,7 +593,8 @@ impl Superposition {
         Superposition { rotation, from, to }
     }
 
-    fn apply(&self, point: Vec3) -> Vec3 {
+    /// Where `point` of the mobile set's frame lands in the target's.
+    pub fn apply(&self, point: Vec3) -> Vec3 {
         let moved = self.rotation * (vector(point) - self.from) + self.to;
         Vec3::new(moved.x as f32, moved.y as f32, moved.z as f32)
     }
@@ -788,6 +789,30 @@ mod tests {
         let pose = moved(&reference, |p| turn * p + Vec3::new(-20.0, 4.0, 9.0));
 
         assert!(rmsd_of(&pose, &reference).unwrap() < 1e-3);
+    }
+
+    #[test]
+    fn a_pose_is_laid_on_the_reference_pocket_whatever_its_ligand() {
+        let reference = site();
+        let turn = Quat::from_rotation_z(1.9);
+        let mut pose = moved(&reference, |p| turn * p + Vec3::new(-20.0, 4.0, 9.0));
+        // A ligand of another size has no RMSD, but its pocket still fits.
+        pose.atoms.pop();
+        let map = residue_map(
+            &polymer_chains(&pose),
+            &polymer_chains(&reference),
+            &[],
+            |_| 0,
+        );
+
+        let superposition = RmsdReference::new(&reference, &ligand_of(&reference))
+            .superposition(&pose, &map)
+            .expect("the pocket has counterparts");
+
+        for (placed, original) in pose.atoms.iter().zip(&reference.atoms) {
+            let landed = superposition.apply(placed.position);
+            assert!((landed - original.position).length() < 1e-3, "{landed}");
+        }
     }
 
     #[test]

@@ -3,13 +3,14 @@
 
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::path::PathBuf;
 
 use anyhow::Result;
 use pixelfold_core::components::Dictionary;
 use pixelfold_core::interactions::{Interaction, detect};
 use pixelfold_core::numbering::{self, Chain, ResidueKey, ResidueMap};
 use pixelfold_core::pose::{self, Attachments, Contact, Contents, Fingerprint};
-use pixelfold_core::rmsd::{AtomId, NoRmsd, POCKET_REACH, RmsdReference};
+use pixelfold_core::rmsd::{AtomId, NoRmsd, POCKET_REACH, RmsdReference, Superposition};
 use pixelfold_core::{Atom, AtomSet, ChainId, Protein};
 use serde::Serialize;
 
@@ -37,6 +38,12 @@ pub struct PoseRecord {
     /// its atoms could not be paired with the reference's.
     pub inverted: Option<Vec<String>>,
     pub lost: Vec<String>,
+    /// The scored copy's atoms, which the viewer tints.
+    #[serde(skip)]
+    pub ligand: Vec<usize>,
+    /// What lays the pose on the reference's pocket, for the viewer.
+    #[serde(skip)]
+    pub superposition: Option<Superposition>,
 }
 
 impl Row for PoseRecord {
@@ -202,11 +209,12 @@ impl Reference {
             interactions: detect(&protein),
             chains: numbering::polymer_chains(&protein),
         };
-        let best = copies
+        let mut best = copies
             .iter()
             .map(|copy| self.score(&model, copy, copies.len() > 1))
             .min_by(|a, b| preferred(&a.record, &b.record))
             .expect("copies holds at least the whole ligand");
+        best.record.superposition = self.rmsd.superposition(&protein, &best.map).ok();
 
         self.check_pairing(&best.map, pose, warnings)?;
         if let Some(reason) = &best.no_rmsd
@@ -274,6 +282,8 @@ impl Reference {
                 .ok()
                 .map(|fit| fit.inverted.iter().map(atom_label).collect()),
             lost: fingerprint.lost(reference).map(contact_label).collect(),
+            ligand: copy.iter().collect(),
+            superposition: None,
         };
 
         Scored {
@@ -359,6 +369,33 @@ pub fn ranked(mut records: Vec<PoseRecord>) -> Vec<PoseRecord> {
     records
 }
 
+/// The ranked `records` as the viewer lists them, each pose file found by
+/// `path_of`.
+pub fn viewed(
+    records: Vec<PoseRecord>,
+    path_of: impl Fn(&str) -> Result<PathBuf>,
+) -> Result<Vec<pixelfold_tui::Pose>> {
+    records
+        .into_iter()
+        .map(|record| {
+            Ok(pixelfold_tui::Pose {
+                path: path_of(&record.pose)?,
+                label: record.pose,
+                model: record.model,
+                copy: record.copy,
+                similarity: record.similarity,
+                recovery: record.recovery,
+                rmsd: record.rmsd,
+                clashes: record.clashes,
+                inverted: record.inverted,
+                lost: record.lost,
+                ligand: record.ligand,
+                superposition: record.superposition,
+            })
+        })
+        .collect()
+}
+
 /// Which of two copies of a pose's ligand to keep: the more similar, then the
 /// more recovered, then the nearer the reference ligand, then the one with
 /// fewer clashes, then the first. Nearness comes before clashes because the
@@ -422,6 +459,8 @@ mod tests {
             clashes,
             inverted: None,
             lost: Vec::new(),
+            ligand: Vec::new(),
+            superposition: None,
         }
     }
 

@@ -80,7 +80,8 @@ pub(crate) fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers
             }
         }
 
-        // Reset the view to fit the structure.
+        // Reset the view to fit the structure, or a pose's ligand.
+        KeyCode::Char('f') if app.poses.is_some() => app.reframe_pose(),
         KeyCode::Char('f') => {
             let dims = app
                 .last_frame
@@ -127,22 +128,27 @@ pub(crate) fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers
             app.redraw_needed = true;
         }
 
-        // Step through the models of a multi-model file, such as an NMR ensemble.
-        KeyCode::Char('m') => app.step_model(1)?,
-        KeyCode::Char('M') => app.step_model(-1)?,
+        // Step through the poses in the table's order, or else through the
+        // models of a multi-model file, such as an NMR ensemble.
+        KeyCode::Char('m') | KeyCode::Char('M') => {
+            let delta = if key == KeyCode::Char('m') { 1 } else { -1 };
+            if app.poses.is_some() {
+                app.step_pose(delta);
+            } else {
+                app.step_model(delta)?;
+            }
+        }
+
+        // Sort the pose table by the next column, or show and hide it.
+        KeyCode::Char('o') => app.cycle_pose_sort(),
+        KeyCode::Char('p') => app.toggle_pose_table(),
 
         // Step the network pane through the shown model's network, the
         // ensemble's, and the ensemble's frequent edges only.
         KeyCode::Char('n') => app.cycle_network_scope(),
 
         // Switch between the deposited coordinates and the biological assembly.
-        KeyCode::Char('u') => {
-            let frame = app
-                .last_frame
-                .as_ref()
-                .map(|frame| (frame.fb.width() as f32, frame.fb.height() as f32));
-            app.toggle_assembly(frame)?;
-        }
+        KeyCode::Char('u') => app.toggle_assembly(frame_size(app))?,
 
         // Switch the network layout between force-directed and spatial.
         KeyCode::Char('l') => {
@@ -203,6 +209,13 @@ pub(crate) fn handle_input(app: &mut App, key: KeyCode, _modifiers: KeyModifiers
     Ok(())
 }
 
+/// The pixel size of the last frame drawn, which a reframed structure fits.
+fn frame_size(app: &App) -> Option<(f32, f32)> {
+    app.last_frame
+        .as_ref()
+        .map(|frame| (frame.fb.width() as f32, frame.fb.height() as f32))
+}
+
 fn rotate(app: &mut App, pitch: f32, yaw: f32, roll: f32) {
     app.camera.rotate(pitch, yaw, roll);
     app.redraw_needed = true;
@@ -233,6 +246,12 @@ pub(crate) fn handle_mouse(app: &mut App, mouse: event::MouseEvent) -> Result<()
     use event::MouseEventKind;
 
     if !matches!(mouse.kind, MouseEventKind::Down(event::MouseButton::Left)) {
+        return Ok(());
+    }
+
+    // A click on a row of the pose table draws that pose.
+    if app.pick_pose(mouse.column, mouse.row) {
+        app.redraw_needed = true;
         return Ok(());
     }
 

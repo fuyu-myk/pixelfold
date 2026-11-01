@@ -13,11 +13,16 @@ use ratatui_image::picker::{Picker, ProtocolType};
 mod search;
 
 mod app;
+mod framing;
 mod inputs;
 mod iterm2;
 mod network;
+mod pose_table;
+mod poses;
 mod render;
 mod ui;
+
+pub use pose_table::Pose;
 
 /// The framebuffer of the last drawn frame, kept so a mouse click can be mapped
 /// straight to the atom under it through the id buffer. `area` is where the image
@@ -39,6 +44,8 @@ pub(crate) type NetworkBuild = std::sync::mpsc::Receiver<Result<network::Network
 pub(crate) struct RenderedFrame {
     pub(crate) fb: Framebuffer,
     pub(crate) area: Rect,
+    /// Set once other atoms replace those drawn, whose ids the frame holds.
+    pub(crate) stale: bool,
 }
 
 pub(crate) struct App {
@@ -89,6 +96,8 @@ pub(crate) struct App {
     pub(crate) model_position: usize,
     /// The ids of the biological assemblies the file declares.
     pub(crate) assemblies: Vec<String>,
+    /// The poses being triaged, when the viewer shows poses, not a file.
+    pub(crate) poses: Option<pose_table::PoseTable>,
 }
 
 impl Default for App {
@@ -130,6 +139,7 @@ impl App {
             models: Vec::new(),
             model_position: 0,
             assemblies: Vec::new(),
+            poses: None,
         }
     }
 
@@ -163,7 +173,8 @@ impl App {
     /// (-1), wrapping at either end. The camera stays put.
     pub(crate) fn step_model(&mut self, delta: isize) -> Result<()> {
         let count = self.models.len();
-        if count < 2 {
+        // A pose's model is the pose table's to change.
+        if count < 2 || self.poses.is_some() {
             return Ok(());
         }
 
@@ -181,7 +192,8 @@ impl App {
     /// assembly, framing the result in `frame` (width, height) when given, since
     /// the extent changes. Does nothing for a file that declares no assembly.
     pub(crate) fn toggle_assembly(&mut self, frame: Option<(f32, f32)>) -> Result<()> {
-        if self.assemblies.is_empty() {
+        // A pose's atoms are those it was scored on.
+        if self.assemblies.is_empty() || self.poses.is_some() {
             return Ok(());
         }
 
@@ -214,9 +226,8 @@ impl App {
     }
 
     /// Build what `load` names from the kept file in place of what is shown.
-    /// The selection and the network pane, which index the old atoms, start
-    /// over; an ensemble's network, unchanged by which model is shown, is only
-    /// laid over the new model's atoms.
+    /// An ensemble's network, unchanged by which model is shown, is only laid
+    /// over the new model's atoms.
     fn show(&mut self, load: Load) -> Result<()> {
         let Some(source) = self.source.as_ref() else {
             return Ok(());
@@ -229,14 +240,26 @@ impl App {
             model: None,
             ..self.load.clone()
         };
-        self.protein = Some(source.protein(&load)?);
+        let protein = source.protein(&load)?;
         self.load = load;
+        self.replace_protein(protein, self.network_scope.is_ensemble() && same_ensemble);
+
+        Ok(())
+    }
+
+    /// Show `protein` in place of what is shown. The selection and the network
+    /// pane, which index the old atoms, start over; when `relay`, the network
+    /// is only laid over the new atoms.
+    fn replace_protein(&mut self, protein: Protein, relay: bool) {
+        self.protein = Some(protein);
         self.compute_static_geometry();
+        if let Some(frame) = self.last_frame.as_mut() {
+            frame.stale = true;
+        }
 
         self.selected_atom_idx = None;
         self.residue_highlight = false;
         self.highlighted_atom_indices.clear();
-        let relay = self.network_scope.is_ensemble() && same_ensemble;
         match (relay, self.network_view.take(), self.network_build.take()) {
             (true, Some(view), _) => {
                 self.network_remap = true;
@@ -253,16 +276,14 @@ impl App {
             _ => {}
         }
         self.redraw_needed = true;
-
-        Ok(())
     }
 
     /// Step the network pane through the shown model's network, the
     /// ensemble's, and the ensemble's with ever fewer rare edges, then back,
     /// opening the pane; a closed pane showing an ensemble only opens. Does
-    /// nothing for a file of one model.
+    /// nothing for a file of one model, or for poses, which are no ensemble.
     pub(crate) fn cycle_network_scope(&mut self) {
-        if self.models.len() < 2 {
+        if self.models.len() < 2 || self.poses.is_some() {
             return;
         }
 
@@ -383,11 +404,28 @@ pub enum ViewProtocol {
 
 /// Load a structure and run the interactive viewer.
 pub fn view(path: &Path, load: Load, protocol: ViewProtocol) -> Result<()> {
+    run_viewer(protocol, |app, width, height| {
+        app.load_protein(path, width, height, load)
+    })
+}
+
+/// Run the interactive viewer on ligand poses ranked best first, listed in a
+/// table under the structure; the pose picked is drawn on the reference's
+/// pocket. `load` names the assembly and altloc policy of every pose's model.
+pub fn view_poses(poses: Vec<Pose>, load: Load, protocol: ViewProtocol) -> Result<()> {
+    run_viewer(protocol, |app, _, _| app.load_poses(poses, load))
+}
+
+/// Run the viewer on what `open` shows, framed in the terminal's pixels.
+fn run_viewer(
+    protocol: ViewProtocol,
+    open: impl FnOnce(&mut App, f32, f32) -> Result<()>,
+) -> Result<()> {
     let mut terminal = ratatui::init();
 
     let picker = build_picker(protocol);
 
-    let result = run_view(&mut terminal, &picker, path, load);
+    let result = run_view(&mut terminal, &picker, open);
 
     let _ = crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture);
     ratatui::restore();
@@ -416,8 +454,7 @@ fn build_picker(protocol: ViewProtocol) -> Picker {
 fn run_view(
     terminal: &mut ratatui::DefaultTerminal,
     picker: &Picker,
-    path: &Path,
-    load: Load,
+    open: impl FnOnce(&mut App, f32, f32) -> Result<()>,
 ) -> Result<()> {
     crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture)?;
 
@@ -428,7 +465,7 @@ fn run_view(
     let height = (rows as u32 * font_h as u32).max(1) as f32;
 
     let mut app = App::new();
-    app.load_protein(path, width, height, load)?;
+    open(&mut app, width, height)?;
 
     crate::app::run_app(terminal, &mut app, picker)
 }
@@ -483,7 +520,7 @@ pub(crate) fn update_highlighted_atoms(app: &mut App) {
 /// position within the image area is mapped proportionally onto the framebuffer,
 /// so it is correct whatever resolution that frame was drawn at.
 pub(crate) fn pick_at(app: &App, column: u16, row: u16) -> Option<usize> {
-    let frame = app.last_frame.as_ref()?;
+    let frame = app.last_frame.as_ref().filter(|frame| !frame.stale)?;
     let area = frame.area;
     if column < area.x || row < area.y || area.width == 0 || area.height == 0 {
         return None;
@@ -502,7 +539,11 @@ pub(crate) fn pick_at(app: &App, column: u16, row: u16) -> Option<usize> {
 
     match frame.fb.id_at(px, py) {
         pixelfold_render::NO_ID => None,
-        id => Some(id as usize),
+        id => Some(id as usize).filter(|&atom| {
+            app.protein
+                .as_ref()
+                .is_some_and(|protein| atom < protein.atoms.len())
+        }),
     }
 }
 

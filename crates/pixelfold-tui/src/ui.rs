@@ -55,8 +55,19 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App, picker: &Picker) {
     } else {
         (vertical_chunks[0], None)
     };
-    let content_area = vertical_chunks[1];
     let footer_area = vertical_chunks[2];
+    // The pose table, when shown, runs under the structure and its panes.
+    let (content_area, pose_area) = match app.poses.as_ref().filter(|table| table.visible) {
+        Some(table) => {
+            let height = table.height().min(vertical_chunks[1].height / 2);
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Min(0), Constraint::Length(height)])
+                .split(vertical_chunks[1]);
+            (chunks[0], Some(chunks[1]))
+        }
+        None => (vertical_chunks[1], None),
+    };
 
     // The right slot holds the network pane (wider) when it is open, otherwise
     // the atom inspect panel when a residue is selected.
@@ -79,6 +90,7 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App, picker: &Picker) {
     // While the camera is moving, render at a lower resolution; once input settles
     // the frame is redrawn at full resolution.
     let (fb_w, fb_h) = framebuffer_dims(main_area, picker.font_size(), MAX_FB_DIMENSION);
+    app.frame_pose_if_asked(fb_w as f32, fb_h as f32);
 
     // The scene is rasterised into an owned framebuffer, so the immutable borrow
     // of `app` ends before the frame is stashed back into it for picking.
@@ -103,6 +115,7 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App, picker: &Picker) {
     app.last_frame = Some(RenderedFrame {
         fb,
         area: main_area,
+        stale: false,
     });
 
     render_info_bar(frame, app, info_bar_area);
@@ -165,11 +178,20 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App, picker: &Picker) {
         }
     }
 
+    if let (Some(area), Some(table)) = (pose_area, app.poses.as_mut()) {
+        table.render(frame, area);
+    }
+
+    let stepping = if app.poses.is_some() {
+        "  ·  m/M pose  ·  o sort  ·  p table"
+    } else {
+        "  ·  m/M model  ·  n ensemble"
+    };
     frame.render_widget(
         Paragraph::new(format!(
             "WASD rotate  ·  +/- zoom  ·  arrows pan  ·  i inspect  ·  g network  ·  l layout  ·  e color  ·  t/y filter  ·  1/2 atoms/Cα  ·  c b h  ·  k [ ] , . slab{}  ·  f reset  ·  q quit",
             [
-                (app.models.len() > 1, "  ·  m/M model  ·  n ensemble"),
+                (app.models.len() > 1 || app.poses.is_some(), stepping),
                 (!app.assemblies.is_empty(), "  ·  u assembly"),
             ]
             .iter()
@@ -209,6 +231,10 @@ fn render_network_message(frame: &mut Frame, area: Rect, message: &str, color: C
 /// deposited coordinates are only part of one, so the partial view is not
 /// mistaken for complete.
 fn assembly_note(app: &App) -> Option<String> {
+    // A pose's atoms are those it was scored on, so `u` is off.
+    if app.poses.is_some() {
+        return None;
+    }
     if let Some(id) = app.shown_assembly() {
         return Some(format!(
             " Showing biological assembly {id}; press u for the deposited coordinates "
@@ -298,7 +324,10 @@ fn render_info_bar(frame: &mut Frame, app: &App, area: Rect) {
         DisplayMode::Backbone => app.ca_indices.len(),
     };
 
-    let model_text = if app.models.len() > 1 {
+    let pose_caption = app.poses.as_ref().and_then(|table| table.caption());
+    let model_text = if let Some(caption) = pose_caption {
+        format!(" {caption} |")
+    } else if app.models.len() > 1 {
         format!(
             " Model {} ({}/{}) |",
             app.models[app.model_position],
@@ -523,7 +552,7 @@ fn render_residue_summary(frame: &mut Frame, app: &App, atom_idx: usize, area: R
 
 /// As many of `items`, joined by dots, as fit in `width` columns, with a count
 /// of those left out.
-fn fitted(items: &[String], width: usize) -> String {
+pub(crate) fn fitted(items: &[String], width: usize) -> String {
     const JOIN: &str = " · ";
     let mut line = String::new();
     for (shown, item) in items.iter().enumerate() {

@@ -257,6 +257,15 @@ enum Command {
         #[arg(long, value_enum, default_value_t = Format::Table)]
         format: Format,
 
+        /// Open the viewer on the ranked poses instead: a table to sort and
+        /// step through, each pose drawn on the reference's pocket
+        #[arg(long, conflicts_with = "format")]
+        view: bool,
+
+        /// Terminal graphics protocol for the viewer's structure pane
+        #[arg(long, value_enum, requires = "view")]
+        protocol: Option<ProtocolArg>,
+
         #[command(flatten)]
         common: Common,
     },
@@ -563,17 +572,20 @@ fn run(command: Command) -> Result<()> {
             ligand,
             reference_select,
             format,
+            view,
+            protocol,
             common,
         } => {
             let query = ligand.map_or(select, |code| format!("resn {code}"));
             let reference_query = reference_select.unwrap_or_else(|| query.clone());
+            let shown = view.then(|| protocol.unwrap_or(ProtocolArg::Auto));
 
             compare_poses(
                 &reference,
                 &reference_query,
                 &poses,
                 &query,
-                format,
+                shown.map_or(Output::Format(format), Output::View),
                 &common,
             )
         }
@@ -749,6 +761,12 @@ fn matched_no_model(query: Option<&str>) -> anyhow::Error {
     )
 }
 
+/// Where ranked poses go: written out, or listed in the viewer.
+enum Output {
+    Format(Format),
+    View(ProtocolArg),
+}
+
 /// Score the `query` ligand of every pose against the `reference_query` ligand
 /// of the reference, best first. Each pose file is parsed once and its models
 /// built in turn.
@@ -757,7 +775,7 @@ fn compare_poses(
     reference_query: &str,
     poses: &[String],
     query: &str,
-    format: Format,
+    output: Output,
     common: &Common,
 ) -> Result<()> {
     let dir = cache_dir(common)?;
@@ -782,7 +800,18 @@ fn compare_poses(
         }
     }
 
-    emit(&poses::ranked(records), format)
+    let ranked = poses::ranked(records);
+    match output {
+        Output::Format(format) => emit(&ranked, format),
+        Output::View(protocol) => {
+            anyhow::ensure!(!ranked.is_empty(), "no pose file holds a model to view");
+            pixelfold_tui::view_poses(
+                poses::viewed(ranked, |pose| load::structure_path(pose, &dir))?,
+                common.load(None),
+                protocol.into(),
+            )
+        }
+    }
 }
 
 /// The URL and parse format a MolViewSpec scene should load the structure from.

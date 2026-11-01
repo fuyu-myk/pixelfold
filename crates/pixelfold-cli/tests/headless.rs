@@ -1163,6 +1163,35 @@ fn records(run: &Run) -> Vec<serde_json::Value> {
 }
 
 #[test]
+fn the_pose_viewer_takes_no_output_format_and_its_scores_stay_in_it() {
+    let reference = fixture("1PPB");
+    let poses = |flags: &[&str]| {
+        let head = ["poses", "--ligand", "0G6"]
+            .iter()
+            .chain(flags)
+            .chain(&["--reference"])
+            .map(OsStr::new);
+        run_args(head.chain([reference.as_os_str(), reference.as_os_str()]))
+    };
+
+    let formatted = poses(&["--view", "--format", "tsv"]);
+    assert!(!formatted.ok);
+    assert!(
+        formatted.stderr.contains("cannot be used with"),
+        "{}",
+        formatted.stderr
+    );
+    let protocol = poses(&["--protocol", "half-block"]);
+    assert!(!protocol.ok);
+    assert!(protocol.stderr.contains("--view"), "{}", protocol.stderr);
+
+    // What drawing a pose needs is not written out.
+    let found = records(&poses_against(&reference, &[&reference]));
+    assert!(found[0].get("ligand").is_none(), "{}", found[0]);
+    assert!(found[0].get("superposition").is_none(), "{}", found[0]);
+}
+
+#[test]
 fn poses_rank_by_the_reference_contacts_they_keep() {
     let dir = tempfile::tempdir().unwrap();
     // The inhibitor slid 2 A along x, into the protein.

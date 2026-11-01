@@ -61,6 +61,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   shown model's network. The network stays as `m` steps through the models,
   laid over each one's atoms, and a selected residue lists the residues it
   touches and in how many models, by any kind of interaction.
+- **The pose table in the viewer.** `pixelfold poses ... --view` opens the
+  viewer on the ranked poses instead of printing them: a table under the
+  structure lists each pose's similarity, recovery, RMSD, clashes and inverted
+  stereocentres, `o` sorts it by RMSD, clashes or inversions in turn, `p` hides
+  it, and `m`/`M` or a click on a row draws a pose. Every pose is drawn
+  superposed on the reference's pocket, so the camera stays put and only the
+  ligand moves; a pose whose pocket cannot be matched is drawn as its file has
+  it, and the table says so. The ligand is tinted magenta over a C-alpha trace,
+  and the view first looks at it down the line of sight the trace blocks least,
+  since a pocket hides it from most directions. The table's bottom border names
+  what the pose drawn lacks: the contacts it loses and the centres it inverts.
+  `f` frames the pose drawn and looks at its ligand again, a pose file gone
+  since it was scored is stepped past and named, and the network pane follows
+  the pose drawn. In the library,
+  `rmsd::Superposition` and `RmsdReference::superposition` are public.
 
 ### Changed
 

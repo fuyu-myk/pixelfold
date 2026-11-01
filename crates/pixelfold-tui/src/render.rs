@@ -18,6 +18,7 @@ pub(crate) const BACKGROUND: [u8; 4] = [13, 13, 18, 255];
 const FOG_STRENGTH: f32 = 0.45;
 const SELECTED_COLOR: [u8; 3] = [0, 255, 255];
 const HIGHLIGHT_COLOR: [u8; 3] = [255, 255, 255];
+const LIGAND_COLOR: [u8; 3] = [255, 0, 255];
 /// Backbone lines are dimmed slightly below their residue colour so the atoms
 /// read as the foreground.
 const CONNECTION_DIM: f32 = 0.8;
@@ -33,7 +34,14 @@ pub(crate) fn render_scene(app: &App, width: u32, height: u32) -> Framebuffer {
 
     let indices: Vec<usize> = match app.display_mode {
         DisplayMode::AllAtoms => (0..protein.atoms.len()).collect(),
-        DisplayMode::Backbone => app.ca_indices.clone(),
+        // A pose's ligand is drawn whole beside the trace.
+        DisplayMode::Backbone => {
+            let ligand = app.poses.as_ref().map_or(&[][..], |table| table.ligand());
+            let mut indices: Vec<usize> = app.ca_indices.iter().chain(ligand).copied().collect();
+            indices.sort_unstable();
+            indices.dedup();
+            indices
+        }
     };
 
     let coloring = if app.use_bfactor_colors {
@@ -42,6 +50,7 @@ pub(crate) fn render_scene(app: &App, width: u32, height: u32) -> Framebuffer {
         Coloring::SecondaryStructure
     };
     let mut scene = Scene::from_protein(protein, coloring, Some(&indices));
+    recolor_pose_ligand(app, &mut scene);
     recolor_selection(app, &mut scene);
 
     let opts = RenderOptions {
@@ -58,6 +67,19 @@ pub(crate) fn render_scene(app: &App, width: u32, height: u32) -> Framebuffer {
 
     draw_overlays(app, protein, &app.camera, &mut fb);
     fb
+}
+
+/// Tint the ligand of the pose drawn, so it stands out from the protein.
+fn recolor_pose_ligand(app: &App, scene: &mut Scene) {
+    let Some(table) = app.poses.as_ref() else {
+        return;
+    };
+
+    for (slot, &atom_idx) in scene.atom_idx.iter().enumerate() {
+        if table.is_ligand(atom_idx as usize) {
+            scene.colors[slot] = LIGAND_COLOR;
+        }
+    }
 }
 
 /// Tint the selected atom, and its whole residue when residue highlight is on.
