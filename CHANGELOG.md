@@ -4,7 +4,18 @@ All notable changes to PixelFold are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [4.0.0] (2026-11-01)
+
+Pixelfold now triages ligand poses: `pixelfold poses` ranks every model of the
+pose files against a reference by the contacts its ligand keeps, its ligand
+RMSD, its clashes and the stereocentres it inverts, and `--view` lays the
+ranking out in a table under the structure, each pose drawn on the reference's
+pocket. `pixelfold rin --model all` folds an ensemble into one network weighted
+by how often each edge is present, and the viewer shows it. The version is
+major only because `rin::Edge` and `rin::Network` gain a public `models` field:
+code outside this workspace that builds either with a struct literal must set
+it. Nothing is removed, and a single structure's network reports what it did in
+3.0.0 plus `models` and `frequency`, both 1.
 
 ### Added
 
