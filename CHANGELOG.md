@@ -50,10 +50,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **The parser prints nothing.** `ParsedStructure::read` gathers what it
+  skipped and the identifiers too long for their fields into
+  `ParsedStructure::warnings`, and the command line prints them, once per file
+  where the truncation note used to repeat at every model built.
 - **The viewer library's poses.** `pixelfold_tui::Pose` gains `docked` and
   `geometry`, and `view_poses` and `PoseTable::new` take the receptor docked
   poses are laid into: a breaking change to the `pixelfold-tui` library, so the
   next release is major.
+
+### Fixed
+
+- **Parser warnings over the viewer.** A file's warnings, printed while the
+  viewer held the terminal, landed on its drawing, and the note of a
+  truncated identifier came again at every model or pose stepped to. The
+  viewer now shows the shown file's warnings on a header line.
 
 ## [4.0.0] (2026-11-01)
 

@@ -15,7 +15,9 @@ use crate::{
     dssp,
     fixed_str::FixedStr,
     interactions::topology::{is_standard_nucleotide, is_standard_residue},
-    structure::{AltlocPolicy, Atom, Molecule, Protein, SecondaryStructure, filter_altlocs},
+    structure::{
+        AltlocPolicy, Atom, ChainId, Molecule, Protein, SecondaryStructure, filter_altlocs,
+    },
 };
 
 /// Which biological assembly to build.
@@ -45,13 +47,15 @@ pub struct Load {
 pub struct ParsedStructure {
     document: Option<Document>,
     structure: Structure,
+    warnings: Vec<String>,
 }
 
 impl ParsedStructure {
     /// Read `path`, its format named by the extension (`.cif`, `.bcif`, `.pdb`,
     /// `.ent`, or an assembly file such as `.pdb1`, each optionally gzipped). A
     /// malformed assembly, operator or entity record is skipped with a warning:
-    /// none of them is needed to show the coordinates.
+    /// none of them is needed to show the coordinates. Nothing is printed;
+    /// [`ParsedStructure::warnings`] holds what to tell the user.
     pub fn read<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
         let options = ReadOptions::new().lenient(true);
@@ -62,14 +66,23 @@ impl ParsedStructure {
             ..
         } = mmcif_model::read_with(path, &options)
             .with_context(|| format!("failed to read {}", path.display()))?;
-        for error in &skipped {
-            eprintln!("Warning: {error}; that part of the file was skipped");
-        }
+        let mut warnings: Vec<String> = skipped
+            .iter()
+            .map(|error| format!("{error}; that part of the file was skipped"))
+            .collect();
+        warnings.extend(truncation_warning(&truncated_identifiers(&structure)));
 
         Ok(Self {
             document,
             structure,
+            warnings,
         })
+    }
+
+    /// What reading the file skipped or cut short, a line each. The caller
+    /// shows them, since the viewer owns the terminal while it reads a file.
+    pub fn warnings(&self) -> &[String] {
+        &self.warnings
     }
 
     fn block(&self) -> Option<Block<'_>> {
@@ -314,45 +327,59 @@ fn build_atom(model: &Model, atom: AtomRef<'_>, molecule: Molecule, chain: &str)
     }
 }
 
-/// Every atom of `model`, warning once when an identifier overflowed its fixed
-/// field.
+/// Every atom of `model`.
 fn atoms_of(structure: &Structure, model: &Model) -> Vec<Atom> {
     let molecules: Vec<Molecule> = model
         .chains()
         .map(|chain| molecule_of(structure, chain))
         .collect();
     let names = chain_names(model);
-    let mut truncated: BTreeSet<(&'static str, String)> = BTreeSet::new();
-    let atoms = model
+
+    model
         .atoms()
         .map(|source| {
-            let residue = source.residue();
-            let chain = residue.chain().index().get();
-            let atom = build_atom(model, source, molecules[chain], &names[chain]);
+            let chain = source.residue().chain().index().get();
+            build_atom(model, source, molecules[chain], &names[chain])
+        })
+        .collect()
+}
+
+/// Every identifier of any model of `structure` too long for the fixed field
+/// [`build_atom`] keeps it in, by field. The copies of a chain an assembly
+/// builds add a suffix (`A-2`) that is not checked here.
+fn truncated_identifiers(structure: &Structure) -> BTreeSet<(&'static str, String)> {
+    fn fits<const N: usize>(value: &str) -> bool {
+        FixedStr::<N>::new(value).as_str() == value
+    }
+
+    let mut truncated = BTreeSet::new();
+    for model in structure.models() {
+        let names = chain_names(model);
+        for atom in model.atoms() {
+            let residue = atom.residue();
+            let chain = names[residue.chain().index().get()].as_str();
             let fields = [
-                ("atom name", atom.name.as_str(), source.name().as_str()),
+                (
+                    "atom name",
+                    atom.name().as_str(),
+                    fits::<4>(atom.name().as_str()),
+                ),
                 (
                     "residue name",
-                    atom.residue_name.as_str(),
                     residue.comp().as_str(),
+                    fits::<6>(residue.comp().as_str()),
                 ),
-                ("chain id", atom.chain_id.as_str(), names[chain].as_str()),
+                ("chain id", chain, ChainId::new(chain).as_str() == chain),
             ];
-            for (field, kept, read) in fields {
-                if kept != read {
+            for (field, read, fitting) in fields {
+                if !fitting {
                     truncated.insert((field, read.to_string()));
                 }
             }
-
-            atom
-        })
-        .collect();
-
-    if let Some(message) = truncation_warning(&truncated) {
-        eprintln!("Warning: {message}");
+        }
     }
 
-    atoms
+    truncated
 }
 
 /// Format a one-line warning for identifiers that overflowed their fixed field
@@ -479,6 +506,40 @@ ATOM 2 C CA ALA AAAAAAAAA AAAAAAAAA 2 3.8 0.0 0.0 1.0 0.0
         assert_eq!(protein.atoms.len(), 2);
         assert_eq!(protein.atoms[0].chain_id.as_str(), "AAAAAAAA"); // truncated from 9
         let _ = std::fs::remove_file(&path);
+    }
+
+    // The viewer owns the terminal while it reads a file, so the parser
+    // prints nothing; a caller shows the warnings where it can.
+    #[test]
+    fn an_overlong_identifier_is_one_warning_of_the_file_whatever_its_models() {
+        let cif = "\
+data_test
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.auth_asym_id
+_atom_site.label_seq_id
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+_atom_site.pdbx_PDB_model_num
+ATOM 1 C CA ALA AAAAAAAAA AAAAAAAAA 1 0.0 0.0 0.0 1
+ATOM 2 C CA ALA AAAAAAAAA AAAAAAAAA 1 0.0 0.0 0.0 2
+";
+        let file = parsed("overlong_in_two_models", cif);
+
+        assert_eq!(file.warnings().len(), 1, "{:?}", file.warnings());
+        assert!(
+            file.warnings()[0].contains("chain id 'AAAAAAAAA'"),
+            "{:?}",
+            file.warnings()
+        );
+        let fitting = parsed("fitting_in_two_models", &cif.replace("AAAAAAAAA", "A"));
+        assert!(fitting.warnings().is_empty(), "{:?}", fitting.warnings());
     }
 
     // 6ZPA names one space group two inconsistent ways ('H 3 2' vs 'R 3 2 :H').

@@ -28,7 +28,7 @@ pub fn structure_path(input: &str, cache_dir: &Path) -> Result<PathBuf> {
 pub fn analysis_structure(input: &str, cache_dir: &Path, load: &Load) -> Result<Protein> {
     let path = structure_path(input, cache_dir)?;
 
-    ParsedStructure::read(&path)
+    read(&path)
         .and_then(|parsed| parsed.protein(load))
         .with_context(|| format!("failed to load {}", path.display()))
 }
@@ -37,7 +37,17 @@ pub fn analysis_structure(input: &str, cache_dir: &Path, load: &Load) -> Result<
 pub fn parsed(input: &str, cache_dir: &Path) -> Result<ParsedStructure> {
     let path = structure_path(input, cache_dir)?;
 
-    ParsedStructure::read(&path).with_context(|| format!("failed to load {}", path.display()))
+    read(&path).with_context(|| format!("failed to load {}", path.display()))
+}
+
+/// Read the structure at `path`, printing what the parser skipped or cut short.
+fn read(path: &Path) -> Result<ParsedStructure> {
+    let parsed = ParsedStructure::read(path)?;
+    for warning in parsed.warnings() {
+        eprintln!("Warning: {warning}");
+    }
+
+    Ok(parsed)
 }
 
 /// The atoms a query chooses, or every atom when there is no query. The set may

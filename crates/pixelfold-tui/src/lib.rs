@@ -89,6 +89,9 @@ pub(crate) struct App {
     /// The parsed file the shown model came from, kept so stepping between
     /// models never re-reads it, and shared with an ensemble network's build.
     pub(crate) source: Option<Arc<ParsedStructure>>,
+    /// What reading the shown file skipped or cut short, for the header: the
+    /// viewer owns the terminal, so the parser prints nothing.
+    pub(crate) warnings: Vec<String>,
     /// The model, assembly, and altloc policy of what is shown.
     pub(crate) load: Load,
     /// The file's model numbers, and the position of the shown one among them.
@@ -135,6 +138,7 @@ impl App {
             network_area: None,
             network_scope: network::NetworkScope::default(),
             source: None,
+            warnings: Vec::new(),
             load: Load::default(),
             models: Vec::new(),
             model_position: 0,
@@ -159,6 +163,7 @@ impl App {
             .and_then(|number| self.models.iter().position(|&m| m == number))
             .unwrap_or(0);
         self.assemblies = source.assembly_ids();
+        self.warnings = source.warnings().to_vec();
         self.source = Some(Arc::new(source));
         self.load = load;
 

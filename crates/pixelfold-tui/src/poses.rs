@@ -127,6 +127,9 @@ impl App {
             .as_ref()
             .map_or_else(|| vec![model], |source| source.model_numbers());
         self.model_position = self.models.iter().position(|&m| m == model).unwrap_or(0);
+        self.warnings = source
+            .as_ref()
+            .map_or_else(Vec::new, |source| source.warnings().to_vec());
         self.source = source;
         self.load = load;
         if let Some(table) = self.poses.as_mut() {
@@ -538,6 +541,31 @@ mod tests {
         let _ = std::fs::remove_file(&second);
         assert!(first_atom(&app).length() < 1e-4, "and back");
         assert_eq!(app.models, [1]);
+    }
+
+    #[test]
+    fn what_reading_a_pose_file_cut_short_is_said_in_the_header() {
+        let path = poses_file("overlong", &[0.0]);
+        let text = std::fs::read_to_string(&path).unwrap();
+        std::fs::write(&path, text.replace(" LIG ", " LIGAND12 ")).unwrap();
+        let mut app = app_of(vec![pose(&path, 1, None)]);
+        let mut terminal = Terminal::new(TestBackend::new(120, 30)).unwrap();
+
+        let picker = ratatui_image::picker::Picker::halfblocks();
+        terminal
+            .draw(|frame| crate::ui::ui(frame, &mut app, &picker))
+            .unwrap();
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(app.warnings.len(), 1, "{:?}", app.warnings);
+        let screen: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect();
+        assert!(screen.contains("Warning: 1 identifier"), "{screen}");
     }
 
     #[test]

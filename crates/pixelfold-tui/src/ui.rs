@@ -34,9 +34,12 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App, picker: &Picker) {
         return;
     }
 
-    let assembly_note = assembly_note(app);
+    let notes: Vec<String> = [warning_note(app), assembly_note(app)]
+        .into_iter()
+        .flatten()
+        .collect();
 
-    let header_height = if assembly_note.is_some() { 2 } else { 1 };
+    let header_height = 1 + notes.len() as u16;
     let vertical_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -46,15 +49,11 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App, picker: &Picker) {
         ])
         .split(area);
 
-    let (info_bar_area, assembly_note_area) = if assembly_note.is_some() {
-        let header_chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Length(1), Constraint::Length(1)])
-            .split(vertical_chunks[0]);
-        (header_chunks[0], Some(header_chunks[1]))
-    } else {
-        (vertical_chunks[0], None)
-    };
+    let header_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(vec![Constraint::Length(1); 1 + notes.len()])
+        .split(vertical_chunks[0]);
+    let info_bar_area = header_chunks[0];
     let footer_area = vertical_chunks[2];
     // The pose table, when shown, runs under the structure and its panes.
     let (content_area, pose_area) = match app.poses.as_ref().filter(|table| table.visible) {
@@ -120,7 +119,7 @@ pub(crate) fn ui(frame: &mut Frame, app: &mut App, picker: &Picker) {
 
     render_info_bar(frame, app, info_bar_area);
 
-    if let (Some(note_area), Some(note)) = (assembly_note_area, assembly_note) {
+    for (note, &note_area) in notes.into_iter().zip(&header_chunks[1..]) {
         frame.render_widget(
             Paragraph::new(note)
                 .alignment(Alignment::Center)
@@ -225,6 +224,17 @@ fn render_network_message(frame: &mut Frame, area: Rect, message: &str, color: C
             line,
         );
     }
+}
+
+/// A header line saying what reading the shown file skipped or cut short.
+fn warning_note(app: &App) -> Option<String> {
+    let first = app.warnings.first()?;
+    let more = match app.warnings.len() - 1 {
+        0 => String::new(),
+        others => format!(" (and {others} more)"),
+    };
+
+    Some(format!(" Warning: {first}{more} "))
 }
 
 /// A header line naming the biological assembly shown, or saying so when the
