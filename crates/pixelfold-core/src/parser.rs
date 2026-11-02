@@ -15,6 +15,7 @@ use crate::{
     dssp,
     fixed_str::FixedStr,
     interactions::topology::{is_standard_nucleotide, is_standard_residue},
+    pose::{Link, LinkEnd},
     structure::{
         AltlocPolicy, Atom, ChainId, Molecule, Protein, SecondaryStructure, filter_altlocs,
     },
@@ -83,6 +84,14 @@ impl ParsedStructure {
     /// shows them, since the viewer owns the terminal while it reads a file.
     pub fn warnings(&self) -> &[String] {
         &self.warnings
+    }
+
+    /// The covalent bonds the file records between residues (`_struct_conn`
+    /// rows of a `covale` type, between atoms of the deposited coordinates),
+    /// which a covalent ligand's bond to its protein is. A file without the
+    /// category, as a legacy PDB file is, records none.
+    pub fn links(&self) -> Vec<Link> {
+        self.block().as_ref().map(links_of).unwrap_or_default()
     }
 
     fn block(&self) -> Option<Block<'_>> {
@@ -415,9 +424,110 @@ pub fn load_protein_with_options<P: AsRef<Path>>(path: P, altloc: AltlocPolicy) 
         .with_context(|| format!("failed to read {}", path.display()))
 }
 
+/// The `covale` rows of a block's `_struct_conn`, each end by author chain,
+/// number, insertion code and atom name; a row naming a symmetry copy, or an
+/// end it cannot read, is passed over.
+pub(crate) fn links_of(block: &Block<'_>) -> Vec<Link> {
+    let Some(category) = block.category("struct_conn") else {
+        return Vec::new();
+    };
+    let column = |name: &str| category.column(name);
+    let kinds = column("conn_type_id");
+    let field = |name: &str, row: usize| -> Option<String> {
+        let value = column(name)?.get(row)?.as_str()?.to_string();
+        (!matches!(value.as_str(), "?" | ".")).then_some(value)
+    };
+    let end = |side: u8, row: usize| -> Option<LinkEnd> {
+        let chain = field(&format!("ptnr{side}_auth_asym_id"), row)
+            .or_else(|| field(&format!("ptnr{side}_label_asym_id"), row))?;
+        let seq = field(&format!("ptnr{side}_auth_seq_id"), row)
+            .or_else(|| field(&format!("ptnr{side}_label_seq_id"), row))?
+            .parse()
+            .ok()?;
+        let icode = field(&format!("pdbx_ptnr{side}_PDB_ins_code"), row)
+            .and_then(|code| code.chars().next());
+        let name = field(&format!("ptnr{side}_label_atom_id"), row)?;
+        Some((ChainId::new(&chain), seq, icode, FixedStr::new(&name)))
+    };
+    let deposited = |side: u8, row: usize| {
+        field(&format!("ptnr{side}_symmetry"), row).is_none_or(|symmetry| symmetry == "1_555")
+    };
+
+    (0..category.row_count())
+        .filter(|&row| {
+            kinds
+                .as_ref()
+                .and_then(|kinds| kinds.get(row)?.as_str())
+                .is_some_and(|kind| kind.to_ascii_lowercase().starts_with("covale"))
+                && deposited(1, row)
+                && deposited(2, row)
+        })
+        .filter_map(|row| {
+            Some(Link {
+                ends: [end(1, row)?, end(2, row)?],
+            })
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn covalent_links_are_read_from_struct_conn() {
+        let text = "\
+data_TEST
+loop_
+_struct_conn.id
+_struct_conn.conn_type_id
+_struct_conn.ptnr1_auth_asym_id
+_struct_conn.ptnr1_auth_seq_id
+_struct_conn.pdbx_ptnr1_PDB_ins_code
+_struct_conn.ptnr1_label_atom_id
+_struct_conn.ptnr1_symmetry
+_struct_conn.ptnr2_auth_asym_id
+_struct_conn.ptnr2_auth_seq_id
+_struct_conn.pdbx_ptnr2_PDB_ins_code
+_struct_conn.ptnr2_label_atom_id
+_struct_conn.ptnr2_symmetry
+disulf1 disulf L 1 ? SG 1_555 H 122 ? SG 1_555
+covale1 covale H 1 ? C3 1_555 H 57 ? NE2 1_555
+covale2 covale H 1 ? C2 1_555 H 195 A OG 1_555
+covale3 covale_sugar A 5 ? C1 1_555 A 6 ? O4 1_555
+covale4 covale H 1 ? C2 1_555 H 300 ? OG 2_555
+metalc1 metalc A 90 ? ZN 1_555 A 12 ? NE2 1_555
+";
+        let document = Document::parse(text).unwrap();
+        let links = links_of(&document.block(0).unwrap());
+
+        type End = (String, i32, Option<char>, String);
+        let ends: Vec<[End; 2]> = links
+            .iter()
+            .map(|link| {
+                link.ends.map(|(chain, seq, icode, name)| {
+                    (chain.to_string(), seq, icode, name.to_string())
+                })
+            })
+            .collect();
+        assert_eq!(
+            ends,
+            [
+                [
+                    ("H".into(), 1, None, "C3".into()),
+                    ("H".into(), 57, None, "NE2".into())
+                ],
+                [
+                    ("H".into(), 1, None, "C2".into()),
+                    ("H".into(), 195, Some('A'), "OG".into())
+                ],
+                [
+                    ("A".into(), 5, None, "C1".into()),
+                    ("A".into(), 6, None, "O4".into())
+                ],
+            ]
+        );
+    }
 
     #[test]
     fn build_atom_reads_element_and_hetatm() {

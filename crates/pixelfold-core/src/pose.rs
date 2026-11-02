@@ -322,10 +322,82 @@ impl Attachments {
     }
 }
 
+/// One end of a covalent bond a structure file records: the atom's author
+/// chain, number, insertion code and name.
+pub type LinkEnd = (ChainId, i32, Option<char>, FixedStr<4>);
+
+/// A covalent bond a structure file records between two atoms, as wwPDB
+/// entries and AlphaFold 3's output list them in `_struct_conn`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Link {
+    pub ends: [LinkEnd; 2],
+}
+
+/// The covalent attachments of the `ligand` atoms of `pose` its file records
+/// in `links`, with the pairs one bond from each through the pose's own bonds:
+/// what a pose without a reference is not faulted for. Only the bond itself
+/// is taken from the file, never from distances, for the reason
+/// [`Attachments`] gives.
+pub fn linked(pose: &Protein, ligand: &AtomSet, links: &[Link]) -> Attachments {
+    let mut atoms_of: HashMap<AtomIdentity, Vec<usize>> = HashMap::new();
+    for (index, atom) in pose.atoms.iter().enumerate() {
+        atoms_of.entry(identity(atom)).or_default().push(index);
+    }
+    let atoms = |end: &LinkEnd| atoms_of.get(end).map_or(&[][..], Vec::as_slice);
+    let anchors: Vec<(usize, usize)> = links
+        .iter()
+        .flat_map(|link| {
+            let [first, second] = &link.ends;
+            [(first, second), (second, first)]
+        })
+        .flat_map(|(near, far)| {
+            atoms(near)
+                .iter()
+                .filter(|&&atom| ligand.contains(atom))
+                .flat_map(move |&atom| {
+                    atoms(far)
+                        .iter()
+                        .filter(|&&anchor| !ligand.contains(anchor))
+                        .map(move |&anchor| (atom, anchor))
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    if anchors.is_empty() {
+        return Attachments::default();
+    }
+
+    attached_through(pose, ligand, &connectivity::bonds(pose), anchors)
+}
+
 /// The covalent attachments of the `ligand` atoms in `reference`.
 pub fn attachments(reference: &Protein, ligand: &AtomSet) -> Attachments {
     let bonds = connectivity::bonds(reference);
-    let atoms = &reference.atoms;
+    let anchors: Vec<(usize, usize)> = ligand
+        .iter()
+        .flat_map(|atom| {
+            bonds
+                .of(atom)
+                .iter()
+                .copied()
+                .filter(|&other| !ligand.contains(other))
+                .map(move |anchor| (atom, anchor))
+                .collect::<Vec<_>>()
+        })
+        .collect();
+
+    attached_through(reference, ligand, &bonds, anchors)
+}
+
+/// The attachments of ligand atoms bonded to `anchors` outside the ligand,
+/// each with the pairs one bond from it on either side through `bonds`.
+fn attached_through(
+    protein: &Protein,
+    ligand: &AtomSet,
+    bonds: &connectivity::Bonds,
+    anchors: Vec<(usize, usize)>,
+) -> Attachments {
+    let atoms = &protein.atoms;
     let inside = |atom: usize| {
         bonds
             .of(atom)
@@ -342,14 +414,12 @@ pub fn attachments(reference: &Protein, ligand: &AtomSet) -> Attachments {
     };
 
     let mut pairs = BTreeSet::new();
-    for atom in ligand.iter() {
-        for anchor in outside(atom) {
-            for near in std::iter::once(atom).chain(inside(atom)) {
-                pairs.insert((ligand_atom(&atoms[near]), identity(&atoms[anchor])));
-            }
-            for near in outside(anchor) {
-                pairs.insert((ligand_atom(&atoms[atom]), identity(&atoms[near])));
-            }
+    for (atom, anchor) in anchors {
+        for near in std::iter::once(atom).chain(inside(atom)) {
+            pairs.insert((ligand_atom(&atoms[near]), identity(&atoms[anchor])));
+        }
+        for near in outside(anchor) {
+            pairs.insert((ligand_atom(&atoms[atom]), identity(&atoms[near])));
         }
     }
 
@@ -777,6 +847,42 @@ LIG C1 C2 sing N 1
         assert_eq!(
             clashes(&structure, &ligand, &attachments(&structure, &ligand)),
             0
+        );
+    }
+
+    fn end(seq: i32, name: &str) -> LinkEnd {
+        (FixedStr::new("A"), seq, None, FixedStr::new(name))
+    }
+
+    #[test]
+    fn a_bond_the_pose_file_records_is_not_a_clash() {
+        let structure = attached();
+        let ligand = ligand_of(&structure);
+
+        let recorded = [Link {
+            ends: [end(195, "OG"), end(900, "C1")],
+        }];
+        assert_eq!(
+            clashes(&structure, &ligand, &linked(&structure, &ligand, &recorded)),
+            0
+        );
+
+        // A bond elsewhere, or to an atom the pose lacks, excuses nothing.
+        let elsewhere = [
+            Link {
+                ends: [end(195, "OG"), end(195, "CB")],
+            },
+            Link {
+                ends: [end(195, "OG"), end(900, "C9")],
+            },
+        ];
+        assert_eq!(
+            clashes(
+                &structure,
+                &ligand,
+                &linked(&structure, &ligand, &elsewhere)
+            ),
+            3
         );
     }
 

@@ -80,7 +80,9 @@ contacts), then `recovery`, then fewest `clashes`. Read with them:
 
 ```bash
 pixelfold poses --ligand STI fold_job_model_*.cif --format json
+pixelfold poses --ligand LIG_A fold_job_model_*.cif --format json
 pixelfold poses --receptor receptor.pdb --ligand STI docked.sdf --format json
+pixelfold poses --receptor receptor.pdb --smiles 'CC(=O)Nc1ccc(O)cc1' docked.sdf --format json
 ```
 
 - Leave out `--reference` when no crystal structure of the complex exists.
@@ -90,17 +92,23 @@ pixelfold poses --receptor receptor.pdb --ligand STI docked.sdf --format json
   as failed), then the highest `confidence.score`, read from AlphaFold 3's or Boltz's JSON beside each model
   file (keep the tools' file names), then the order given.
 - `failed` names the checks failed: `clashes` (with the protein), `bonds`,
-  `angles`, `internal_clashes`, `flatness`, `stereo`. Empty means the pose
+  `angles`, `internal_clashes`, `flatness`, `flat_rings` (a saturated ring
+  left flat), `stereo`. Empty means the pose
   passes everything that could be checked; read `unchecked` too.
 - `stereo` lists the centres and E/Z bonds turned the other way from the
   Chemical Component Dictionary entry of the ligand's code, fetched once and
-  cached. Use the real component code (`--ligand STI`): a ligand named `LIG`
-  from a SMILES input has no entry its atoms match, so its stereochemistry,
-  and without definitions in the file its geometry, go `unchecked`.
+  cached, or from a SMILES string. Use the real component code
+  (`--ligand STI`) where there is one. AlphaFold 3 names a ligand it was given
+  as SMILES `LIG_A`, `LIG_B` and writes the string into the model, which is
+  read (`--ligand LIG_A`); for other tools' output pass the string:
+  `--smiles 'CC(=O)Nc1ccc(O)cc1'`. Without either, a ligand the file does not
+  define goes `unchecked`.
 - `.sdf` poses need `--receptor`; the receptor's own copy of the `--ligand`
-  component is left out. Without `--ligand` an SD record is checked on its own
-  bonds only.
-- A covalent ligand's bond to the protein counts as clashes here.
+  component is left out. Without `--ligand` or `--smiles` an SD record is
+  checked on its own bonds only.
+- A covalent ligand's bonds to the protein are read from the file's
+  `_struct_conn` (wwPDB entries, AlphaFold 3); in a file without them they
+  count as clashes.
 
 ## Residue interaction networks
 

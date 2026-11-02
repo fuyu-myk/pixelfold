@@ -19,7 +19,7 @@ use std::f64::consts::PI;
 use glam::Vec3;
 
 use crate::components::BondOrder;
-use crate::geometry::{Template, vdw_radius};
+use crate::geometry::{Template, puckered_rings, vdw_radius};
 use crate::molecule::{Hybrid, Molecule, key};
 use crate::stereo;
 
@@ -965,7 +965,16 @@ impl<'a> Builder<'a> {
             }
         }
 
-        Template::of_bounds(bonds, angles, apart, self.flat_groups())
+        let multiple =
+            |a: usize, b: usize| !matches!(molecule.order(a, b), Some(BondOrder::Single) | None);
+        let puckered = puckered_rings(
+            &molecule.elements,
+            &molecule.neighbours,
+            &molecule.aromatic,
+            multiple,
+        );
+
+        Template::of_bounds(bonds, angles, apart, self.flat_groups(), puckered)
     }
 
     /// PoseBusters' conjugated terminal bonds,
@@ -1187,6 +1196,116 @@ mod tests {
         assert!((length - 1.3793).abs() < 1e-4, "{length}");
     }
 
+    /// A six-membered ring of `elements` as a chair, its atoms 0.25 A above
+    /// and below their mean plane in turn, or flat with `pucker` 0, with
+    /// `extra` atoms bonded on as given.
+    fn six_ring(
+        elements: &[&str],
+        pucker: f32,
+        bonds: &[(usize, usize, BondOrder)],
+        hydrogens: Vec<u8>,
+    ) -> (Molecule, Vec<Vec3>) {
+        let mut positions: Vec<Vec3> = (0..6)
+            .map(|at| {
+                let turn = at as f32 * std::f32::consts::PI / 3.0;
+                let side = if at % 2 == 0 { pucker } else { -pucker };
+                Vec3::new(1.45 * turn.cos(), 1.45 * turn.sin(), side)
+            })
+            .collect();
+        for at in 6..elements.len() {
+            positions.push(positions[at - 6] * 1.9);
+        }
+        let mut all: Vec<(usize, usize, BondOrder)> = (0..6)
+            .map(|at| (at, (at + 1) % 6, BondOrder::Single))
+            .collect();
+        for &(a, b, order) in bonds {
+            match all.iter_mut().find(|bond| (bond.0, bond.1) == (a, b)) {
+                Some(bond) => bond.2 = order,
+                None => all.push((a, b, order)),
+            }
+        }
+        let molecule = Molecule::new(
+            elements
+                .iter()
+                .map(|&element| FixedStr::new(element))
+                .collect(),
+            &all,
+            hydrogens,
+            vec![0; elements.len()],
+        );
+
+        (molecule, positions)
+    }
+
+    #[test]
+    fn a_saturated_six_ring_held_flat_fails_and_a_chair_passes() {
+        for (elements, hydrogens) in [
+            (vec!["C"; 6], vec![2; 6]),
+            (vec!["N", "C", "C", "O", "C", "C"], vec![1, 2, 2, 0, 2, 2]),
+        ] {
+            let (chair, positions) = six_ring(&elements, 0.25, &[], hydrogens.clone());
+            let checked = template(&chair, &positions);
+            assert_eq!(checked.check(&positions, true).flat_rings, Some(0));
+
+            let (_, flat) = six_ring(&elements, 0.0, &[], hydrogens);
+            assert_eq!(
+                checked.check(&flat, true).flat_rings,
+                Some(1),
+                "{elements:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_ring_with_one_double_bond_must_pucker_but_an_aromatic_one_need_not() {
+        let (cyclohexene, puckered) = six_ring(
+            &["C"; 6],
+            0.25,
+            &[(0, 1, BondOrder::Double)],
+            vec![1, 1, 2, 2, 2, 2],
+        );
+        let (_, flat) = six_ring(&["C"; 6], 0.0, &[], vec![2; 6]);
+        assert_eq!(
+            template(&cyclohexene, &puckered)
+                .check(&flat, true)
+                .flat_rings,
+            Some(1)
+        );
+
+        let kekule = [
+            (0, 1, BondOrder::Double),
+            (2, 3, BondOrder::Double),
+            (4, 5, BondOrder::Double),
+        ];
+        let (benzene, flat) = six_ring(&["C"; 6], 0.0, &kekule, vec![1; 6]);
+        assert_eq!(
+            template(&benzene, &flat).check(&flat, true).flat_rings,
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn a_ring_fused_to_another_is_not_held_to_pucker() {
+        // Decalin flattened: its two fused atoms each lie in both rings.
+        let (decalin, flat) = six_ring(
+            &["C"; 10],
+            0.0,
+            &[
+                (0, 6, BondOrder::Single),
+                (6, 7, BondOrder::Single),
+                (7, 8, BondOrder::Single),
+                (8, 9, BondOrder::Single),
+                (9, 1, BondOrder::Single),
+            ],
+            vec![1, 1, 2, 2, 2, 2, 2, 2, 2, 2],
+        );
+
+        assert_eq!(
+            template(&decalin, &flat).check(&flat, true).flat_rings,
+            Some(0)
+        );
+    }
+
     #[test]
     fn a_stretched_bond_and_a_folded_chain_fail_their_checks() {
         // Hexane in a flat zigzag: bonds of 1.53 A and angles of 111.7 degrees.
@@ -1204,6 +1323,7 @@ mod tests {
         let ideal = template(&hexane, &zigzag);
         let clean = crate::geometry::Geometry {
             unflat: Some(0),
+            flat_rings: Some(0),
             ..Default::default()
         };
         assert_eq!(ideal.check(&zigzag, true), clean);

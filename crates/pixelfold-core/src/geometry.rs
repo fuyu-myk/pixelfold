@@ -41,6 +41,11 @@ const CLASH_TOLERANCE: f32 = 0.3;
 /// bond may stray, in angstroms.
 const FLATNESS: f32 = 0.25;
 
+/// How far from their shared plane at least one atom of a saturated
+/// six-membered ring must lie, in angstroms: a flat cyclohexane is no
+/// molecule.
+const PUCKER: f32 = 0.05;
+
 /// The share of their van der Waals radii summed that RDKit lets atoms four
 /// bonds apart come within (`VDW_SCALE_15`); five bonds apart, halfway from it
 /// to the whole sum.
@@ -62,6 +67,10 @@ pub struct Geometry {
     /// a shared plane, or `None` when the reference ligand's definitions do not
     /// say which atoms are aromatic and which bonds double.
     pub unflat: Option<usize>,
+    /// Saturated six-membered rings (cyclohexane, piperidine, morpholine and
+    /// their kin with a double bond or two) held flat, every atom within
+    /// 0.05 A of a shared plane, or `None` when the definitions do not say.
+    pub flat_rings: Option<usize>,
 }
 
 /// What a ligand's definitions say of its heavy atoms, in order: which are
@@ -132,6 +141,27 @@ impl Chemistry {
         classes.iter().map(|class| kinds[class].len() > 1).collect()
     }
 
+    /// The saturated six-membered rings that must not lie flat, as
+    /// [`puckered_rings`] finds them, each `exchangeable` when one of its atoms
+    /// is.
+    pub(crate) fn puckered(
+        &self,
+        elements: &[FixedStr<2>],
+        neighbours: &[Vec<usize>],
+        exchangeable: &[bool],
+    ) -> Vec<Flat> {
+        let multiple = |a: usize, b: usize| {
+            self.doubles.contains(&(a.min(b), a.max(b))) || (self.aromatic[a] && self.aromatic[b])
+        };
+        puckered_rings(elements, neighbours, &self.aromatic, multiple)
+            .into_iter()
+            .map(|atoms| Flat {
+                exchangeable: atoms.iter().any(|&atom| exchangeable[atom]),
+                atoms,
+            })
+            .collect()
+    }
+
     /// The groups of atoms that must lie flat: each aromatic ring, and each
     /// double bond joining carbons, neither of them a cumulene's, with the
     /// atoms bonded to it, the bonds PoseBusters' pattern matches; each
@@ -186,6 +216,8 @@ pub(crate) struct Template {
     /// and never above their distance in the reference.
     apart: Vec<Lower>,
     flat: Option<Vec<Flat>>,
+    /// The saturated six-membered rings that must not lie flat.
+    puckered: Option<Vec<Flat>>,
 }
 
 /// The least and most two atoms may be apart.
@@ -206,13 +238,15 @@ struct Lower {
 
 impl Template {
     /// The bounds of a ligand of heavy atoms with these `elements`,
-    /// `positions` and bonded `neighbours`, and of the groups of atoms its
-    /// definitions say are `flat`, those it holds flat.
+    /// `positions` and bonded `neighbours`, of the groups of atoms its
+    /// definitions say are `flat`, those it holds flat, and of the rings they
+    /// say are `puckered`, those it holds puckered.
     pub(crate) fn new(
         elements: &[FixedStr<2>],
         positions: &[Vec3],
         neighbours: &[Vec<usize>],
         flat: Option<Vec<Flat>>,
+        puckered: Option<Vec<Flat>>,
     ) -> Template {
         let length = |a: usize, b: usize| positions[a].distance(positions[b]);
         let angle = |a: usize, at: usize, b: usize| {
@@ -226,6 +260,12 @@ impl Template {
                 groups
                     .into_iter()
                     .filter(|group| off_plane(&group.atoms, positions) <= FLATNESS)
+                    .collect()
+            }),
+            puckered: puckered.map(|rings| {
+                rings
+                    .into_iter()
+                    .filter(|ring| off_plane(&ring.atoms, positions) >= PUCKER)
                     .collect()
             }),
         };
@@ -302,14 +342,24 @@ impl Template {
     }
 
     /// The bounds given outright: each bond's and each angle's least and most
-    /// distance, each pair further apart's least, and the groups that must
-    /// lie flat.
+    /// distance, each pair further apart's least, the groups that must lie
+    /// flat and the rings that must not.
     pub(crate) fn of_bounds(
         bonds: Vec<((usize, usize), f32, f32)>,
         angles: Vec<((usize, usize), f32, f32)>,
         apart: Vec<((usize, usize), f32)>,
         flat: Vec<Vec<usize>>,
+        puckered: Vec<Vec<usize>>,
     ) -> Template {
+        let fixed = |groups: Vec<Vec<usize>>| {
+            groups
+                .into_iter()
+                .map(|atoms| Flat {
+                    atoms,
+                    exchangeable: false,
+                })
+                .collect()
+        };
         let bound = |(atoms, lower, upper)| Bound {
             atoms,
             lower,
@@ -326,14 +376,8 @@ impl Template {
                     lower,
                 })
                 .collect(),
-            flat: Some(
-                flat.into_iter()
-                    .map(|atoms| Flat {
-                        atoms,
-                        exchangeable: false,
-                    })
-                    .collect(),
-            ),
+            flat: Some(fixed(flat)),
+            puckered: Some(fixed(puckered)),
         }
     }
 
@@ -362,6 +406,13 @@ impl Template {
                     .iter()
                     .filter(|group| by_name || !group.exchangeable)
                     .filter(|group| off_plane(&group.atoms, positions) > FLATNESS)
+                    .count()
+            }),
+            flat_rings: self.puckered.as_ref().map(|rings| {
+                rings
+                    .iter()
+                    .filter(|ring| by_name || !ring.exchangeable)
+                    .filter(|ring| off_plane(&ring.atoms, positions) < PUCKER)
                     .count()
             }),
         }
@@ -393,6 +444,73 @@ impl Bound {
             0.0
         }
     }
+}
+
+/// The saturated six-membered rings PoseBusters holds to pucker, its SMARTS
+/// patterns read as rules: six carbons, oxygens, sulfurs or nitrogens, none
+/// aromatic, each in no other ring, with at most one bond `multiple` that is
+/// not single, or two on opposite sides (a 1,4-diene) or one bond apart (a
+/// 1,3-diene) where the atoms the patterns name carbons are.
+pub(crate) fn puckered_rings(
+    elements: &[FixedStr<2>],
+    neighbours: &[Vec<usize>],
+    aromatic: &[bool],
+    multiple: impl Fn(usize, usize) -> bool,
+) -> Vec<Vec<usize>> {
+    // Each pattern as the atoms that must be carbon and the two bonds, by
+    // their first atom, that may be other than single; bond 5 closes the ring.
+    const PATTERNS: [([bool; 6], [usize; 2]); 4] = [
+        ([true, true, false, false, true, true], [5, 2]),
+        ([true, true, true, true, false, true], [5, 2]),
+        ([true, true, true, false, false, true], [5, 3]),
+        ([true, true, false, true, true, true], [5, 3]),
+    ];
+    let rings = crate::rings::Rings::of(neighbours);
+    let carbon = |atom: usize| elements[atom].as_str().eq_ignore_ascii_case("C");
+
+    rings
+        .all()
+        .iter()
+        .filter(|ring| {
+            ring.len() == 6
+                && ring.iter().all(|&atom| {
+                    matches!(
+                        elements[atom].to_string().to_ascii_uppercase().as_str(),
+                        "C" | "O" | "S" | "N"
+                    ) && !aromatic[atom]
+                        && rings.of_atom(atom).len() == 1
+                })
+        })
+        .filter(|ring| {
+            let unsaturated: Vec<usize> = (0..6)
+                .filter(|&at| multiple(ring[at], ring[(at + 1) % 6]))
+                .collect();
+            match unsaturated.len() {
+                0 | 1 => true,
+                2 => (0..6).any(|start| {
+                    [1, 5].into_iter().any(|step| {
+                        let atom = |at: usize| ring[(start + step * at) % 6];
+                        // The ring bond from pattern atom `at` to the next.
+                        let bond = |at: usize| {
+                            let (a, b) = (atom(at), atom((at + 1) % 6));
+                            (0..6).find(|&k| {
+                                let (x, y) = (ring[k], ring[(k + 1) % 6]);
+                                (x, y) == (a, b) || (x, y) == (b, a)
+                            })
+                        };
+                        PATTERNS.iter().any(|(carbons, free)| {
+                            (0..6).all(|at| !carbons[at] || carbon(atom(at)))
+                                && unsaturated
+                                    .iter()
+                                    .all(|&k| free.iter().any(|&at| bond(at) == Some(k)))
+                        })
+                    })
+                }),
+                _ => false,
+            }
+        })
+        .cloned()
+        .collect()
 }
 
 /// The groups of atoms that must lie flat in a ligand with these bonded
@@ -619,7 +737,7 @@ mod tests {
     #[test]
     fn a_pose_shaped_like_the_reference_passes() {
         let (elements, positions, neighbours) = zigzag(8);
-        let template = Template::new(&elements, &positions, &neighbours, None);
+        let template = Template::new(&elements, &positions, &neighbours, None, None);
 
         assert_eq!(
             template.check_by_name(&positions),
@@ -628,6 +746,7 @@ mod tests {
                 angles: 0,
                 clashes: 0,
                 unflat: None,
+                flat_rings: None,
             }
         );
     }
@@ -635,7 +754,7 @@ mod tests {
     #[test]
     fn a_bond_a_quarter_longer_than_the_reference_s_fails() {
         let (elements, positions, neighbours) = zigzag(4);
-        let template = Template::new(&elements, &positions, &neighbours, None);
+        let template = Template::new(&elements, &positions, &neighbours, None, None);
         let stretched = |by: f32| {
             let mut moved = positions.clone();
             moved[3] = positions[2] + (positions[3] - positions[2]) * by;
@@ -650,7 +769,7 @@ mod tests {
     #[test]
     fn an_angle_bent_far_from_the_reference_s_fails() {
         let (elements, positions, neighbours) = zigzag(4);
-        let template = Template::new(&elements, &positions, &neighbours, None);
+        let template = Template::new(&elements, &positions, &neighbours, None, None);
         // Atom 3 swung about atom 2 until C1-C2-C3 closes to 70 degrees.
         let mut bent = positions.clone();
         let back = (positions[1] - positions[2]).normalize();
@@ -667,7 +786,7 @@ mod tests {
     #[test]
     fn a_pose_folding_onto_itself_clashes() {
         let (elements, positions, neighbours) = zigzag(8);
-        let template = Template::new(&elements, &positions, &neighbours, None);
+        let template = Template::new(&elements, &positions, &neighbours, None, None);
         let mut folded = positions.clone();
         folded[7] = positions[0] + Vec3::new(0.0, 0.0, 1.2);
 
@@ -677,7 +796,7 @@ mod tests {
     #[test]
     fn atoms_further_apart_in_the_graph_must_stay_further_apart() {
         let (elements, positions, neighbours) = zigzag(8);
-        let template = Template::new(&elements, &positions, &neighbours, None);
+        let template = Template::new(&elements, &positions, &neighbours, None, None);
         let lower = |a: usize, b: usize| {
             template
                 .apart
@@ -716,7 +835,7 @@ mod tests {
     fn a_ring_lifted_out_of_its_plane_is_not_flat() {
         let (elements, positions, neighbours) = rings(true);
         let flat = flat_groups(&neighbours, &[true; 10], &[]);
-        let template = Template::new(&elements, &positions, &neighbours, Some(fixed(flat)));
+        let template = Template::new(&elements, &positions, &neighbours, Some(fixed(flat)), None);
         let mut lifted = positions.clone();
         lifted[8].z += 0.6;
 
@@ -735,6 +854,7 @@ mod tests {
             &positions,
             &neighbours,
             Some(fixed(groups.clone())),
+            None,
         );
         let mut twisted = positions.clone();
         twisted[3].z += 1.0;
@@ -751,7 +871,7 @@ mod tests {
     fn atoms_as_close_as_in_the_reference_do_not_clash() {
         let (elements, mut positions, neighbours) = zigzag(8);
         positions[7] = positions[0] + Vec3::new(0.0, 0.0, 2.0);
-        let template = Template::new(&elements, &positions, &neighbours, None);
+        let template = Template::new(&elements, &positions, &neighbours, None, None);
         let mut closer = positions.clone();
         closer[7] = positions[0] + Vec3::new(0.0, 0.0, 1.3);
 
@@ -766,7 +886,13 @@ mod tests {
         let (elements, mut positions, neighbours) = zigzag(4);
         positions[3].z += 1.0;
         let groups = flat_groups(&neighbours, &[false; 4], &[(1, 2)]);
-        let template = Template::new(&elements, &positions, &neighbours, Some(fixed(groups)));
+        let template = Template::new(
+            &elements,
+            &positions,
+            &neighbours,
+            Some(fixed(groups)),
+            None,
+        );
 
         assert_eq!(template.check_by_name(&positions).unflat, Some(0));
     }

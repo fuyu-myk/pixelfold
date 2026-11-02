@@ -71,14 +71,14 @@ fn is_keyword(word: &str) -> bool {
 }
 
 /// A bare token: letters, digits, the primes and stars of nucleic atom names,
-/// and, after the first character, the hyphen of an assembly's chain copy
-/// (`A-2`). Ranges and comparisons are parsed elsewhere, so no other
-/// punctuation here.
+/// the underscore of a co-folding model's SMILES ligand (`LIG_A`), and, after
+/// the first character, the hyphen of an assembly's chain copy (`A-2`).
+/// Ranges and comparisons are parsed elsewhere, so no other punctuation here.
 fn token(input: &str) -> IResult<&str, &str> {
     preceded(
         multispace0,
         verify(
-            take_while1(|c: char| c.is_alphanumeric() || matches!(c, '\'' | '*' | '-')),
+            take_while1(|c: char| c.is_alphanumeric() || matches!(c, '\'' | '*' | '-' | '_')),
             |token: &str| !token.starts_with('-'),
         ),
     )
@@ -328,6 +328,15 @@ mod tests {
         assert_eq!(parsed("resn ALA"), Selection::Resn(vec!["ALA".into()]));
         assert_eq!(parsed("model 2"), Selection::Model(2));
         assert_eq!(parsed("ss H"), Selection::Ss(SecondaryStructure::Helix));
+    }
+
+    #[test]
+    fn a_co_folding_ligand_s_name_with_an_underscore_is_one_name() {
+        // AlphaFold 3 names a ligand it was given as SMILES LIG_ and its chain.
+        assert_eq!(
+            parsed("resn LIG_A LIG_B"),
+            Selection::Resn(vec!["LIG_A".into(), "LIG_B".into()])
+        );
     }
 
     #[test]

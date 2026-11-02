@@ -90,7 +90,7 @@ then the most recovered, then the fewest clashes):
 | `rmsd` | Heavy-atom RMSD in angstroms once the pose is superposed on the reference's pocket, or `null` |
 | `clashes` | Ligand-protein heavy-atom pairs closer than 0.75 of their van der Waals radii summed |
 | `inverted` | The reference's stereocentres (`STI A/201 C20`) and E/Z double bonds (`GPP A/101 C2=C3`) the pose turns the other way, or `null` when its atoms could not be paired with the reference's |
-| `geometry` | What of the ligand's own geometry strays from the reference ligand's: `bonds`, `angles`, `internal_clashes`, and `unflat` (`null` without the reference's bond orders); `null` when the atoms could not be paired |
+| `geometry` | What of the ligand's own geometry strays from the reference ligand's: `bonds`, `angles`, `internal_clashes`, `unflat` (aromatic rings and double bonds not flat) and `flat_rings` (saturated six-membered rings the reference holds puckered left flat), the last two `null` without the reference's bond orders; `null` when the atoms could not be paired |
 | `lost` | The reference's contacts the pose lacks, each `RESN chain/resi kind` |
 
 ### `poses` without a reference
@@ -103,10 +103,10 @@ order given.
 | Field | Meaning |
 |---|---|
 | `pose`, `model` | The pose file as given, and the model (or SD record) number |
-| `failed` | The checks the pose fails: `clashes`, `bonds`, `angles`, `internal_clashes`, `flatness`, `stereo` |
-| `unchecked` | The checks that could not be made: `geometry` (no bond table for some ligand residue), `stereo` (no Chemical Component Dictionary entry its atoms match) |
+| `failed` | The checks the pose fails: `clashes`, `bonds`, `angles`, `internal_clashes`, `flatness`, `flat_rings`, `stereo` |
+| `unchecked` | The checks that could not be made: `geometry` (no bond table for some ligand residue: no definition, dictionary entry or SMILES pairs with it), `stereo` (no dictionary entry its atoms match and no SMILES that pairs) |
 | `contacts` | The ligand's residue-level contacts, a count; not ranked |
-| `clashes` | Ligand-protein heavy-atom pairs closer than 0.75 of their van der Waals radii summed (a covalent ligand's own bonds count) |
-| `geometry` | The ligand's own geometry against the bounds RDKit gives its bonds: `bonds`, `angles`, `internal_clashes`, `unflat` (each a count); `null` when unchecked |
-| `stereo` | The dictionary's labelled stereocentres (`STI A/201 C20`) and E/Z double bonds (`GPP A/101 C2=C3`) the pose turns the other way; `null` when no residue could be checked |
+| `clashes` | Ligand-protein heavy-atom pairs closer than 0.75 of their van der Waals radii summed, the covalent bonds the pose file records in `_struct_conn` (and pairs one bond from them) left out |
+| `geometry` | The ligand's own geometry against the bounds RDKit gives its bonds: `bonds`, `angles`, `internal_clashes`, `unflat`, `flat_rings` (each a count); `null` when unchecked |
+| `stereo` | The stereocentres (`STI A/201 C20`) and E/Z double bonds (`GPP A/101 C2=C3`) the pose turns the other way from those the dictionary labels or the SMILES string (`--smiles`, or the model's own) states; `null` when no residue could be checked |
 | `confidence` | `null`, or the co-folding tool's confidence found beside the model file: `source` (`alphafold3` or `boltz`), `score` (`ranking_score` or `confidence_score`), `ligand_iptm` (the ligand chain's `chain_iptm`, or `ligand_iptm`; `null` when absent) |

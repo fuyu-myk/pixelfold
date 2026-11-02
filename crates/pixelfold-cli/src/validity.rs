@@ -11,8 +11,10 @@ use std::path::Path;
 use anyhow::Result;
 use pixelfold_core::checks;
 use pixelfold_core::interactions::detect;
-use pixelfold_core::pose::{self, Attachments};
+use pixelfold_core::pose::{self, Attachments, Link};
 use pixelfold_core::sdf;
+use pixelfold_core::smiles::Smiles;
+use pixelfold_core::stated::Stated;
 use pixelfold_core::{Atom, AtomSet, Component, Dictionary, Protein};
 use serde::Serialize;
 
@@ -27,7 +29,7 @@ pub struct CheckRecord {
     pub pose: String,
     pub model: usize,
     /// The checks the pose fails: `clashes`, `bonds`, `angles`,
-    /// `internal_clashes`, `flatness`, `stereo`.
+    /// `internal_clashes`, `flatness`, `flat_rings`, `stereo`.
     pub failed: Vec<&'static str>,
     /// The checks that could not be made: `geometry` without the ligand's
     /// bond table, `stereo` without a dictionary entry its atoms match.
@@ -85,6 +87,8 @@ pub struct Checker<'a> {
     query: &'a str,
     /// The component `--ligand` names, in capitals, as the dictionary has it.
     code: Option<String>,
+    /// The ligand's SMILES, as `--smiles` gives it.
+    smiles: Option<Smiles>,
     cache_dir: &'a Path,
     entries: HashMap<String, Option<Component>>,
 }
@@ -92,13 +96,57 @@ pub struct Checker<'a> {
 impl<'a> Checker<'a> {
     /// A checker of the `query` atoms of each pose, `code` the component
     /// `--ligand` names, if it does.
-    pub fn new(query: &'a str, code: Option<&str>, cache_dir: &'a Path) -> Self {
+    pub fn new(
+        query: &'a str,
+        code: Option<&str>,
+        smiles: Option<Smiles>,
+        cache_dir: &'a Path,
+    ) -> Self {
         Self {
             query,
             code: code.map(str::to_uppercase),
+            smiles,
             cache_dir,
             entries: HashMap::new(),
         }
+    }
+
+    /// What `--smiles`, or else a residue's own SMILES in its file, states of
+    /// the `ligand` residues of `protein`, with a warning for each string that
+    /// does not read or pair.
+    fn stated(
+        &self,
+        protein: &Protein,
+        ligand: &AtomSet,
+        pose: &str,
+        warnings: &mut Warnings,
+    ) -> Vec<Stated> {
+        let stated = checks::stated(protein, ligand, self.smiles.as_ref());
+        for code in &stated.unpaired {
+            warnings.warn(match self.smiles {
+                Some(_) => format!(
+                    "--smiles pairs with no ligand residue of {pose} by bond graph, even through \
+                     bonds past bonding distance: another molecule, so it states nothing of them"
+                ),
+                None => format!(
+                    "the SMILES {pose} gives {code} does not pair with its atoms by bond graph, \
+                     so it states nothing of them"
+                ),
+            });
+        }
+        for (code, error) in &stated.unreadable {
+            warnings.warn(format!(
+                "the SMILES {pose} gives {code} does not read ({error})"
+            ));
+        }
+        if stated.found.iter().any(Stated::loose) {
+            warnings.warn(format!(
+                "the SMILES pairs with the ligand in {pose} only through bonds past bonding \
+                 distance: a bond stretched or atoms clashing, which its geometry checks show"
+            ));
+        }
+
+        stated.found
     }
 
     /// The dictionary's definition of `code`, whatever its case, read once; a
@@ -139,6 +187,7 @@ impl<'a> Checker<'a> {
     pub fn check(
         &mut self,
         protein: Protein,
+        links: &[Link],
         pose: &str,
         model: usize,
         warnings: &mut Warnings,
@@ -160,14 +209,22 @@ impl<'a> Checker<'a> {
             components: protein.components.with_fallback(&matched),
             ..protein
         };
+        let stated = self.stated(&protein, &ligand, pose, warnings);
+        let protein = checks::with_stated(protein, &stated);
         let confidence = ligand_chain(&protein, &ligand)
             .map(|chain| confidence::beside(Path::new(pose), &chain, &chain_order(&protein)))
             .transpose()?
             .flatten();
 
-        Ok(scored(
-            &protein, &ligand, &matched, pose, model, confidence, warnings,
-        ))
+        let laid = Laid {
+            attached: pose::linked(&protein, &ligand, links),
+            protein: &protein,
+            ligand: &ligand,
+            ideals: &matched,
+            stated: &stated,
+        };
+
+        Ok(scored(&laid, pose, model, confidence, warnings))
     }
 
     /// Check record `model` of the SD file `pose`, its ligand laid into
@@ -182,21 +239,23 @@ impl<'a> Checker<'a> {
         warnings: &mut Warnings,
     ) -> CheckRecord {
         let Some(code) = self.code.clone() else {
-            warnings.warn(
-                "the .sdf poses are checked on their own bonds alone; pass --ligand CODE to \
-                 check their stereochemistry against that dictionary entry"
-                    .to_string(),
-            );
+            if self.smiles.is_none() {
+                warnings.warn(
+                    "the .sdf poses are checked on their own bonds alone; pass --ligand CODE or \
+                     --smiles to check their stereochemistry"
+                        .to_string(),
+                );
+            }
             let docked = record.defined(receptor, None);
-            return scored(
-                &docked.protein,
-                &docked.ligand,
-                &Dictionary::default(),
-                pose,
-                model,
-                None,
-                warnings,
-            );
+            let stated = self.given_stated(&docked.protein, &docked.ligand, pose, warnings);
+            let laid = Laid {
+                protein: &docked.protein,
+                ligand: &docked.ligand,
+                ideals: &Dictionary::default(),
+                attached: Attachments::default(),
+                stated: &stated,
+            };
+            return scored(&laid, pose, model, None, warnings);
         };
         let entry = self.entry(&code, warnings);
         let reference = entry
@@ -224,15 +283,30 @@ impl<'a> Checker<'a> {
             }
         };
 
-        scored(
-            &docked.protein,
-            &docked.ligand,
-            &ideals,
-            pose,
-            model,
-            None,
-            warnings,
-        )
+        let stated = self.given_stated(&docked.protein, &docked.ligand, pose, warnings);
+        let laid = Laid {
+            protein: &docked.protein,
+            ligand: &docked.ligand,
+            ideals: &ideals,
+            attached: Attachments::default(),
+            stated: &stated,
+        };
+        scored(&laid, pose, model, None, warnings)
+    }
+
+    /// What `--smiles` states of a docked ligand, which carries its own
+    /// definition: nothing without the flag.
+    fn given_stated(
+        &self,
+        protein: &Protein,
+        ligand: &AtomSet,
+        pose: &str,
+        warnings: &mut Warnings,
+    ) -> Vec<Stated> {
+        match self.smiles {
+            Some(_) => self.stated(protein, ligand, pose, warnings),
+            None => Vec::new(),
+        }
     }
 
     /// `structure`, given as the protein .sdf poses were docked into, without
@@ -276,17 +350,34 @@ fn chain_order(protein: &Protein) -> Vec<String> {
     chains
 }
 
-/// The `ligand` atoms of `protein` checked, their stereochemistry against
-/// `ideals`.
+/// A pose's ligand laid out for checking: the structure it is in, its atoms,
+/// the ideal conformers its stereochemistry is held to, and the bonds to the
+/// protein its file records.
+struct Laid<'a> {
+    protein: &'a Protein,
+    ligand: &'a AtomSet,
+    ideals: &'a Dictionary,
+    attached: Attachments,
+    /// What a SMILES string states of the ligand's residues.
+    stated: &'a [Stated],
+}
+
+/// The ligand `laid` out checked.
 fn scored(
-    protein: &Protein,
-    ligand: &AtomSet,
-    ideals: &Dictionary,
+    laid: &Laid,
     pose: &str,
     model: usize,
     confidence: Option<Confidence>,
     warnings: &mut Warnings,
 ) -> CheckRecord {
+    let Laid {
+        protein,
+        ligand,
+        ideals,
+        attached,
+        stated,
+    } = laid;
+    let (protein, ligand, ideals) = (*protein, *ligand, *ideals);
     let geometry = match checks::geometry(protein, ligand) {
         Ok(geometry) => Some(GeometryRecord::from(&geometry)),
         Err(residue) => {
@@ -297,7 +388,7 @@ fn scored(
             None
         }
     };
-    let stereo = checks::stereo(protein, ligand, ideals);
+    let stereo = checks::stereo(protein, ligand, ideals, stated);
     if !stereo.unchecked.is_empty() {
         let codes: Vec<String> = stereo.unchecked.iter().map(ToString::to_string).collect();
         warnings.warn(format!(
@@ -305,7 +396,7 @@ fn scored(
             codes.join(", ")
         ));
     }
-    let clashes = pose::clashes(protein, ligand, &Attachments::default());
+    let clashes = pose::clashes(protein, ligand, attached);
     let labels: Vec<String> = stereo
         .inverted
         .iter()
@@ -323,6 +414,7 @@ fn scored(
             ("angles", geometry.angles),
             ("internal_clashes", geometry.internal_clashes),
             ("flatness", geometry.unflat.unwrap_or(0)),
+            ("flat_rings", geometry.flat_rings.unwrap_or(0)),
         ] {
             if count > 0 {
                 failed.push(check);

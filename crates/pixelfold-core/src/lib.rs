@@ -19,7 +19,9 @@ pub mod rmsd;
 pub mod sasa;
 pub mod sdf;
 pub mod select;
+pub mod smiles;
 mod spatial;
+pub mod stated;
 mod stereo;
 pub mod structure;
 

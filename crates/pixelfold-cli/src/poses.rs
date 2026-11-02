@@ -64,6 +64,9 @@ pub struct GeometryRecord {
     /// The aromatic rings and double bonds not flat, or `None` when the
     /// reference ligand's definitions do not say which they are.
     pub unflat: Option<usize>,
+    /// The saturated six-membered rings held flat, or `None` when the
+    /// definitions do not say which they are.
+    pub flat_rings: Option<usize>,
 }
 
 impl From<&Geometry> for GeometryRecord {
@@ -73,6 +76,7 @@ impl From<&Geometry> for GeometryRecord {
             angles: geometry.angles,
             internal_clashes: geometry.clashes,
             unflat: geometry.unflat,
+            flat_rings: geometry.flat_rings,
         }
     }
 }
@@ -85,6 +89,7 @@ impl GeometryRecord {
             ("angles", self.angles),
             ("internal clashes", self.internal_clashes),
             ("flatness", self.unflat.unwrap_or(0)),
+            ("flat rings", self.flat_rings.unwrap_or(0)),
         ]
         .into_iter()
         .filter(|&(_, count)| count > 0)

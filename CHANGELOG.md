@@ -27,11 +27,32 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   co-folding output names `LIG` is not taken for the dictionary's `LIG`. SD
   poses need `--receptor` and are checked on their own bond table, charges and
   hydrogens; with `--ligand CODE` they are named after that entry and their
-  stereochemistry is checked too. Over 1083 poses of 54 benchmark ligands, the
-  checks agree with PoseBusters 0.6.5 on 99.0% to 100% of poses, check by
-  check (the README has the table and the causes of every disagreement);
+  stereochemistry is checked too. A ligand with no dictionary code is checked
+  against a SMILES string instead: the one AlphaFold 3 writes into its model
+  (`_chem_comp.pdbx_smiles`) for a ligand it was given as SMILES, or
+  `--smiles` for other tools' output and docked SD files; the string gives
+  the bond orders, charges and hydrogens the geometry is bounded by and the
+  stereochemistry it states, its atoms paired with the pose's by bond graph.
+  A covalent ligand's bonds to the protein, which the pose file records in
+  `_struct_conn` as wwPDB entries and AlphaFold 3 do, are not clashes. Over
+  1107 poses of 54 benchmark ligands, the checks agree with PoseBusters 0.6.5
+  on 99.0% to 100% of poses, check by check, and checked against each
+  ligand's canonical SMILES instead, the stereochemistry agrees as well (the
+  README has the table and the causes of every disagreement);
   `benchmarks/tools/Dockerfile.posebusters` and `compare_posebusters.py`
   reproduce it.
+- **Saturated rings held flat.** Both modes of `poses` now make PoseBusters'
+  non-aromatic ring non-flatness check: a cyclohexane, piperidine or
+  morpholine ring (and their kin with a double bond or two) whose atoms all
+  lie within 0.05 A of one plane is counted in `geometry.flat_rings`; with a
+  reference, only rings the reference ligand holds puckered. It agrees with
+  PoseBusters on every one of the 1107 benchmark poses.
+- **SMILES strings and covalent links in `pixelfold-core`.**
+  `pixelfold_core::smiles` reads a SMILES string, `stated::state` pairs one
+  with a pose residue, `checks::stated` and `with_stated` define and check a
+  ligand by it, `Dictionary::smiles` gives a file's `_chem_comp.pdbx_smiles`,
+  and `ParsedStructure::links` with `pose::linked` turn a file's covalent
+  bonds into the attachments a clash count excuses.
 - **Chemical component dictionary entries.** `pixelfold_fetch::fetch_ccd`
   downloads one from RCSB, and `pixelfold-core`'s `Component` reads an entry's
   charges, ideal coordinates, file order and R/S and E/Z labels; the checks
@@ -60,6 +81,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A residue name with an underscore in a selection.** `--select 'resn
+  LIG_A'` and `--ligand LIG_A` were refused, though AlphaFold 3 names every
+  ligand it was given as SMILES so.
 - **Protein clashes count with PoseBusters' radii.** `poses` counted a
   ligand-protein clash below 0.75 of the pair's Bondi radii summed, where
   PoseBusters sums RDKit's, which are 0.03 to 0.05 A larger for nitrogen and

@@ -22,7 +22,7 @@ use crate::fixed_str::FixedStr;
 /// The least volume the unit bonds from a centre to three of its neighbours
 /// may span for the centre to be tetrahedral, about 0.19 A out of their plane
 /// for bonds of 1.5 A: a regular tetrahedron spans 0.77, a planar centre none.
-const TETRAHEDRAL: f32 = 0.35;
+pub(crate) const TETRAHEDRAL: f32 = 0.35;
 
 /// The elements that hold four substituents tetrahedrally. An oxygen or a
 /// halogen with three neighbours is a broken bond graph, such as conformers
@@ -31,14 +31,14 @@ const CENTRES: &[&str] = &["C", "N", "P", "S", "B", "SI", "SE", "AS"];
 
 /// The least cosine of the dihedral angle across a double bond for its
 /// substituents to be cis (or, negated, trans), 60 degrees from either.
-const PLANAR: f32 = 0.5;
+pub(crate) const PLANAR: f32 = 0.5;
 
 /// The elements a double bond with E or Z joins.
 const ENDS: &[&str] = &["C", "N"];
 
 /// The fewest atoms a ring may hold for a double bond in it to be E or Z: in a
 /// smaller ring a double bond can only be cis.
-const RING_WITH_TRANS: usize = 8;
+pub(crate) const RING_WITH_TRANS: usize = 8;
 
 /// A stereocentre of a ligand: the atom, three of its neighbours, the sign of
 /// the volume they span from it, and the atom's class under colour refinement.
@@ -206,7 +206,7 @@ fn in_small_ring(neighbours: &[Vec<usize>], first: usize, second: usize) -> bool
 
 /// The cosine of the dihedral angle of `a` and `d` about the bond from
 /// `first` to `second`, at positions `[first, a, second, d]`.
-fn dihedral_cosine([first, a, second, d]: [Vec3; 4]) -> f32 {
+pub(crate) fn dihedral_cosine([first, a, second, d]: [Vec3; 4]) -> f32 {
     let axis = (second - first).normalize_or_zero();
     let across = |from: Vec3, to: Vec3| {
         let bond = to - from;
@@ -218,7 +218,7 @@ fn dihedral_cosine([first, a, second, d]: [Vec3; 4]) -> f32 {
 
 /// The volume the unit bonds from a centre to three neighbours span, signed by
 /// the way they turn.
-fn volume([centre, a, b, c]: [Vec3; 4]) -> f32 {
+pub(crate) fn volume([centre, a, b, c]: [Vec3; 4]) -> f32 {
     let bond = |atom: Vec3| (atom - centre).normalize_or_zero();
     bond(a).dot(bond(b).cross(bond(c)))
 }

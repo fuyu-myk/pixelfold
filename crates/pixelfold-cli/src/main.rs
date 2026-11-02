@@ -253,7 +253,7 @@ enum Command {
     /// cached), then ranked by the checks it fails and the confidence a
     /// co-folding model wrote beside it (AlphaFold 3 or Boltz)
     #[command(
-        after_help = "Examples:\n  pixelfold poses --reference crystal.cif --ligand STI model_*.cif --format json\n  pixelfold poses --reference 1IEP --reference-select 'chain A and resn STI' --ligand STI model.cif\n  pixelfold poses --reference crystal.cif --ligand STI --receptor receptor.pdb docked.sdf\n  pixelfold poses --ligand STI fold_job_model_*.cif --format json\n  pixelfold poses --receptor receptor.pdb --ligand STI docked.sdf --format json"
+        after_help = "Examples:\n  pixelfold poses --reference crystal.cif --ligand STI model_*.cif --format json\n  pixelfold poses --reference 1IEP --reference-select 'chain A and resn STI' --ligand STI model.cif\n  pixelfold poses --reference crystal.cif --ligand STI --receptor receptor.pdb docked.sdf\n  pixelfold poses --ligand STI fold_job_model_*.cif --format json\n  pixelfold poses --receptor receptor.pdb --ligand STI docked.sdf --format json\n  pixelfold poses --ligand LIG_A --smiles 'CC(=O)Nc1ccc(O)cc1' fold_job_model_*.cif"
     )]
     Poses {
         /// The pose files: .pdb/.cif paths, 4-character PDB ids, or .sdf files
@@ -289,6 +289,13 @@ enum Command {
         /// How to write the result
         #[arg(long, value_enum, default_value_t = Format::Table)]
         format: Format,
+
+        /// The ligand's SMILES, for a ligand with no Chemical Component
+        /// Dictionary entry (co-folding from a SMILES input, docking a new
+        /// compound): its bonds, charges and stereochemistry are checked
+        /// against it. Without --reference only
+        #[arg(long, value_name = "SMILES", conflicts_with = "reference")]
+        smiles: Option<String>,
 
         /// Open the viewer on the ranked poses instead: a table to sort and
         /// step through, each pose drawn on the reference's pocket
@@ -623,6 +630,7 @@ fn run(command: Command) -> Result<()> {
             ligand,
             reference_select,
             receptor,
+            smiles,
             format,
             view,
             protocol,
@@ -637,6 +645,7 @@ fn run(command: Command) -> Result<()> {
                     &poses,
                     &query,
                     ligand.as_deref(),
+                    smiles.as_deref(),
                     format,
                     &common,
                 );
@@ -949,15 +958,20 @@ fn compare_poses(
 
 /// Check the `query` ligand of every pose on its own, without a reference,
 /// and write them best first. Each record of an SD file is a pose, its ligand
-/// laid into `receptor`; `code` is the component `--ligand` names.
+/// laid into `receptor`; `code` is the component `--ligand` names and
+/// `smiles` the string `--smiles` gives.
 fn check_poses(
     receptor: Option<&str>,
     poses: &[String],
     query: &str,
     code: Option<&str>,
+    smiles: Option<&str>,
     format: Format,
     common: &Common,
 ) -> Result<()> {
+    let smiles = smiles
+        .map(|text| pixelfold_core::smiles::parse(text).with_context(|| format!("--smiles {text}")))
+        .transpose()?;
     let docking = poses
         .iter()
         .any(|pose| pixelfold_core::sdf::is_sdf(Path::new(pose)));
@@ -971,7 +985,7 @@ fn check_poses(
     );
     let dir = cache_dir(common)?;
     let mut warnings = poses::Warnings::default();
-    let mut checker = validity::Checker::new(query, code, &dir);
+    let mut checker = validity::Checker::new(query, code, smiles, &dir);
     let receptor = receptor
         .map(|given| {
             load::analysis_structure(given, &dir, &common.load(None))
@@ -1014,6 +1028,7 @@ fn check_poses(
             continue;
         }
         let parsed = load::parsed(pose, &dir)?;
+        let links = parsed.links();
         let models = match chosen {
             Some(number) => vec![number],
             None => parsed.model_numbers(),
@@ -1021,7 +1036,7 @@ fn check_poses(
         for model in models {
             let record = parsed
                 .protein(&common.load(Some(model)))
-                .and_then(|protein| checker.check(protein, pose, model, &mut warnings))
+                .and_then(|protein| checker.check(protein, &links, pose, model, &mut warnings))
                 .with_context(|| format!("{pose}, model {model}"))?;
             records.push(record);
         }

@@ -47,21 +47,27 @@ Per-type interaction agreement (precision / recall / F1):
 <!-- VALIDATION:END -->
 
 Pose checks without a reference (`pixelfold poses` with no `--reference`)
-against PoseBusters 0.6.5 (RDKit 2024.09.6), over 1083 poses of 54 drug-like
+against PoseBusters 0.6.5 (RDKit 2024.09.6), over 1107 poses of 54 drug-like
 ligands from the protein-ligand stratum: each crystal ligand with the Chemical
 Component Dictionary's bond orders, and copies of it stretched, bent, twisted,
-puckered, mirrored, turned about a double bond, shifted into the protein and
-moved at random:
+puckered, flattened, mirrored, turned about a double bond, shifted into the
+protein and moved at random:
 
 | PoseBusters check | Poses | Agreement | Both fail | PoseBusters only | PixelFold only |
 | --- | --- | --- | --- | --- | --- |
-| Bond lengths | 1083 | 100.0% | 72 | 0 | 0 |
-| Bond angles | 1083 | 99.2% | 46 | 0 | 9 |
-| Internal steric clash | 1083 | 100.0% | 52 | 0 | 0 |
-| Aromatic ring and double bond flatness | 1083 | 99.0% | 14 | 0 | 11 |
-| Minimum distance to protein | 1083 | 99.9% | 560 | 0 | 1 |
-| Tetrahedral chirality | 1083 | 99.6% | 32 | 4 | 0 |
-| Double bond stereochemistry | 1083 | 99.9% | 4 | 0 | 1 |
+| Bond lengths | 1107 | 100.0% | 72 | 0 | 0 |
+| Bond angles | 1107 | 99.2% | 46 | 0 | 9 |
+| Internal steric clash | 1107 | 100.0% | 52 | 0 | 0 |
+| Aromatic ring and double bond flatness | 1107 | 99.0% | 14 | 0 | 11 |
+| Non-aromatic ring non-flatness | 1107 | 100.0% | 9 | 0 | 0 |
+| Minimum distance to protein | 1107 | 99.9% | 562 | 0 | 1 |
+| Tetrahedral chirality | 1107 | 99.5% | 32 | 6 | 0 |
+| Double bond stereochemistry | 1107 | 99.9% | 4 | 0 | 1 |
+
+Checked against each ligand's canonical SMILES instead of its dictionary entry
+(`--smiles`, as a ligand without a dictionary code is), every pose's
+stereochemistry is still checked, and the two stereochemistry rows read 99.5%
+and 100.0%.
 
 These are agreement figures and never improvement claims. Where PixelFold and the
 reference disagree, the reference is right by construction. The harness lives in
@@ -216,9 +222,9 @@ distortion changes PoseBusters' ideal, where PixelFold's comes from the bonds
 alone. All eleven flatness ones are a ring atom pushed 0.6 A out of plane:
 PoseBusters takes the largest signed distance from the fitted plane, so its
 verdict turns on which way the plane's normal points, and PixelFold takes the
-largest distance either side. The four chirality ones are centres bent nearly
-flat, which InChI still gives a handedness and PixelFold counts as neither kept
-nor inverted, and the one protein clash is with a D-phenylalanine of a peptide,
+largest distance either side. The six chirality ones are centres bent or
+pressed nearly flat, which InChI still gives a handedness and PixelFold counts
+as neither kept nor inverted, and the one protein clash is with a D-phenylalanine of a peptide,
 which PoseBusters counts as a cofactor rather than protein. Reproduce with the
 `Dockerfile.posebusters` image and `benchmarks/tools/compare_posebusters.py`
 (see [`benchmarks/tools`](https://github.com/fuyu-myk/pixelfold/blob/main/benchmarks/tools/README.md)).
@@ -320,21 +326,28 @@ Being explicit about what this does not do:
   checks, only the warning that it has no RMSD.
 - **Without a reference, poses are checked, not compared.** `pixelfold poses`
   with no `--reference` reports what PoseBusters' docking checks report and no
-  more: no RMSD, no contacts kept, no energy ratio, and no check of saturated
-  rings left flat. A ligand's geometry needs its bond table: the pose file's own
-  component definitions, an SD record's bonds, or the dictionary entry of its
-  component when its atoms match that entry by name and element with at least
-  half its bonds in place (a
-  ligand that co-folding output names `LIG` from a SMILES input matches nothing
-  and goes unchecked, since the dictionary's `LIG` is another molecule).
-  Stereochemistry needs the dictionary entry too, and only the centres and
-  double bonds it labels R, S, E or Z are checked; an SD record is checked when
-  `--ligand CODE` names a component its bond graph pairs with. A covalent
-  ligand's bonds to the protein read as clashes, since nothing says where they
-  are. Metal-containing ligands are bounded crudely at the metal, as RDKit
-  bounds atoms UFF has no parameters for. Confidence is read only from
-  AlphaFold 3's and Boltz's JSON beside each model, by the names those tools
-  give them.
+  more: no RMSD, no contacts kept, no energy ratio. A ligand's geometry needs
+  its bond table: the pose file's own component definitions, an SD record's
+  bonds, the dictionary entry of its component when its atoms match that entry
+  by name and element with at least half its bonds in place (a SMILES ligand
+  Boltz names `LIG` matches nothing, since the dictionary's `LIG` is another
+  molecule), or a SMILES string paired with its atoms by bond graph: the one
+  AlphaFold 3 writes into its model for a ligand it was given as SMILES
+  (`_chem_comp.pdbx_smiles`, its ligand named `LIG_A` and so on), or
+  `--smiles`. Stereochemistry is judged against the centres and double bonds
+  the dictionary labels R, S, E or Z, or those the SMILES string states, a
+  centre whose neighbours the bond graph cannot tell apart (a phosphate's
+  terminal oxygens) left out; an SD record is checked when `--ligand CODE`
+  names a component its bond graph pairs with, or `--smiles` gives its string.
+  A pairing by bond graph needs the pose's bonds: read from distances for a
+  ligand nothing defines, so a pose distorted past bonding distance does not
+  pair and goes unchecked. A covalent ligand's bonds to the protein are read
+  from the pose file's `_struct_conn`, as wwPDB entries and AlphaFold 3 write
+  them; a file without them, as Boltz's, a legacy PDB file or an SD record,
+  has its bonds read as clashes. Metal-containing ligands are bounded crudely
+  at the metal, as RDKit bounds atoms UFF has no parameters for. Confidence is
+  read only from AlphaFold 3's and Boltz's JSON beside each model, by the
+  names those tools give them.
 - **No trajectories.** A multi-model file such as an NMR ensemble works model
   by model (`--model N`, or `--model all` for a report on every model and one
   interaction network over them all), but a molecular-dynamics trajectory is
@@ -387,6 +400,10 @@ pixelfold poses --reference crystal.cif --ligand STI --receptor receptor.pdb ran
 # AlphaFold 3 or Boltz wrote beside it
 pixelfold poses --ligand STI fold_job_model_*.cif
 pixelfold poses --receptor receptor.pdb --ligand STI docked.sdf
+# A ligand with no dictionary code, checked against the SMILES it was given;
+# AlphaFold 3's models carry it, so --smiles is for other tools' output
+pixelfold poses --ligand LIG_A fold_job_model_*.cif
+pixelfold poses --receptor receptor.pdb --smiles 'CC(=O)Nc1ccc(O)cc1' docked.sdf
 
 # Secondary structure and solvent accessibility
 pixelfold ss 1UBQ --format tsv

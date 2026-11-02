@@ -1553,7 +1553,13 @@ fn a_pose_whose_ligand_strays_from_the_reference_s_geometry_says_so() {
 
     assert_eq!(
         geometry("1HVR.cif"),
-        serde_json::json!({"bonds": 0, "angles": 0, "internal_clashes": 0, "unflat": 0})
+        serde_json::json!({
+            "bonds": 0,
+            "angles": 0,
+            "internal_clashes": 0,
+            "unflat": 0,
+            "flat_rings": 0
+        })
     );
     let strayed = geometry("1HVR-edited.cif");
     assert!(strayed["bonds"].as_u64().unwrap() >= 1, "{strayed}");
@@ -2105,7 +2111,7 @@ fn ligand_of(id: &str, ligand: &str) -> (Vec<LigandAtom>, Vec<(usize, usize, u8)
         .filter(|fields| fields.len() >= 4 && fields[0] == ligand)
         .filter_map(|fields| {
             let (a, b) = (*index.get(fields[1])?, *index.get(fields[2])?);
-            let order = match fields[3] {
+            let order = match fields[3].to_ascii_uppercase().as_str() {
                 "DOUB" => 2,
                 "TRIP" => 3,
                 "AROM" => 4,
@@ -2329,6 +2335,163 @@ fn co_folding_confidence_is_read_beside_each_model_and_breaks_ties() {
     // AlphaFold 3 lists its chains' ipTM in the model's chain order, and the
     // ligand sits in chain A, the first.
     assert_eq!(records[1]["confidence"]["ligand_iptm"], 0.31);
+}
+
+/// XK2 as the dictionary's OpenEye canonical SMILES writes it.
+const XK2_SMILES: &str =
+    "c1ccc(cc1)C[C@@H]2[C@@H]([C@H]([C@H](N(C(=O)N2Cc3ccc4ccccc4c3)Cc5ccc6ccccc6c5)Cc7ccccc7)O)O";
+
+/// A copy of fixture `id` in `dir` with its `ligand` renamed `LIG`, as
+/// co-folding output names a ligand given as SMILES, so the file defines it
+/// no longer; `mirrored` reflects it through its centre too.
+fn as_smiles_ligand(id: &str, ligand: &str, dir: &Path, mirrored: bool) -> PathBuf {
+    let middle = centre(&ligand_of(id, ligand).0)[0];
+    let own = dir.join(if mirrored { "mirrored-lig" } else { "lig" });
+    std::fs::create_dir_all(&own).unwrap();
+    edited_fixture(id, &own, |fields, column| {
+        if fields[column["auth_comp_id"]] != ligand {
+            return;
+        }
+        for name in ["label_comp_id", "auth_comp_id"] {
+            fields[column[name]] = "LIG".to_string();
+        }
+        if mirrored {
+            let x: f32 = fields[column["Cartn_x"]].parse().unwrap();
+            fields[column["Cartn_x"]] = format!("{:.3}", 2.0 * middle - x);
+        }
+    })
+}
+
+#[test]
+fn a_ligand_given_as_smiles_is_checked_against_the_string() {
+    let cache = seeded_cache();
+    let dir = tempfile::tempdir().unwrap();
+    let kept = as_smiles_ligand("1HVR", "XK2", dir.path(), false);
+    let mirrored = as_smiles_ligand("1HVR", "XK2", dir.path(), true);
+
+    let run = checked(
+        cache.path(),
+        &["--ligand", "LIG", "--smiles", XK2_SMILES],
+        &[&kept, &mirrored],
+    );
+    let records = records(&run);
+    assert_eq!(records[0]["pose"], kept.to_str().unwrap(), "{}", run.stderr);
+    assert_eq!(records[0]["unchecked"], serde_json::json!([]));
+    assert_eq!(records[0]["failed"], serde_json::json!([]));
+    assert_eq!(records[0]["geometry"]["bonds"], 0);
+    assert_eq!(names_of(&records[1]["stereo"]).len(), 4);
+}
+
+/// Fixture `id` written as AlphaFold 3 writes a model with a ligand it was
+/// given as SMILES: the `ligand` renamed `LIG_B`, defined by nothing but its
+/// SMILES in `_chem_comp.pdbx_smiles`, reflected through its centre when
+/// `mirrored`.
+fn as_alphafold_model(id: &str, ligand: &str, dir: &Path, mirrored: bool) -> PathBuf {
+    let middle = centre(&ligand_of(id, ligand).0)[0];
+    let text = std::fs::read_to_string(fixture(id)).unwrap();
+    let column = atom_site_columns(&text);
+    let mut out = format!(
+        "data_{id}\n#\nloop_\n_chem_comp.id\n_chem_comp.type\n_chem_comp.pdbx_smiles\n\
+         LIG_B non-polymer \"{XK2_SMILES}\"\n#\nloop_\n"
+    );
+    for line in text.lines().filter(|line| line.starts_with("_atom_site.")) {
+        out.push_str(line);
+        out.push('\n');
+    }
+    for line in text
+        .lines()
+        .filter(|line| line.starts_with("ATOM") || line.starts_with("HETATM"))
+    {
+        let mut fields: Vec<String> = line.split_whitespace().map(String::from).collect();
+        if fields[column["auth_comp_id"]] == ligand {
+            for name in ["label_comp_id", "auth_comp_id"] {
+                fields[column[name]] = "LIG_B".to_string();
+            }
+            if mirrored {
+                let x: f32 = fields[column["Cartn_x"]].parse().unwrap();
+                fields[column["Cartn_x"]] = format!("{:.3}", 2.0 * middle - x);
+            }
+        }
+        out.push_str(&fields.join(" "));
+        out.push('\n');
+    }
+    out.push_str("#\n");
+    let path = dir.join(format!(
+        "{id}-{}model.cif",
+        if mirrored { "mirrored-" } else { "" }
+    ));
+    std::fs::write(&path, out).unwrap();
+    path
+}
+
+#[test]
+fn a_co_folding_model_s_own_smiles_defines_and_checks_its_ligand() {
+    let cache = seeded_cache();
+    let dir = tempfile::tempdir().unwrap();
+    let kept = as_alphafold_model("1HVR", "XK2", dir.path(), false);
+    let mirrored = as_alphafold_model("1HVR", "XK2", dir.path(), true);
+
+    let run = checked(cache.path(), &["--ligand", "LIG_B"], &[&mirrored, &kept]);
+    let records = records(&run);
+    assert_eq!(records[0]["pose"], kept.to_str().unwrap(), "{}", run.stderr);
+    assert_eq!(
+        records[0]["failed"],
+        serde_json::json!([]),
+        "{}",
+        records[0]
+    );
+    assert_eq!(records[0]["unchecked"], serde_json::json!([]));
+    assert!(records[0]["contacts"].as_u64().unwrap() > 5);
+    assert_eq!(names_of(&records[1]["stereo"]).len(), 4);
+}
+
+#[test]
+fn docked_poses_are_checked_against_a_smiles_without_a_dictionary_code() {
+    let cache = seeded_cache();
+    let dir = tempfile::tempdir().unwrap();
+    let docked = ligand_sdf("1HVR", "XK2", dir.path(), true);
+    let receptor = fixture("1HVR");
+
+    let run = checked(
+        cache.path(),
+        &[
+            "--smiles",
+            XK2_SMILES,
+            "--receptor",
+            receptor.to_str().unwrap(),
+        ],
+        &[&docked],
+    );
+    let records = records(&run);
+    assert_eq!(
+        records[0]["stereo"],
+        serde_json::json!([]),
+        "{}",
+        run.stderr
+    );
+    assert_eq!(names_of(&records[1]["stereo"]).len(), 4);
+    assert!(!run.stderr.contains("pass --ligand"), "{}", run.stderr);
+}
+
+#[test]
+fn a_smiles_that_does_not_read_is_refused() {
+    let cache = seeded_cache();
+    let run = checked(cache.path(), &["--smiles", "C1CC"], &[&fixture("1HVR")]);
+
+    assert!(!run.ok);
+    assert!(run.stderr.contains("--smiles"), "{}", run.stderr);
+}
+
+#[test]
+fn a_covalent_ligand_s_recorded_bonds_to_the_protein_are_not_clashes() {
+    // 1PPB records PPACK's bonds to His57 and Ser195 in _struct_conn; its
+    // legacy PDB twin records none, so there they are clashes.
+    let cache = seeded_cache();
+    let recorded = checked(cache.path(), &["--ligand", "0G6"], &[&fixture("1PPB")]);
+    assert_eq!(records(&recorded)[0]["clashes"], 0, "{}", recorded.stdout);
+
+    let unrecorded = checked(cache.path(), &["--ligand", "0G6"], &[&pdb_fixture("1PPB")]);
+    assert!(records(&unrecorded)[0]["clashes"].as_u64().unwrap() > 0);
 }
 
 #[test]

@@ -220,6 +220,9 @@ pub(crate) struct DefinedAtom {
 #[derive(Clone, Debug, Default)]
 pub struct Dictionary {
     components: HashMap<String, Component>,
+    /// The SMILES each component is given (`_chem_comp.pdbx_smiles`), which a
+    /// co-folding model's file carries for a ligand it defines no atoms of.
+    smiles: HashMap<String, String>,
 }
 
 impl Dictionary {
@@ -236,6 +239,7 @@ impl Dictionary {
     /// Read the `_chem_comp_atom` and `_chem_comp_bond` categories of one data
     /// block. A block without them yields an empty dictionary.
     pub(crate) fn from_block(block: &Block<'_>) -> Self {
+        let smiles = smiles_of(block);
         let mut components: HashMap<String, Component> = HashMap::new();
         // Hydrogen names per component.
         let mut hydrogen_names: HashMap<String, HashSet<String>> = HashMap::new();
@@ -246,7 +250,10 @@ impl Dictionary {
                 atoms.column("atom_id"),
                 atoms.column("type_symbol"),
             ) else {
-                return Self::default();
+                return Self {
+                    smiles,
+                    ..Self::default()
+                };
             };
             let aromatic = atoms.column("pdbx_aromatic_flag");
             let charges = atoms.column("charge");
@@ -309,7 +316,7 @@ impl Dictionary {
                 bonds.column("atom_id_1"),
                 bonds.column("atom_id_2"),
             ) else {
-                return Self { components };
+                return Self { components, smiles };
             };
             let orders = bonds.column("value_order");
             let stereo = bonds.column("pdbx_stereo_config");
@@ -350,7 +357,12 @@ impl Dictionary {
             }
         }
 
-        Self { components }
+        Self { components, smiles }
+    }
+
+    /// The SMILES the file gives a component, if any.
+    pub fn smiles(&self, component_id: &str) -> Option<&str> {
+        self.smiles.get(component_id).map(String::as_str)
     }
 
     /// The definition of a component, if the file carried one.
@@ -372,6 +384,11 @@ impl Dictionary {
                 .entry(id.clone())
                 .or_insert_with(|| component.clone());
         }
+        for (id, string) in &fallback.smiles {
+            self.smiles
+                .entry(id.clone())
+                .or_insert_with(|| string.clone());
+        }
 
         self
     }
@@ -384,6 +401,23 @@ impl Dictionary {
     pub fn is_empty(&self) -> bool {
         self.components.is_empty()
     }
+}
+
+/// Each component's SMILES from a block's `_chem_comp`.
+fn smiles_of(block: &Block<'_>) -> HashMap<String, String> {
+    let Some(category) = block.category("chem_comp") else {
+        return HashMap::new();
+    };
+    let (Some(ids), Some(strings)) = (category.column("id"), category.column("pdbx_smiles")) else {
+        return HashMap::new();
+    };
+
+    (0..category.row_count())
+        .filter_map(|row| {
+            let string = text(&strings, row).filter(|string| !matches!(*string, "?" | "."))?;
+            Some((text(&ids, row)?.to_string(), string.to_string()))
+        })
+        .collect()
 }
 
 fn text<'a>(column: &Column<'a>, row: usize) -> Option<&'a str> {
@@ -594,6 +628,20 @@ TST C1 H1 SING N N 4
 
         assert_eq!(component.ideal("C2"), None);
         assert_eq!(component.clone(), *component);
+    }
+
+    #[test]
+    fn a_co_folding_model_s_smiles_are_read_from_its_components() {
+        // AlphaFold 3 writes each component's SMILES and no atoms for it.
+        let dictionary = Dictionary::parse(
+            "data_MODEL\nloop_\n_chem_comp.id\n_chem_comp.pdbx_smiles\n_chem_comp.type\n\
+             ALA C[C@H](N)C(O)=O \"L-PEPTIDE LINKING\"\nLIG_B CCO non-polymer\nUNK ? other\n",
+        );
+
+        assert_eq!(dictionary.smiles("LIG_B"), Some("CCO"));
+        assert_eq!(dictionary.smiles("ALA"), Some("C[C@H](N)C(O)=O"));
+        assert_eq!(dictionary.smiles("UNK"), None);
+        assert!(dictionary.get("LIG_B").is_none());
     }
 
     #[test]

@@ -181,6 +181,9 @@ impl RmsdReference {
                 chemistry.as_ref().map(|chemistry| {
                     chemistry.flat(&graph.elements, &graph.neighbours, &exchangeable)
                 }),
+                chemistry.as_ref().map(|chemistry| {
+                    chemistry.puckered(&graph.elements, &graph.neighbours, &exchangeable)
+                }),
             ),
             order_sums: bond_order_sums(reference, &heavy, &graph),
             graph,
@@ -1367,6 +1370,7 @@ LIG C2 F2 SING
             same.geometry,
             Geometry {
                 unflat: Some(0),
+                flat_rings: Some(0),
                 ..Geometry::default()
             }
         );

@@ -14,13 +14,17 @@ fetched) and compares each pose's failed checks with PoseBusters' verdicts:
     angles            Bond angles
     internal_clashes  Internal steric clash
     flatness          Aromatic ring flatness and Double bond flatness
+    flat_rings        Non-aromatic ring non-flatness
     clashes           Minimum distance to protein
     stereo (centres)  Tetrahedral chirality
     stereo (bonds)    Double bond stereochemistry
 
 A pose a check could not be made of on either side (PoseBusters could not
 sanitize it, or pixelfold had no dictionary entry) is left out of that check.
-With --entries it also reads each crystal ligand from its entry's mmCIF file
+With --smiles each pose is checked against its ligand's canonical SMILES from
+the dictionary entry (`--smiles`) instead of the entry itself (`--ligand`), as
+a ligand without a code would be. With --entries it also reads each crystal
+ligand from its entry's mmCIF file
 (--cache), through the file's own component definitions, and counts how many
 get their SD copy's verdicts. Runs on the host with the standard library
 alone; pass the pixelfold binary with --pixelfold. Prints a markdown table,
@@ -42,12 +46,13 @@ CHECKS = [
     ("angles", ["bond_angles"], "Bond angles"),
     ("internal_clashes", ["internal_steric_clash"], "Internal steric clash"),
     ("flatness", ["aromatic_ring_flatness", "double_bond_flatness"], "Flatness (aromatic rings, double bonds)"),
+    ("flat_rings", ["non-aromatic_ring_non-flatness"], "Non-aromatic ring non-flatness"),
     ("clashes", ["minimum_distance_to_protein"], "Minimum distance to protein"),
     ("centres", ["tetrahedral_chirality"], "Tetrahedral chirality"),
     ("double_bonds", ["double_bond_stereochemistry"], "Double bond stereochemistry"),
 ]
 
-GEOMETRY = {"bonds", "angles", "internal_clashes", "flatness"}
+GEOMETRY = {"bonds", "angles", "internal_clashes", "flatness", "flat_rings"}
 
 
 def pose_names(sdf: Path) -> list[str]:
@@ -74,6 +79,16 @@ def pixelfold_fails(record: dict, check: str) -> bool | None:
     if check == "centres":
         return any("=" not in label for label in labels)
     return any("=" in label for label in labels)
+
+
+def canonical_smiles(ccd: Path) -> str | None:
+    """The dictionary entry's canonical SMILES, OpenEye's where it gives one."""
+    found = {}
+    for line in ccd.read_text().splitlines():
+        if "SMILES_CANONICAL" in line and '"' in line:
+            program = "OpenEye" if "OpenEye" in line else "other"
+            found.setdefault(program, line.rsplit('"', 2)[1])
+    return found.get("OpenEye") or found.get("other")
 
 
 def run_json(command: list[str]) -> list[dict] | None:
@@ -107,6 +122,10 @@ def main() -> int:
     parser.add_argument("--pixelfold", default="target/release/pixelfold")
     parser.add_argument("--details", action="store_true")
     parser.add_argument("--entries", action="store_true", help="also read each crystal ligand from its entry")
+    parser.add_argument(
+        "--smiles", action="store_true",
+        help="name each ligand by its dictionary entry's canonical SMILES (--smiles) rather than its code",
+    )
     parser.add_argument("--cache", type=Path, default=Path("benchmarks/cache"))
     args = parser.parse_args()
 
@@ -116,9 +135,16 @@ def main() -> int:
     for case, by_pose in sorted(verdicts.items()):
         directory = args.cases / case
         code = case.split("_", 1)[1]
+        named = ["--ligand", code]
+        if args.smiles:
+            smiles = canonical_smiles(args.cases / "ccd" / f"{code}.cif")
+            if smiles is None:
+                print(f"{case}: no canonical SMILES", file=sys.stderr)
+                continue
+            named = ["--smiles", smiles]
         run = subprocess.run(
             [
-                args.pixelfold, "poses", "--receptor", str(directory / "receptor.pdb"), "--ligand", code,
+                args.pixelfold, "poses", "--receptor", str(directory / "receptor.pdb"), *named,
                 str(directory / "poses.sdf"), "--format", "json", "--cache-dir", str(args.cases),
             ],
             capture_output=True,

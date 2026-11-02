@@ -25,6 +25,8 @@ use crate::numbering::{ResidueKey, residue_key};
 use crate::pose::is_hydrogen;
 use crate::rmsd::{AtomId, RmsdReference};
 use crate::select::AtomSet;
+use crate::smiles::Smiles;
+use crate::stated::{self, Stated};
 use crate::structure::{Atom, Protein};
 
 pub use crate::geometry::Geometry;
@@ -236,14 +238,120 @@ pub fn matching(
     (matched, refused)
 }
 
-/// The labelled stereocentres and E or Z double bonds that the `ligand` atoms
-/// of `pose` turn the other way from the ideal conformers `ideals` holds,
-/// residue by residue, each residue's atoms paired with its component's by
-/// name. A residue whose component has no conformer there, or whose atoms it
-/// lacks, goes unchecked.
-pub fn stereo(pose: &Protein, ligand: &AtomSet, ideals: &Dictionary) -> Stereo {
-    let mut stereo = Stereo::default();
+/// What SMILES strings state of a pose's ligand residues.
+#[derive(Clone, Debug, Default)]
+#[non_exhaustive]
+pub struct StatedResidues {
+    /// Each residue a string paired with, and what it states.
+    pub found: Vec<Stated>,
+    /// The components a string was given for whose residues it did not pair
+    /// with by bond graph.
+    pub unpaired: Vec<FixedStr<6>>,
+    /// The components whose own string did not read, with why.
+    pub unreadable: Vec<(FixedStr<6>, String)>,
+}
+
+/// What `smiles` states of each `ligand` residue of `pose` its bond graph
+/// pairs with; with `None`, what the file's own `_chem_comp.pdbx_smiles` for
+/// a residue's component states of each residue no definition covers, as
+/// AlphaFold 3 writes for a ligand it was given as SMILES.
+pub fn stated(pose: &Protein, ligand: &AtomSet, smiles: Option<&Smiles>) -> StatedResidues {
+    let mut found = StatedResidues::default();
+    let mut unpaired = Vec::new();
     for (code, atoms) in residues(pose, ligand).into_values() {
+        let own;
+        let given = match smiles {
+            Some(given) => given,
+            None => {
+                if defines(pose, &atoms) {
+                    continue;
+                }
+                let Some(text) = pose.components.smiles(code.as_str()) else {
+                    continue;
+                };
+                match crate::smiles::parse(text) {
+                    Ok(parsed) => {
+                        own = parsed;
+                        &own
+                    }
+                    Err(error) => {
+                        if !found.unreadable.iter().any(|(seen, _)| *seen == code) {
+                            found.unreadable.push((code, error.to_string()));
+                        }
+                        continue;
+                    }
+                }
+            }
+        };
+        match stated::state(pose, &atoms, given) {
+            Some(stated) => found.found.push(stated),
+            None if !unpaired.contains(&code) => unpaired.push(code),
+            None => {}
+        }
+    }
+    // A string given for the ligand need pair with only one of its residues
+    // (a cofactor beside the drug is another molecule).
+    if smiles.is_none() || found.found.is_empty() {
+        found.unpaired = unpaired;
+    }
+
+    found
+}
+
+/// Whether `pose`'s definitions cover every heavy atom of the residue whose
+/// atoms are `atoms`.
+fn defines(pose: &Protein, atoms: &[usize]) -> bool {
+    atoms
+        .iter()
+        .map(|&atom| &pose.atoms[atom])
+        .filter(|atom| !is_hydrogen(atom))
+        .all(|atom| {
+            pose.components
+                .get(atom.residue_name.as_str())
+                .is_some_and(|component| component.element_of(atom.name.as_str()).is_some())
+        })
+}
+
+/// `pose` with each residue `stated` covers that its own definitions do not
+/// defined by its string, the first of a component's residues standing for
+/// them all.
+pub fn with_stated(pose: Protein, stated: &[Stated]) -> Protein {
+    let mut components = pose.components.clone();
+    for stated in stated {
+        let Some(atom) = pose
+            .atoms
+            .iter()
+            .find(|atom| residue_key(atom) == stated.residue())
+        else {
+            continue;
+        };
+        let code = atom.residue_name;
+        let covered = components
+            .get(code.as_str())
+            .is_some_and(|component| component.len() >= stated.component().len());
+        if !covered {
+            components = components.with(code.as_str(), stated.component().clone());
+        }
+    }
+
+    Protein { components, ..pose }
+}
+
+/// The labelled stereocentres and E or Z double bonds that the `ligand` atoms
+/// of `pose` turn the other way, residue by residue: from what a SMILES
+/// string states of the residue where `stated` holds it, else from the ideal
+/// conformer `ideals` holds for its component, its atoms paired with the
+/// conformer's by name. A residue with neither, or whose atoms its
+/// component's conformer lacks, goes unchecked.
+pub fn stereo(pose: &Protein, ligand: &AtomSet, ideals: &Dictionary, stated: &[Stated]) -> Stereo {
+    let mut stereo = Stereo::default();
+    for (key, (code, atoms)) in residues(pose, ligand) {
+        if let Some(said) = stated.iter().find(|said| said.residue() == key) {
+            stereo.inverted.extend_from_slice(said.inverted());
+            stereo.flipped.extend_from_slice(said.flipped());
+            stereo.checked += 1;
+            continue;
+        }
         let checked = ideals
             .get(code.as_str())
             .and_then(|component| residue_stereo(pose, &atoms, code, component));
@@ -463,7 +571,7 @@ mod tests {
             );
             assert_eq!(geometry.unflat, Some(0), "{code}");
 
-            let stereo = stereo(&pose, &ligand, &pose.components);
+            let stereo = stereo(&pose, &ligand, &pose.components, &[]);
             assert!(
                 stereo.inverted.is_empty() && stereo.flipped.is_empty(),
                 "{code}: {stereo:?}"
@@ -481,7 +589,7 @@ mod tests {
         }
         let ligand = everything(&mirrored);
 
-        let stereo = stereo(&mirrored, &ligand, &pose.components);
+        let stereo = stereo(&mirrored, &ligand, &pose.components, &[]);
         assert_eq!(names(&stereo.inverted), ["C1", "C2", "C3", "C4", "C5"]);
         // A mirror image keeps its bonds and angles.
         let geometry = geometry(&mirrored, &ligand).unwrap();
@@ -494,7 +602,7 @@ mod tests {
         let flipped = turned(&pose, "C2", "C3");
         let ligand = everything(&flipped);
 
-        let stereo = stereo(&flipped, &ligand, &pose.components);
+        let stereo = stereo(&flipped, &ligand, &pose.components, &[]);
         let bonds: Vec<[String; 2]> = stereo
             .flipped
             .iter()
@@ -570,6 +678,62 @@ mod tests {
         assert!(matched.get("FES").is_some());
     }
 
+    /// NAG renamed and undefined, as co-folding output writes a ligand given
+    /// as SMILES, with the dictionary's canonical SMILES for it.
+    fn smiles_ligand() -> (Protein, crate::smiles::Smiles) {
+        let mut pose = ideal_pose(NAG, "NAG");
+        for atom in &mut pose.atoms {
+            atom.residue_name = FixedStr::new("LIG_A");
+        }
+        pose.components = Dictionary::default();
+        let smiles =
+            crate::smiles::parse("CC(=O)N[C@@H]1[C@H]([C@@H]([C@H](O[C@H]1O)CO)O)O").unwrap();
+        (pose, smiles)
+    }
+
+    #[test]
+    fn a_ligand_given_as_smiles_is_defined_and_checked_by_it() {
+        let (pose, smiles) = smiles_ligand();
+        let ligand = everything(&pose);
+        assert!(geometry(&pose, &ligand).is_err());
+
+        let stated = stated(&pose, &ligand, Some(&smiles));
+        assert_eq!(stated.found.len(), 1);
+        assert!(stated.unpaired.is_empty());
+        let pose = with_stated(pose, &stated.found);
+        assert_eq!(geometry(&pose, &ligand).unwrap().bonds, 0);
+        let checked = stereo(&pose, &ligand, &Dictionary::default(), &stated.found);
+        assert_eq!((checked.checked, checked.inverted.len()), (1, 0));
+
+        let mut mirrored = pose.clone();
+        for atom in &mut mirrored.atoms {
+            atom.position.x = -atom.position.x;
+        }
+        let again = super::stated(&mirrored, &ligand, Some(&smiles));
+        let checked = stereo(&mirrored, &ligand, &Dictionary::default(), &again.found);
+        assert_eq!(names(&checked.inverted).len(), 5);
+    }
+
+    #[test]
+    fn a_file_s_own_smiles_is_read_for_a_residue_nothing_defines() {
+        let (mut pose, _) = smiles_ligand();
+        let ligand = everything(&pose);
+        pose.components = Dictionary::parse(
+            "data_M\nloop_\n_chem_comp.id\n_chem_comp.pdbx_smiles\n\
+             LIG_A \"CC(=O)N[C@@H]1[C@H]([C@@H]([C@H](O[C@H]1O)CO)O)O\"\n",
+        );
+
+        let found = stated(&pose, &ligand, None);
+        assert_eq!(found.found.len(), 1);
+        // A string that does not pair is named.
+        pose.components =
+            Dictionary::parse("data_M\nloop_\n_chem_comp.id\n_chem_comp.pdbx_smiles\nLIG_A CCO\n");
+        assert_eq!(
+            stated(&pose, &ligand, None).unpaired,
+            [FixedStr::new("LIG_A")]
+        );
+    }
+
     #[test]
     fn a_residue_named_as_a_component_but_built_otherwise_is_not_matched() {
         // GPP's atoms renamed as NAG's would be: no NAG entry matches.
@@ -584,7 +748,7 @@ mod tests {
         assert!(matched.is_empty());
         assert_eq!(refused, [FixedStr::new("NAG")]);
         assert_eq!(
-            stereo(&pose, &ligand, &nag).unchecked,
+            stereo(&pose, &ligand, &nag, &[]).unchecked,
             [FixedStr::new("NAG")]
         );
     }

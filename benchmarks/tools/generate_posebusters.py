@@ -16,6 +16,7 @@ should fail one check or another, or sit at a check's edge:
     twisted        a rotatable bond turned to bring its ends closest
     turned         a rotatable bond turned halfway between
     puckered-N     an aromatic ring atom moved N A off the ring's plane
+    flattened-N    a saturated six-membered ring pressed N of the way flat
     flipped        a labelled E/Z double bond turned 180 degrees
     shifted-N      the crystal moved N A towards the protein
     random-N       a random small rotation, shift and torsion
@@ -78,6 +79,7 @@ CHECKS = [
     "internal_steric_clash",
     "aromatic_ring_flatness",
     "double_bond_flatness",
+    "non-aromatic_ring_non-flatness",
     "minimum_distance_to_protein",
     "tetrahedral_chirality",
     "double_bond_stereochemistry",
@@ -154,6 +156,23 @@ CONFIG = {
             },
             "chosen_binary_test_output": ["flatness_passes"],
             "rename_outputs": {"flatness_passes": "Aromatic ring flatness"},
+        },
+        {
+            "name": "Ring non-flatness",
+            "function": "flatness",
+            "parameters": {
+                "check_nonflat": True,
+                "flat_systems": {
+                    "non-aromatic_6_membered_rings": "[C,O,S,N;R1]~1[C,O,S,N;R1][C,O,S,N;R1][C,O,S,N;R1][C,O,S,N;R1][C,O,S,N;R1]1",
+                    "non-aromatic_6_membered_rings_db03_0": "[C;R1]~1[C;R1][C,O,S,N;R1]~[C,O,S,N;R1][C;R1][C;R1]1",
+                    "non-aromatic_6_membered_rings_db03_1": "[C;R1]~1[C;R1][C;R1]~[C;R1][C,O,S,N;R1][C;R1]1",
+                    "non-aromatic_6_membered_rings_db02_0": "[C;R1]~1[C;R1][C;R1][C,O,S,N;R1]~[C,O,S,N;R1][C;R1]1",
+                    "non-aromatic_6_membered_rings_db02_1": "[C;R1]~1[C;R1][C,O,S,N;R1][C;R1]~[C;R1][C;R1]1",
+                },
+                "threshold_flatness": 0.05,
+            },
+            "chosen_binary_test_output": ["flatness_passes"],
+            "rename_outputs": {"flatness_passes": "Non-aromatic ring non-flatness"},
         },
         {
             "name": "Double bond flatness",
@@ -390,6 +409,25 @@ def variants(mol: Chem.Mol, ideal: Chem.Mol, stereo_bonds, names: list[str], pro
             moved = positions.copy()
             moved[attached] += normal * amount
             out.append(with_positions(mol, moved, f"puckered-{amount}"))
+
+    saturated = next(
+        (
+            r for r in mol.GetRingInfo().AtomRings()
+            if len(r) == 6 and not any(mol.GetAtomWithIdx(a).GetIsAromatic() for a in r)
+        ),
+        None,
+    )
+    if saturated:
+        ring = list(saturated)
+        points = positions[ring]
+        middle = points.mean(axis=0)
+        _, _, vt = np.linalg.svd(points - middle)
+        normal = vt[-1]
+        for share in (0.5, 1.0):
+            moved = positions.copy()
+            offsets = (points - middle) @ normal
+            moved[ring] = points - share * np.outer(offsets, normal)
+            out.append(with_positions(mol, moved, f"flattened-{share}"))
 
     index = {name: at for at, name in enumerate(names)}
     for first, second in stereo_bonds:

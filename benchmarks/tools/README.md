@@ -122,8 +122,9 @@ ports. `generate_posebusters.py` takes every drug-like ligand of the
 protein-ligand stratum (six or more heavy atoms, no metal, not a buffer or
 solvent) whose first copy is complete, puts the Chemical Component Dictionary's
 bond orders and hydrogens on its crystal coordinates, and writes it with
-perturbed copies (stretched, bent, twisted, puckered, mirrored, turned about an
-E/Z bond, shifted into the protein, moved at random) under
+perturbed copies (stretched, bent, twisted, puckered, a saturated ring
+flattened, mirrored, turned about an E/Z bond, shifted into the protein, moved
+at random) under
 `benchmarks/posebusters/<ENTRY>_<CODE>/poses.sdf`, the entry's polymer as
 `receptor.pdb` (regenerated, not committed), the dictionary entries under
 `ccd/`, and PoseBusters' verdicts on the checks pixelfold makes in
@@ -131,8 +132,11 @@ E/Z bond, shifted into the protein, moved at random) under
 for the stereochemistry checks. `compare_posebusters.py` runs on the host with
 the standard library alone, runs a pixelfold binary over the cases with
 `--cache-dir benchmarks/posebusters` (so no entry is fetched) and prints the
-agreement table the root README shows; `--details` lists every disagreement and
-`--entries` also reads each crystal ligand from its entry file.
+agreement table the root README shows; `--details` lists every disagreement,
+`--entries` also reads each crystal ligand from its entry file, and `--smiles`
+checks each pose against its ligand's canonical SMILES from the dictionary
+entry (`--smiles`) instead of the entry itself, as a ligand without a code is
+checked.
 
 ```bash
 docker build -f benchmarks/tools/Dockerfile.posebusters -t pixelfold-posebusters benchmarks/tools
