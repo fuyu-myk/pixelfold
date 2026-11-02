@@ -8,6 +8,6 @@ mod layout;
 mod network;
 
 pub use analysis::{RinAnalysis, analyze, shortest_path};
-pub use ensemble::Ensemble;
+pub use ensemble::{Ensemble, Renamed};
 pub use layout::{Layout, force_directed};
 pub use network::{Edge, Network, Node, build};

@@ -5,14 +5,15 @@
 //! models it is present in, the probabilistic network RING 3.0 builds
 //! (Clementel et al., Nucleic Acids Res. 50:W651, 2022). Residues are matched
 //! across models by chain, number and insertion code, so the models must
-//! number them alike, as the models of one file do.
+//! number them alike, as the models of one file do and the samples of one
+//! prediction do; [`Ensemble::try_add`] refuses a model that does not.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::fixed_str::FixedStr;
 use crate::interactions::{Interaction, InteractionKind};
-use crate::rin::network::{Edge, Network, Node, ResidueKey, build, degrees, residue_key};
-use crate::structure::Protein;
+use crate::rin::network::{Edge, Network, Node, ResidueKey, build, degrees, node_id, residue_key};
+use crate::structure::{Atom, Protein};
 
 /// The networks of an ensemble's models, folded together one model at a time
 /// so the ensemble is never held whole.
@@ -26,6 +27,9 @@ pub struct Ensemble {
     /// the order they first do. Every model counts, not only those the residue
     /// interacts in, so the letter does not hang on the interactions asked for.
     ss: HashMap<ResidueKey, Vec<(char, usize)>>,
+    /// The name of each polymer residue and of each other residue a network
+    /// holds, as the first model to hold it has it.
+    names: HashMap<ResidueKey, FixedStr<6>>,
     edges: BTreeMap<(ResidueKey, ResidueKey, InteractionKind), Tally>,
     /// How many models each residue pair interacts in, by any kind.
     pairs: BTreeMap<(ResidueKey, ResidueKey), usize>,
@@ -40,10 +44,56 @@ struct Tally {
     interchain: bool,
 }
 
+/// A residue a model names otherwise than the models before it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Renamed {
+    /// The residue, as the network identifies it (`A/60B`).
+    pub residue: String,
+    /// Its name in the earlier models.
+    pub before: String,
+    /// Its name in this one.
+    pub now: String,
+}
+
 impl Ensemble {
     /// Fold in one more model: its structure and the interactions found in it.
     pub fn add(&mut self, protein: &Protein, interactions: &[Interaction]) {
+        self.fold(protein, &build(protein, interactions));
+    }
+
+    /// Fold in one more model, unless it names a residue otherwise than the
+    /// models before it, a sign it numbers residues differently or holds
+    /// another sequence. Polymer residues are compared wherever they are, and
+    /// ligands and waters only where the networks of both hold them, since
+    /// crystal structures of one protein number those as they like.
+    pub fn try_add(
+        &mut self,
+        protein: &Protein,
+        interactions: &[Interaction],
+    ) -> Result<(), Renamed> {
+        let network = build(protein, interactions);
+        let renamed = named(protein, &network).find_map(|(key, atom)| {
+            let before = self.names.get(&key)?;
+            (*before != atom.residue_name).then(|| Renamed {
+                residue: node_id(atom),
+                before: before.as_str().to_string(),
+                now: atom.residue_name.as_str().to_string(),
+            })
+        });
+        if let Some(renamed) = renamed {
+            return Err(renamed);
+        }
+        self.fold(protein, &network);
+
+        Ok(())
+    }
+
+    fn fold(&mut self, protein: &Protein, network: &Network) {
         self.models += 1;
+        for (key, atom) in named(protein, network) {
+            self.names.entry(key).or_insert(atom.residue_name);
+        }
 
         let mut seen = HashSet::new();
         for atom in &protein.atoms {
@@ -58,7 +108,6 @@ impl Ensemble {
             }
         }
 
-        let network = build(protein, interactions);
         let key: HashMap<&str, ResidueKey> = network
             .nodes
             .iter()
@@ -161,6 +210,23 @@ impl Ensemble {
 
 /// The key [`crate::rin::build`] gives the residue of `node`; its chain is
 /// already one an atom holds, so nothing is truncated.
+/// The first atom of each residue of `protein` whose name is compared across
+/// models: every polymer residue, and every other residue `network` holds. A
+/// residue's first atom names it, as the conformer chosen there; an atom only
+/// another conformer has can follow.
+fn named<'a>(
+    protein: &'a Protein,
+    network: &Network,
+) -> impl Iterator<Item = (ResidueKey, &'a Atom)> {
+    let nodes: HashSet<ResidueKey> = network.nodes.iter().map(key_of).collect();
+    let mut seen = HashSet::new();
+    protein.atoms.iter().filter_map(move |atom| {
+        let key = residue_key(atom);
+        let first = seen.insert(key);
+        (first && (atom.is_polymer() || nodes.contains(&key))).then_some((key, atom))
+    })
+}
+
 fn key_of(node: &Node) -> ResidueKey {
     (FixedStr::new(&node.chain), node.resi, node.icode)
 }
@@ -168,7 +234,7 @@ fn key_of(node: &Node) -> ResidueKey {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::structure::{Atom, SecondaryStructure};
+    use crate::structure::{Atom, Molecule, SecondaryStructure};
     use glam::Vec3;
 
     use InteractionKind::{HydrogenBond, Hydrophobic};
@@ -183,7 +249,7 @@ mod tests {
             residue_seq: seq,
             chain_id: FixedStr::new(chain),
             is_hetatm: false,
-            molecule: crate::structure::Molecule::Unknown,
+            molecule: Molecule::Unknown,
             altloc: None,
             occupancy: 1.0,
             insertion_code: None,
@@ -346,6 +412,92 @@ mod tests {
         assert_eq!(contacts, [("A/1", "A/2", 3)]);
         let network = ensemble.network(0.0);
         assert!(network.edges.iter().all(|edge| edge.models == 2));
+    }
+
+    #[test]
+    fn a_residue_named_otherwise_than_in_earlier_models_is_refused() {
+        let mut ensemble = Ensemble::default();
+        ensemble.try_add(&residues(Helix), &[]).unwrap();
+        let mut mutant = residues(Helix);
+        mutant.atoms[1].residue_name = FixedStr::new("GLY");
+        let extra = protein(vec![atom("A", 1, Helix), atom("C", 9, Coil)]);
+
+        assert_eq!(
+            ensemble.try_add(&mutant, &[]),
+            Err(Renamed {
+                residue: "A/2".to_string(),
+                before: "ALA".to_string(),
+                now: "GLY".to_string(),
+            })
+        );
+        assert_eq!(
+            ensemble.network(0.0).models,
+            1,
+            "a refused model is not folded in"
+        );
+        assert_eq!(ensemble.try_add(&residues(Sheet), &[]), Ok(()));
+        assert_eq!(
+            ensemble.try_add(&extra, &[]),
+            Ok(()),
+            "a residue new to the ensemble"
+        );
+    }
+
+    // Microheterogeneity, as 1EJG's Ile/Leu 25: atoms only the losing conformer
+    // has outlive the conformer choice, so one residue holds two names.
+    #[test]
+    fn a_residue_holding_two_names_folds_in_beside_itself() {
+        let mut leucine = atom("A", 2, Helix);
+        leucine.residue_name = FixedStr::new("LEU");
+        let mixed = protein(vec![atom("A", 1, Helix), atom("A", 2, Helix), leucine]);
+        let mut ensemble = Ensemble::default();
+
+        let first = ensemble.try_add(&mixed, &[interaction(Hydrophobic, 0, 1, 3.9)]);
+        let second = ensemble.try_add(&mixed, &[interaction(Hydrophobic, 0, 2, 3.9)]);
+
+        assert_eq!(first, Ok(()));
+        assert_eq!(
+            second,
+            Ok(()),
+            "touched through the leucine's atom this time"
+        );
+    }
+
+    fn hetero(chain: &str, seq: i32, name: &str, molecule: Molecule) -> Atom {
+        Atom {
+            residue_name: FixedStr::new(name),
+            is_hetatm: true,
+            molecule,
+            ..atom(chain, seq, Coil)
+        }
+    }
+
+    // Crystal structures of one protein number their ligands and waters as they
+    // like, and a ligand or water merges with another only as a node.
+    #[test]
+    fn a_ligand_or_water_is_compared_only_where_the_network_holds_it() {
+        let holding = |name: &str| {
+            protein(vec![
+                atom("A", 1, Helix),
+                hetero("H", 1, name, Molecule::NonPolymer),
+            ])
+        };
+        let water = protein(vec![
+            atom("A", 1, Helix),
+            hetero("H", 1, "HOH", Molecule::Water),
+        ]);
+        let contact = [interaction(Hydrophobic, 0, 1, 3.9)];
+        let mut ensemble = Ensemble::default();
+        ensemble.try_add(&holding("0G6"), &contact).unwrap();
+
+        assert_eq!(ensemble.try_add(&water, &[]), Ok(()));
+        assert_eq!(ensemble.try_add(&holding("STI"), &[]), Ok(()), "no node");
+        assert_eq!(
+            ensemble
+                .try_add(&holding("STI"), &contact)
+                .map_err(|renamed| renamed.now),
+            Err("STI".to_string())
+        );
     }
 
     #[test]

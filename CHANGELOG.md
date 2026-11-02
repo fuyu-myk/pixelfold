@@ -24,6 +24,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `--model N` picks one record, and `--view` draws docked poses in their
   receptor. Only the V2000 layout is read, gzipped (`.sdf.gz`, as Gnina writes
   it) or not. The library gains the `sdf` module and `Protein::without`.
+- **One network over several files.** `pixelfold rin` takes several structure
+  files and folds them into one network, each edge weighted by the share of
+  models it is present in, as `--model all` does for the models of one file:
+  co-folding models such as AlphaFold 3 and Boltz write each sample as its own
+  file. Each file gives the model `--model` names, or every model with
+  `--model all`, and `--min-frequency` applies. Residues are matched by chain,
+  number and insertion code, so a file naming a polymer residue otherwise than
+  the files before it is refused, as is one naming otherwise a ligand or water
+  that both networks hold. `--mvsj` shows the first file. The library gains
+  `rin::Ensemble::try_add` and `rin::Renamed`.
 
 ## [4.0.0] (2026-11-01)
 

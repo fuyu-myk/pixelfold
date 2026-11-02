@@ -23,7 +23,7 @@ pub(super) fn residue_key(atom: &Atom) -> ResidueKey {
 
 /// A residue, identified as `chain/seq` with the insertion code appended when it
 /// has one (`A/60B`).
-fn node_id(atom: &Atom) -> String {
+pub(super) fn node_id(atom: &Atom) -> String {
     match atom.insertion_code {
         Some(code) => format!("{}/{}{}", atom.chain_id.as_str(), atom.residue_seq, code),
         None => format!("{}/{}", atom.chain_id.as_str(), atom.residue_seq),

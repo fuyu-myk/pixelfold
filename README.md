@@ -265,7 +265,8 @@ Being explicit about what this does not do:
 - **No trajectories.** A multi-model file such as an NMR ensemble works model
   by model (`--model N`, or `--model all` for a report on every model and one
   interaction network over them all), but a molecular-dynamics trajectory is
-  not read; frames written as the models of one file are.
+  not read; frames written as the models of one file are, and `rin` folds
+  separate files, such as a co-folding model's samples, into one network.
 - **No cryo-EM density, no electrostatics, no structure building or refinement.**
 - **Rendering quality depends on your terminal.** Kitty and iTerm2 show real
   pixels; anywhere else falls back to half-blocks, which is coarse. Pass
@@ -321,6 +322,9 @@ pixelfold sasa 1D3Z --model all --format tsv
 # is in; the edges in at least nine models in ten, analysed
 pixelfold rin 1D3Z --model all --format tsv
 pixelfold rin 1D3Z --model all --min-frequency 0.9 --analyze
+# The same over a prediction's samples, each its own file; they must number
+# residues alike
+pixelfold rin model_*.cif --min-frequency 0.5 --format tsv
 
 # The biological assembly instead of the deposited coordinates; copies of a
 # chain are named A, A-2, A-3

@@ -809,6 +809,182 @@ fn a_frequency_threshold_needs_every_model_and_a_fraction() {
     );
 }
 
+/// Fixture `id` and a copy with residue `moved` of chain A carried `shift` A
+/// along x, as separate files.
+fn two_samples(id: &str, dir: &Path, moved: i32, shift: f32) -> [PathBuf; 2] {
+    let copy = edited_copy(id, dir, "moved.cif", |column, fields| {
+        if fields[column["auth_asym_id"]] == "A"
+            && fields[column["auth_seq_id"]] == moved.to_string()
+        {
+            let x: f32 = fields[column["Cartn_x"]].parse().unwrap();
+            fields[column["Cartn_x"]] = format!("{:.3}", x + shift);
+        }
+    });
+
+    [fixture(id), copy]
+}
+
+fn network_of(run: &Run) -> serde_json::Value {
+    assert!(run.ok, "command failed: {}", run.stderr);
+    serde_json::from_str(&run.stdout).unwrap()
+}
+
+/// The frequency and model count of the edge from `source` to `target`.
+fn edge_weight(network: &serde_json::Value, source: &str, target: &str) -> Option<(f64, u64)> {
+    network["edges"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|edge| edge["source"] == source && edge["target"] == target)
+        .map(|edge| {
+            (
+                edge["frequency"].as_f64().unwrap(),
+                edge["models"].as_u64().unwrap(),
+            )
+        })
+}
+
+// Crambin and a copy with Cys40 carried off, as a co-folding model writes two
+// samples: the 3-40 disulfide is in one file of two, the 4-32 disulfide in both.
+#[test]
+fn the_network_of_several_files_weighs_each_edge_by_the_files_it_is_in() {
+    let dir = tempfile::tempdir().unwrap();
+    let [crambin, moved] = two_samples("1CRN", dir.path(), 40, 60.0);
+    let rin = |extra: &[&str], files: &[&Path]| {
+        let args = ["rin", "--type", "disulfide", "--format", "json"];
+        network_of(&run_args(
+            args.iter()
+                .chain(extra)
+                .map(OsStr::new)
+                .chain(files.iter().map(|file| file.as_os_str())),
+        ))
+    };
+
+    let both = rin(&[], &[&crambin, &moved]);
+    assert_eq!(both["models"], 2);
+    assert_eq!(edge_weight(&both, "A/3", "A/40"), Some((0.5, 1)));
+    assert_eq!(edge_weight(&both, "A/4", "A/32"), Some((1.0, 2)));
+
+    let frequent = rin(&["--min-frequency", "1"], &[&crambin, &moved]);
+    assert_eq!(edge_weight(&frequent, "A/3", "A/40"), None);
+    assert_eq!(edge_weight(&frequent, "A/4", "A/32"), Some((1.0, 2)));
+
+    let ensemble = with_a_second_model("1CRN", dir.path(), 40, 60.0);
+    let every = rin(&["--model", "all"], &[&ensemble, &crambin]);
+    assert_eq!(
+        every["models"], 3,
+        "both models of the first file, then the second"
+    );
+    assert_eq!(
+        edge_weight(&every, "A/3", "A/40").map(|(_, models)| models),
+        Some(2)
+    );
+}
+
+#[test]
+fn files_that_name_a_residue_differently_are_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let mutant = edited_copy("1CRN", dir.path(), "mutant.cif", |column, fields| {
+        if fields[column["auth_seq_id"]] == "1" {
+            fields[column["label_comp_id"]] = "ALA".to_string();
+            fields[column["auth_comp_id"]] = "ALA".to_string();
+        }
+    });
+
+    let run = run_args([
+        OsStr::new("rin"),
+        fixture("1CRN").as_os_str(),
+        mutant.as_os_str(),
+    ]);
+
+    assert!(
+        !run.ok,
+        "a renumbered or different sequence must not fold in"
+    );
+    for named in ["mutant.cif", "A/1", "THR", "ALA"] {
+        assert!(run.stderr.contains(named), "no {named}: {}", run.stderr);
+    }
+}
+
+/// Crambin with Ile25 also modelled as a leucine, conformer B at 0.4
+/// occupancy, as 1EJG has it.
+fn microheterogeneous(dir: &Path) -> PathBuf {
+    let text = std::fs::read_to_string(fixture("1CRN")).unwrap();
+    let column = atom_site_columns(&text);
+    let mut lines = Vec::new();
+    let mut leucine = Vec::new();
+    for line in text.lines() {
+        let fields: Vec<String> = line.split_whitespace().map(String::from).collect();
+        let is_atom = line.starts_with("ATOM");
+        if !(is_atom && fields[column["auth_seq_id"]] == "25") {
+            if is_atom {
+                lines.append(&mut leucine);
+            }
+            lines.push(line.to_string());
+            continue;
+        }
+        let mut isoleucine = fields.clone();
+        isoleucine[column["label_alt_id"]] = "A".to_string();
+        isoleucine[column["occupancy"]] = "0.60".to_string();
+        lines.push(isoleucine.join(" "));
+        let mut other = fields;
+        let serial: usize = other[column["id"]].parse().unwrap();
+        other[column["id"]] = (serial + 10_000).to_string();
+        other[column["label_alt_id"]] = "B".to_string();
+        other[column["occupancy"]] = "0.40".to_string();
+        for name in ["label_comp_id", "auth_comp_id"] {
+            other[column[name]] = "LEU".to_string();
+        }
+        for name in ["label_atom_id", "auth_atom_id"] {
+            let renamed = match other[column[name]].as_str() {
+                "CG1" => "CG",
+                "CG2" => "CD2",
+                kept => kept,
+            };
+            other[column[name]] = renamed.to_string();
+        }
+        leucine.push(other.join(" "));
+    }
+
+    let path = dir.join("micro.cif");
+    std::fs::write(&path, lines.join("\n")).unwrap();
+    path
+}
+
+#[test]
+fn a_residue_holding_two_names_folds_in_beside_itself() {
+    let dir = tempfile::tempdir().unwrap();
+    let micro = microheterogeneous(dir.path());
+
+    let run = run_args([
+        OsStr::new("rin"),
+        OsStr::new("--format"),
+        OsStr::new("json"),
+        micro.as_os_str(),
+        micro.as_os_str(),
+    ]);
+
+    assert_eq!(network_of(&run)["models"], 2);
+}
+
+#[test]
+fn each_file_must_hold_the_model_asked_for() {
+    let dir = tempfile::tempdir().unwrap();
+    let ensemble = with_a_second_model("1CRN", dir.path(), 40, 60.0);
+
+    let run = run_args([
+        OsStr::new("rin"),
+        OsStr::new("--model"),
+        OsStr::new("2"),
+        ensemble.as_os_str(),
+        fixture("1CRN").as_os_str(),
+    ]);
+
+    assert!(!run.ok);
+    assert!(run.stderr.contains("1CRN.cif"), "{}", run.stderr);
+    assert!(run.stderr.contains("there is no model 2"), "{}", run.stderr);
+}
+
 #[test]
 fn model_takes_a_number_or_all() {
     let dir = tempfile::tempdir().unwrap();
@@ -997,6 +1173,33 @@ fn atom_site_columns(text: &str) -> HashMap<&str, usize> {
         .enumerate()
         .map(|(index, name)| (name.trim(), index))
         .collect()
+}
+
+/// A copy of fixture `id` in `dir`, named `name`, with `edit` applied to the
+/// fields of every atom record.
+fn edited_copy(
+    id: &str,
+    dir: &Path,
+    name: &str,
+    edit: impl Fn(&HashMap<&str, usize>, &mut [String]),
+) -> PathBuf {
+    let text = std::fs::read_to_string(fixture(id)).unwrap();
+    let column = atom_site_columns(&text);
+    let lines: Vec<String> = text
+        .lines()
+        .map(|line| {
+            if !(line.starts_with("ATOM") || line.starts_with("HETATM")) {
+                return line.to_string();
+            }
+            let mut fields: Vec<String> = line.split_whitespace().map(String::from).collect();
+            edit(&column, &mut fields);
+            fields.join(" ")
+        })
+        .collect();
+
+    let path = dir.join(name);
+    std::fs::write(&path, lines.join("\n")).unwrap();
+    path
 }
 
 /// A copy of fixture `id` in `dir` holding a second copy of the `ligand`

@@ -175,11 +175,16 @@ enum Command {
         ligand: Option<String>,
     },
     /// Build the residue interaction network.
-    /// With --model all, the network of the whole ensemble: every edge any model
-    /// has, weighted by the fraction of models it is present in
+    /// With --model all or several files, the network of the whole ensemble:
+    /// every edge any model has, weighted by the fraction of models it is
+    /// present in
     Rin {
-        /// Path to a .pdb/.cif file, or a 4-character PDB id
-        structure: String,
+        /// Paths to .pdb/.cif files, or 4-character PDB ids. Several files
+        /// (the samples of one prediction, say) fold into one network, each
+        /// giving the model --model names, or every model with --model all;
+        /// they must number residues alike
+        #[arg(required = true, value_name = "STRUCTURE")]
+        structures: Vec<String>,
 
         /// Restrict the network to interactions touching this selection
         #[arg(short, long, value_name = "QUERY")]
@@ -189,10 +194,10 @@ enum Command {
         #[arg(short = 't', long = "type", value_enum, value_name = "TYPE")]
         types: Vec<KindArg>,
 
-        /// With --model all, keep only the edges present in at least this
-        /// fraction of the models, from 0 to 1 (default: every edge). The
-        /// fraction compared is exact, an edge's models over the network's, not
-        /// the frequency as rounded for display
+        /// With --model all or several files, keep only the edges present in
+        /// at least this fraction of the models, from 0 to 1 (default: every
+        /// edge). The fraction compared is exact, an edge's models over the
+        /// network's, not the frequency as rounded for display
         #[arg(long, value_name = "FRACTION", value_parser = fraction)]
         min_frequency: Option<f32>,
 
@@ -210,8 +215,9 @@ enum Command {
         #[arg(long, num_args = 2, value_names = ["FROM", "TO"])]
         path: Option<Vec<String>>,
 
-        /// Emit a MolViewSpec (.mvsj) scene for Mol*: the structure with the
-        /// network's residues highlighted (scoped by --select)
+        /// Emit a MolViewSpec (.mvsj) scene for Mol*: the structure (the first,
+        /// of several) with the network's residues highlighted (scoped by
+        /// --select)
         #[arg(long)]
         mvsj: bool,
 
@@ -502,7 +508,7 @@ fn run(command: Command) -> Result<()> {
         }
 
         Command::Rin {
-            structure,
+            structures,
             select,
             types,
             min_frequency,
@@ -518,7 +524,7 @@ fn run(command: Command) -> Result<()> {
             }
             let kinds: Vec<InteractionKind> = types.into_iter().map(Into::into).collect();
             let network = network_of(
-                &structure,
+                &structures,
                 select.as_deref(),
                 &kinds,
                 min_frequency,
@@ -552,8 +558,8 @@ fn run(command: Command) -> Result<()> {
                     )
                 })
             } else if mvsj {
-                let (url, parse_format) = mvsj_source(&structure)?;
-                let title = format!("PixelFold — {structure} interaction network");
+                let (url, parse_format) = mvsj_source(&structures[0])?;
+                let title = format!("PixelFold — {} interaction network", structures.join(", "));
                 emit_to(output.as_deref(), |out| {
                     graph::write_mvsj(out, &network, &url, parse_format, &title)
                 })
@@ -722,19 +728,23 @@ where
 }
 
 /// The residue interaction network of the `kinds` of interaction touching what
-/// `query` selects: in the model `--model` names, or, when it names `all`, in
-/// every model folded into one, keeping the edges present in at least
-/// `min_frequency` of them.
+/// `query` selects: in the model `--model` names of one structure, or, for
+/// several structures or `--model all`, in each chosen model folded into one,
+/// keeping the edges present in at least `min_frequency` of them.
 fn network_of(
-    structure: &str,
+    structures: &[String],
     query: Option<&str>,
     kinds: &[InteractionKind],
     min_frequency: Option<f32>,
     common: &Common,
 ) -> Result<Network> {
-    if common.model != Some(ModelChoice::All) {
+    if let [structure] = structures
+        && common.model != Some(ModelChoice::All)
+    {
         if min_frequency.is_some() {
-            anyhow::bail!("--min-frequency weighs edges across models; pass --model all");
+            anyhow::bail!(
+                "--min-frequency weighs edges across models; pass --model all or several files"
+            );
         }
         let protein = loaded(structure, common)?;
         let chosen = load::chosen(&protein, query)?;
@@ -745,16 +755,41 @@ fn network_of(
     }
 
     let dir = cache_dir(common)?;
-    let parsed = load::parsed(structure, &dir)?;
     let mut ensemble = Ensemble::default();
     let mut matched = false;
-    for model in parsed.model_numbers() {
-        let protein = parsed
-            .protein(&common.load(Some(model)))
-            .with_context(|| format!("model {model}"))?;
-        let chosen = load::selection(&protein, query)?;
-        matched |= !chosen.is_empty();
-        ensemble.add(&protein, &analyse::selected(&protein, &chosen, kinds));
+    for structure in structures {
+        let parsed = load::parsed(structure, &dir)?;
+        let models = match common.model {
+            Some(ModelChoice::All) => parsed.model_numbers().into_iter().map(Some).collect(),
+            Some(ModelChoice::One(number)) => vec![Some(number)],
+            None => vec![None],
+        };
+        for model in models {
+            let within = || match model {
+                Some(number) => format!("{structure}, model {number}"),
+                None => structure.clone(),
+            };
+            let protein = parsed.protein(&common.load(model)).with_context(within)?;
+            let chosen = load::selection(&protein, query)?;
+            matched |= !chosen.is_empty();
+            ensemble
+                .try_add(&protein, &analyse::selected(&protein, &chosen, kinds))
+                .map_err(|renamed| {
+                    anyhow::anyhow!(
+                        "{} names residue {} {}, where the models before it name it {}; \
+                         the {} must number residues alike",
+                        within(),
+                        renamed.residue,
+                        renamed.now,
+                        renamed.before,
+                        if structures.len() > 1 {
+                            "files"
+                        } else {
+                            "models"
+                        }
+                    )
+                })?;
+        }
     }
     if !matched {
         return Err(matched_no_model(query));
@@ -1039,7 +1074,7 @@ mod tests {
         .expect("parses");
 
         let Some(Command::Rin {
-            structure,
+            structures,
             format,
             output,
             ..
@@ -1047,7 +1082,7 @@ mod tests {
         else {
             panic!("expected the rin command");
         };
-        assert_eq!(structure, "4HHB");
+        assert_eq!(structures, ["4HHB"]);
         assert_eq!(format, GraphFormat::Graphml);
         assert_eq!(output.as_deref(), Some(Path::new("net.graphml")));
     }
