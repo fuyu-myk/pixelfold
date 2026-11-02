@@ -4,7 +4,16 @@ All notable changes to PixelFold are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [5.0.0] (2026-11-01)
+
+Pixelfold now scores docked poses from SD files, laid into the reference or a
+receptor, and checks each pose's own geometry and its double bonds' E and Z as
+PoseBusters does, against the reference ligand. `pixelfold rin` builds one
+network over several files, such as a co-folding model's samples. The version
+is major because the viewer library's `Pose` gains fields and `view_poses`
+takes a receptor; `pixelfold-core` only gains API, though
+`ParsedStructure::read` no longer prints its warnings, and the `poses` table
+gains a `geometry` column.
 
 ### Added
 
@@ -55,9 +64,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `ParsedStructure::warnings`, and the command line prints them, once per file
   where the truncation note used to repeat at every model built.
 - **The viewer library's poses.** `pixelfold_tui::Pose` gains `docked` and
-  `geometry`, and `view_poses` and `PoseTable::new` take the receptor docked
-  poses are laid into: a breaking change to the `pixelfold-tui` library, so the
-  next release is major.
+  `geometry`, and `view_poses` takes the receptor docked poses are laid into:
+  a breaking change to the `pixelfold-tui` library.
+- **The pose table's columns.** `poses` writes a `geometry` column between
+  `inverted` and `lost`, and `inverted` may name double bonds beside
+  stereocentres.
 
 ### Fixed
 
