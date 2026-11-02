@@ -261,7 +261,25 @@ Being explicit about what this does not do:
   CH2OH) is not checked, nor is one whose neighbours a symmetry could exchange
   (cis and trans across a symmetric ring, as in 4-methylcyclohexanol), one left
   with fewer than three neighbours inside the ligand selection (a glycan's
-  anomeric carbon on its asparagine), or a double bond's E or Z.
+  anomeric carbon on its asparagine). `inverted` also names the reference's E
+  and Z double bonds a pose turns the other way (`GPP A/101 C2=C3`), read from
+  its chemical definitions: a double bond between carbons or nitrogens outside
+  any ring of fewer than eight atoms, with a substituent on each end that no
+  symmetry exchanges. The `geometry` column holds PoseBusters' checks of the
+  pose's own geometry, with the reference ligand's geometry in place of
+  RDKit's ideal one and PoseBusters' tolerances around it: bond lengths and
+  angles more than a quarter off, atoms neither bonded nor sharing a neighbour
+  within seven tenths of their lower bound (never further apart than the
+  reference holds them, so a metal the bond graph leaves unbonded is no
+  clash), and aromatic rings and carbon double bonds more than 0.25 A from
+  flat where the reference's are flat. A strained reference ligand so passes
+  its strain on, PoseBusters' energy ratio is not computed, and without the
+  reference ligand's definitions neither flatness nor E and Z is checked. A
+  pose whose atoms are named otherwise is paired by bond graph alone, which
+  cannot tell a double bond from a single one that a symmetry of the graph
+  exchanges it with, so such a double bond and its flatness go unchecked; and
+  one distorted past reading its bonds pairs not at all, so it gets no
+  checks, only the warning that it has no RMSD.
 - **No trajectories.** A multi-model file such as an NMR ensemble works model
   by model (`--model N`, or `--model all` for a report on every model and one
   interaction network over them all), but a molecular-dynamics trajectory is
@@ -291,8 +309,9 @@ pixelfold rin 4DFR --path A/23 A/94
 pixelfold rin 4DFR --mvsj -o scene.mvsj
 
 # Ligand poses, from co-folding, docking or an NMR ensemble, ranked by the
-# reference contacts each keeps, with their pocket-aligned RMSD, their clashes
-# and the stereocentres they invert;
+# reference contacts each keeps, with their pocket-aligned RMSD, their clashes,
+# the stereocentres and double bonds they invert, and what of their own
+# geometry strays from the reference ligand's;
 # every model is a pose, and residues are matched by sequence, so the numbering
 # may differ
 pixelfold poses --reference crystal.cif --ligand STI pose_*.cif

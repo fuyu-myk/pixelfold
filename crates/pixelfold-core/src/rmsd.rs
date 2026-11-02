@@ -11,7 +11,9 @@
 //! pairing is the one closest in space among those the bond graph allows, so a
 //! carboxylate or a ring that swaps equivalent atoms costs nothing, and nor do
 //! copies of a ligand listed in another order. The same pairing says which of
-//! the reference ligand's stereocentres the pose inverts.
+//! the reference ligand's stereocentres the pose inverts, which of its double
+//! bonds it turns from E to Z or back, and what of the pose's own geometry
+//! strays from the reference ligand's.
 
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -21,6 +23,7 @@ use nalgebra::{Matrix3, Vector3};
 
 use crate::components::BondOrder;
 use crate::fixed_str::FixedStr;
+use crate::geometry::{Chemistry, Template};
 use crate::interactions::connectivity;
 use crate::numbering::{ResidueKey, ResidueMap, residue_key};
 use crate::pose::is_hydrogen;
@@ -80,6 +83,26 @@ pub struct Fit {
     pub inverted: Vec<AtomId>,
 }
 
+pub use crate::geometry::Geometry;
+
+/// A pose's ligand measured against the reference's, its stereochemistry and
+/// its own geometry included.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct Assessment {
+    /// The heavy-atom RMSD in angstroms.
+    pub rmsd: f32,
+    /// The reference ligand's stereocentres the pose turns the other way, in
+    /// the reference's order.
+    pub inverted: Vec<AtomId>,
+    /// The reference ligand's E or Z double bonds the pose turns the other
+    /// way, each by its two atoms.
+    pub flipped: Vec<[AtomId; 2]>,
+    /// What of the pose's bond lengths, angles, internal distances and flat
+    /// groups strays from the reference ligand's.
+    pub geometry: Geometry,
+}
+
 /// A reference atom by residue, component and name.
 pub type AtomId = (ResidueKey, FixedStr<6>, FixedStr<4>);
 
@@ -103,6 +126,10 @@ pub struct RmsdReference {
     /// Each atom's bond orders summed, when its definition gives them.
     order_sums: Option<Vec<u8>>,
     stereocentres: Vec<Stereocentre>,
+    /// The E or Z double bonds, each with whether a symmetry of the bond graph
+    /// may carry one of its ends onto an atom of other chemistry.
+    double_bonds: Vec<(Stereocentre, bool)>,
+    template: Template,
     pocket: Vec<Vec<PocketAtom>>,
 }
 
@@ -111,6 +138,14 @@ impl RmsdReference {
     pub fn new(reference: &Protein, ligand: &AtomSet) -> Self {
         let heavy = heavy_atoms(reference, ligand);
         let graph = LigandGraph::of(reference, &heavy);
+        let chemistry = Chemistry::of(reference, &heavy, &graph.neighbours);
+        let doubles = chemistry
+            .as_ref()
+            .map_or(&[][..], |chemistry| &chemistry.doubles[..]);
+        let classes = stereo::classes(&graph.elements, &graph.neighbours);
+        let exchangeable = chemistry
+            .as_ref()
+            .map_or_else(Vec::new, |chemistry| chemistry.exchangeable(&classes));
 
         Self {
             keys: atom_keys(reference, &heavy),
@@ -125,6 +160,27 @@ impl RmsdReference {
                 &graph.elements,
                 &graph.positions,
                 &graph.neighbours,
+            ),
+            double_bonds: stereo::double_bonds(
+                &graph.elements,
+                &graph.positions,
+                &graph.neighbours,
+                doubles,
+            )
+            .into_iter()
+            .map(|bond| {
+                let ends = bond.bond().expect("a double bond has two ends");
+                let traded = ends.iter().any(|&end| exchangeable[end]);
+                (bond, traded)
+            })
+            .collect(),
+            template: Template::new(
+                &graph.elements,
+                &graph.positions,
+                &graph.neighbours,
+                chemistry.as_ref().map(|chemistry| {
+                    chemistry.flat(&graph.elements, &graph.neighbours, &exchangeable)
+                }),
             ),
             order_sums: bond_order_sums(reference, &heavy, &graph),
             graph,
@@ -141,6 +197,22 @@ impl RmsdReference {
     /// The `ligand` atoms of `pose` measured against the reference's once the
     /// pose is superposed on the reference's pocket through `map`.
     pub fn fit(&self, pose: &Protein, ligand: &AtomSet, map: &ResidueMap) -> Result<Fit, NoRmsd> {
+        self.assess(pose, ligand, map).map(|assessment| Fit {
+            rmsd: assessment.rmsd,
+            inverted: assessment.inverted,
+        })
+    }
+
+    /// The `ligand` atoms of `pose` measured as [`RmsdReference::fit`]
+    /// measures them, with the reference's double bonds they turn from E to Z
+    /// or back and the checks of their own geometry against the reference
+    /// ligand's.
+    pub fn assess(
+        &self,
+        pose: &Protein,
+        ligand: &AtomSet,
+        map: &ResidueMap,
+    ) -> Result<Assessment, NoRmsd> {
         let heavy = heavy_atoms(pose, ligand);
         if heavy.len() != self.keys.len() {
             return Err(NoRmsd::Atoms {
@@ -154,51 +226,84 @@ impl RmsdReference {
             .map(|&atom| superposition.apply(pose.atoms[atom].position))
             .collect();
 
-        let mobile = self
-            .named(pose, &heavy, &placed)
-            .unwrap_or_else(|| LigandGraph::of(pose, &heavy).placed_at(placed));
+        let named = self.named(pose, &heavy, &placed);
+        let by_name = named.is_some();
+        let mobile = named.unwrap_or_else(|| LigandGraph::of(pose, &heavy).placed_at(placed));
         let (squared, pairing) =
             closest_pairing(&mobile, &self.graph, &[]).ok_or(NoRmsd::Unpaired)?;
+        let mut paired = vec![Vec3::ZERO; pairing.len()];
+        for (&position, &partner) in mobile.positions.iter().zip(&pairing) {
+            paired[partner] = position;
+        }
 
-        Ok(Fit {
+        // The closest pairing keeps bonds but not bond orders, so a symmetry
+        // of the bond graph may carry a double bond onto a single one; atoms
+        // named as the reference's are read by name instead.
+        let read = if by_name { &mobile.positions } else { &paired };
+        let flipped: Vec<[usize; 2]> = if by_name {
+            self.double_bonds
+                .iter()
+                .map(|(bond, _)| bond)
+                .filter(|bond| bond.inverted_at(bond.atoms().map(|atom| read[atom])))
+                .filter_map(Stereocentre::bond)
+                .collect()
+        } else {
+            let fixed: Vec<Stereocentre> = self
+                .double_bonds
+                .iter()
+                .filter(|(_, traded)| !traded)
+                .map(|(bond, _)| bond.clone())
+                .collect();
+            self.inverted(&mobile, &paired, &fixed)
+                .into_iter()
+                .filter_map(|at| fixed[at].bond())
+                .collect()
+        };
+
+        Ok(Assessment {
             rmsd: (squared / heavy.len().max(1) as f32).sqrt(),
-            inverted: self.inverted(&mobile, &pairing),
+            inverted: self
+                .inverted(&mobile, &paired, &self.stereocentres)
+                .into_iter()
+                .map(|at| self.atoms[self.stereocentres[at].centre])
+                .collect(),
+            flipped: flipped
+                .into_iter()
+                .map(|ends| ends.map(|end| self.atoms[end]))
+                .collect(),
+            geometry: self.template.check(read, by_name),
         })
     }
 
-    /// The reference stereocentres the `mobile` atoms turn the other way under
-    /// `pairing`. A symmetry of the ligand may carry a centre onto another of
-    /// its class that turns the other way, as in a meso compound, so before
-    /// one such is reported, a pairing that keeps every centre is sought: if
-    /// there is one, the pose is the same molecule turned about.
-    fn inverted(&self, mobile: &LigandGraph, pairing: &[usize]) -> Vec<AtomId> {
-        let mut paired = vec![Vec3::ZERO; pairing.len()];
-        for (&position, &partner) in mobile.positions.iter().zip(pairing) {
-            paired[partner] = position;
-        }
-        let inverted: Vec<&Stereocentre> = self
-            .stereocentres
-            .iter()
-            .filter(|stereocentre| {
-                stereocentre.inverted_at(stereocentre.atoms().map(|atom| paired[atom]))
-            })
+    /// Which of the reference's `elements`, stereocentres or else double
+    /// bonds, the `mobile` atoms turn the other way, by index, `paired`
+    /// holding their positions in the reference's order. A symmetry of the
+    /// ligand may carry one onto another of its class that turns the other
+    /// way, as in a meso compound, so before one such is reported, a pairing
+    /// that keeps every one is sought: if there is one, the pose is the same
+    /// molecule turned about.
+    fn inverted(
+        &self,
+        mobile: &LigandGraph,
+        paired: &[Vec3],
+        elements: &[Stereocentre],
+    ) -> Vec<usize> {
+        let inverted: Vec<usize> = (0..elements.len())
+            .filter(|&at| elements[at].inverted_at(elements[at].atoms().map(|atom| paired[atom])))
             .collect();
 
-        let exchangeable = inverted.iter().any(|inverted| {
-            self.stereocentres
+        let exchangeable = inverted.iter().any(|&at| {
+            elements
                 .iter()
-                .filter(|other| other.class == inverted.class)
+                .filter(|other| other.class == elements[at].class)
                 .count()
                 > 1
         });
-        if exchangeable && closest_pairing(mobile, &self.graph, &self.stereocentres).is_some() {
+        if exchangeable && closest_pairing(mobile, &self.graph, elements).is_some() {
             return Vec::new();
         }
 
         inverted
-            .iter()
-            .map(|stereocentre| self.atoms[stereocentre.centre])
-            .collect()
     }
 
     /// The superposition of `pose` on the first pocket chain with at least
@@ -703,6 +808,7 @@ fn vector(point: Vec3) -> Vector3<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::components::Dictionary;
     use crate::numbering::{polymer_chains, residue_map};
     use crate::select;
     use crate::structure::{Atom, Molecule, SecondaryStructure};
@@ -778,6 +884,13 @@ mod tests {
     }
 
     fn fit_of(pose: &Protein, reference: &Protein) -> Result<Fit, NoRmsd> {
+        assessment_of(pose, reference).map(|assessment| Fit {
+            rmsd: assessment.rmsd,
+            inverted: assessment.inverted,
+        })
+    }
+
+    fn assessment_of(pose: &Protein, reference: &Protein) -> Result<Assessment, NoRmsd> {
         let map = residue_map(
             &polymer_chains(pose),
             &polymer_chains(reference),
@@ -785,7 +898,49 @@ mod tests {
             |_| 0,
         );
 
-        RmsdReference::new(reference, &ligand_of(reference)).fit(pose, &ligand_of(pose), &map)
+        RmsdReference::new(reference, &ligand_of(reference)).assess(pose, &ligand_of(pose), &map)
+    }
+
+    const CHLOROFLUOROETHENE: &str = "\
+data_LIG
+loop_
+_chem_comp_atom.comp_id
+_chem_comp_atom.atom_id
+_chem_comp_atom.type_symbol
+_chem_comp_atom.pdbx_aromatic_flag
+LIG C1 C N
+LIG C2 C N
+LIG CL1 CL N
+LIG F2 F N
+loop_
+_chem_comp_bond.comp_id
+_chem_comp_bond.atom_id_1
+_chem_comp_bond.atom_id_2
+_chem_comp_bond.value_order
+LIG C1 C2 DOUB
+LIG C1 CL1 SING
+LIG C2 F2 SING
+";
+
+    /// The glycines of [`site`] around 1-chloro-2-fluoroethene, defined by
+    /// `definitions`: E, or Z when `cis`, its bond lengths and angles alike.
+    fn alkene_site(cis: bool, definitions: &str) -> Protein {
+        let mut structure = site();
+        structure.atoms.retain(|atom| atom.residue_name != "LIG");
+        let side = if cis { 1.0 } else { -1.0 };
+        for (name, element, position) in [
+            ("C1", "C", Vec3::new(-0.67, 0.0, 0.0)),
+            ("C2", "C", Vec3::new(0.67, 0.0, 0.0)),
+            ("CL1", "CL", Vec3::new(-1.53, 1.49, 0.0)),
+            ("F2", "F", Vec3::new(1.35, side * 1.17, 0.0)),
+        ] {
+            structure
+                .atoms
+                .push(atom(900, "LIG", name, element, position));
+        }
+        structure.components = Dictionary::parse(definitions);
+
+        structure
     }
 
     /// The glycines of [`site`] around a ligand with one stereocentre: C1 at
@@ -1126,6 +1281,198 @@ mod tests {
         }
 
         assert!(rmsd_of(&pose, &reference).unwrap() < 1e-3);
+    }
+
+    #[test]
+    fn a_pose_that_turns_a_double_bond_from_e_to_z_is_found_out() {
+        let reference = alkene_site(false, CHLOROFLUOROETHENE);
+
+        let same = assessment_of(&reference, &reference).unwrap();
+        let turned = assessment_of(&alkene_site(true, CHLOROFLUOROETHENE), &reference).unwrap();
+
+        assert!(same.flipped.is_empty());
+        assert_eq!(
+            same.geometry,
+            Geometry {
+                unflat: Some(0),
+                ..Geometry::default()
+            }
+        );
+        let ends = turned
+            .flipped
+            .iter()
+            .map(|ends| ends.map(|(_, _, name)| name));
+        assert_eq!(
+            ends.collect::<Vec<_>>(),
+            [[FixedStr::new("C1"), FixedStr::new("C2")]]
+        );
+        assert_eq!(
+            turned.geometry, same.geometry,
+            "its lengths and angles kept"
+        );
+    }
+
+    #[test]
+    fn without_definitions_neither_e_and_z_nor_flatness_is_known() {
+        let reference = alkene_site(false, "");
+
+        let turned = assessment_of(&alkene_site(true, ""), &reference).unwrap();
+
+        assert!(turned.flipped.is_empty());
+        assert_eq!(turned.geometry.unflat, None);
+    }
+
+    const PENTENEDIOL: &str = "\
+data_LIG
+loop_
+_chem_comp_atom.comp_id
+_chem_comp_atom.atom_id
+_chem_comp_atom.type_symbol
+_chem_comp_atom.pdbx_aromatic_flag
+LIG O1 O N
+LIG C1 C N
+LIG C2 C N
+LIG C3 C N
+LIG C4 C N
+LIG C5 C N
+LIG O5 O N
+loop_
+_chem_comp_bond.comp_id
+_chem_comp_bond.atom_id_1
+_chem_comp_bond.atom_id_2
+_chem_comp_bond.value_order
+LIG O1 C1 SING
+LIG C1 C2 SING
+LIG C2 C3 DOUB
+LIG C3 C4 SING
+LIG C4 C5 SING
+LIG C5 O5 SING
+";
+
+    /// The glycines of [`site`] around (E)-pent-2-ene-1,5-diol laid flat,
+    /// C5 and O5 turned `torsion` degrees about C3-C4, the whole turned end for
+    /// end when `reversed`, its atoms named `names`. Its bond graph alone is
+    /// symmetric end to end, so only bond orders tell C2=C3 from C3-C4.
+    fn pentenediol(torsion: f32, reversed: bool, names: [&str; 7]) -> Protein {
+        let mut structure = site();
+        structure.atoms.retain(|atom| atom.residue_name != "LIG");
+        let mut positions: Vec<Vec3> = (0..7)
+            .map(|at| Vec3::new(at as f32 * 1.27 - 3.81, (at % 2) as f32 * 0.86 - 0.43, 0.0))
+            .collect();
+        let axis = (positions[4] - positions[3]).normalize();
+        let turn = Quat::from_axis_angle(axis, torsion.to_radians());
+        for at in 5..7 {
+            positions[at] = positions[4] + turn * (positions[at] - positions[4]);
+        }
+        let centre = positions.iter().copied().sum::<Vec3>() / 7.0;
+        let elements = ["O", "C", "C", "C", "C", "C", "O"];
+        for ((name, element), position) in names.into_iter().zip(elements).zip(positions) {
+            let offset = position - centre;
+            let placed = match reversed {
+                true => centre + Vec3::new(-offset.x, offset.y, -offset.z),
+                false => position,
+            };
+            structure
+                .atoms
+                .push(atom(900, "LIG", name, element, placed));
+        }
+        structure.components = Dictionary::parse(PENTENEDIOL);
+
+        structure
+    }
+
+    const NAMED: [&str; 7] = ["O1", "C1", "C2", "C3", "C4", "C5", "O5"];
+
+    #[test]
+    fn a_pose_turned_end_for_end_is_read_by_its_names() {
+        let reference = pentenediol(0.0, false, NAMED);
+
+        let turned = assessment_of(&pentenediol(150.0, true, NAMED), &reference).unwrap();
+
+        assert!(turned.flipped.is_empty(), "{:?}", turned.flipped);
+        assert_eq!(turned.geometry.unflat, Some(0));
+    }
+
+    #[test]
+    fn a_double_bond_a_symmetry_could_trade_for_a_single_one_is_not_read_by_bond_graph() {
+        let reference = pentenediol(0.0, false, NAMED);
+        let renamed = ["X1", "X2", "X3", "X4", "X5", "X6", "X7"];
+
+        let turned = assessment_of(&pentenediol(150.0, true, renamed), &reference).unwrap();
+
+        assert!(turned.flipped.is_empty(), "{:?}", turned.flipped);
+        assert_eq!(turned.geometry.unflat, Some(0));
+    }
+
+    /// The glycines of [`site`] around meso-2,5-dichlorohex-3-ene, C3 and C4
+    /// joined by a bond of `order`: E, with a centre of inversion, or, when
+    /// `z`, Z with a mirror plane, turned 180 degrees about z.
+    fn dichlorohexene(z: bool, order: &str) -> Protein {
+        let mut structure = site();
+        structure.atoms.retain(|atom| atom.residue_name != "LIG");
+        let c3 = Vec3::new(-0.67, 0.0, 0.0);
+        let c2 = c3 + Vec3::new(-0.5, 0.866, 0.0) * 1.5;
+        let corners = [
+            Vec3::new(1.0, 1.0, 1.0),
+            Vec3::new(1.0, -1.0, -1.0),
+            Vec3::new(-1.0, 1.0, -1.0),
+            Vec3::new(-1.0, -1.0, 1.0),
+        ]
+        .map(Vec3::normalize);
+        let onto = Quat::from_rotation_arc(corners[0], (c3 - c2).normalize());
+        let c1 = c2 + onto * corners[1] * 1.53;
+        let cl2 = c2 + onto * corners[3] * 1.78;
+        let other = |p: Vec3| if z { Vec3::new(-p.x, p.y, p.z) } else { -p };
+        let turned = |p: Vec3| if z { Vec3::new(-p.x, -p.y, p.z) } else { p };
+        for (name, element, position) in [
+            ("C1", "C", c1),
+            ("C2", "C", c2),
+            ("CL2", "CL", cl2),
+            ("C3", "C", c3),
+            ("C4", "C", other(c3)),
+            ("C5", "C", other(c2)),
+            ("CL5", "CL", other(cl2)),
+            ("C6", "C", other(c1)),
+        ] {
+            structure
+                .atoms
+                .push(atom(900, "LIG", name, element, turned(position)));
+        }
+        let definitions = format!(
+            "data_LIG\nloop_\n_chem_comp_atom.comp_id\n_chem_comp_atom.atom_id\n\
+             _chem_comp_atom.type_symbol\n_chem_comp_atom.pdbx_aromatic_flag\n\
+             LIG C1 C N\nLIG C2 C N\nLIG CL2 CL N\nLIG C3 C N\nLIG C4 C N\n\
+             LIG C5 C N\nLIG CL5 CL N\nLIG C6 C N\nloop_\n_chem_comp_bond.comp_id\n\
+             _chem_comp_bond.atom_id_1\n_chem_comp_bond.atom_id_2\n\
+             _chem_comp_bond.value_order\nLIG C1 C2 SING\nLIG C2 CL2 SING\n\
+             LIG C2 C3 SING\nLIG C3 C4 {order}\nLIG C4 C5 SING\nLIG C5 CL5 SING\n\
+             LIG C5 C6 SING\n"
+        );
+        structure.components = Dictionary::parse(&definitions);
+
+        structure
+    }
+
+    #[test]
+    fn a_double_bond_turned_about_leaves_a_meso_ligand_s_centres_alone() {
+        for order in ["SING", "DOUB"] {
+            let reference = dichlorohexene(false, order);
+
+            let turned = assessment_of(&dichlorohexene(true, order), &reference).unwrap();
+
+            assert_eq!(turned.inverted, [], "C3-C4 {order}");
+            let flipped: Vec<[&str; 2]> = turned
+                .flipped
+                .iter()
+                .map(|ends| ends.each_ref().map(|(_, _, name)| name.as_str()))
+                .collect();
+            let expected: &[[&str; 2]] = if order == "DOUB" {
+                &[["C3", "C4"]]
+            } else {
+                &[]
+            };
+            assert_eq!(flipped, expected, "C3-C4 {order}");
+        }
     }
 
     #[test]

@@ -32,6 +32,9 @@ pub struct Pose {
     /// The reference stereocentres the pose inverts, or `None` when its atoms
     /// could not be paired with the reference's.
     pub inverted: Option<Vec<String>>,
+    /// The checks of its own geometry the ligand fails, each with how many
+    /// fail it, or `None` when its atoms could not be paired.
+    pub geometry: Option<Vec<String>>,
     /// The reference contacts the pose lacks.
     pub lost: Vec<String>,
     /// The scored copy's atoms, as indices into the model loaded.
@@ -303,8 +306,8 @@ impl PoseTable {
     }
 
     /// What the pose drawn lacks, in about `width` columns: the reference's
-    /// frame, when it is drawn in its own, the centres it inverts and the
-    /// contacts it loses.
+    /// frame, when it is drawn in its own, the centres it inverts, the checks
+    /// of its geometry it fails and the contacts it loses.
     fn details(&self, width: usize) -> String {
         let Some(pose) = self.shown_pose() else {
             return String::new();
@@ -315,6 +318,9 @@ impl PoseTable {
         }
         if let Some(inverted) = pose.inverted.as_ref().filter(|centres| !centres.is_empty()) {
             parts.push(format!("inverts {}", inverted.join(", ")));
+        }
+        if let Some(failed) = pose.geometry.as_ref().filter(|failed| !failed.is_empty()) {
+            parts.push(format!("strays in {}", failed.join(", ")));
         }
         if pose.lost.is_empty() {
             parts.push("keeps every reference contact".to_string());
@@ -367,6 +373,7 @@ mod tests {
             rmsd: Some(0.0),
             clashes,
             inverted: inverted.map(|names| names.iter().map(|name| name.to_string()).collect()),
+            geometry: None,
             lost: Vec::new(),
             ligand: Vec::new(),
             superposition: None,

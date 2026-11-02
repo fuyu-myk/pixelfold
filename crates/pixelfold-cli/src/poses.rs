@@ -10,7 +10,7 @@ use pixelfold_core::components::Dictionary;
 use pixelfold_core::interactions::{Interaction, detect};
 use pixelfold_core::numbering::{self, Chain, ResidueKey, ResidueMap};
 use pixelfold_core::pose::{self, Attachments, Contact, Contents, Fingerprint};
-use pixelfold_core::rmsd::{AtomId, NoRmsd, POCKET_REACH, RmsdReference, Superposition};
+use pixelfold_core::rmsd::{AtomId, Geometry, NoRmsd, POCKET_REACH, RmsdReference, Superposition};
 use pixelfold_core::sdf;
 use pixelfold_core::{Atom, AtomSet, ChainId, Protein};
 use serde::Serialize;
@@ -35,9 +35,13 @@ pub struct PoseRecord {
     /// on the reference's pocket, or `None` when it cannot be measured.
     pub rmsd: Option<f32>,
     pub clashes: usize,
-    /// The reference ligand's stereocentres the pose inverts, or `None` when
-    /// its atoms could not be paired with the reference's.
+    /// The reference ligand's stereocentres the pose inverts and its double
+    /// bonds the pose turns from E to Z or back, or `None` when its atoms could
+    /// not be paired with the reference's.
     pub inverted: Option<Vec<String>>,
+    /// What of the ligand's own geometry strays from the reference ligand's,
+    /// or `None` when its atoms could not be paired with the reference's.
+    pub geometry: Option<GeometryRecord>,
     pub lost: Vec<String>,
     /// The scored copy's atoms, which the viewer tints.
     #[serde(skip)]
@@ -48,6 +52,45 @@ pub struct PoseRecord {
     /// An SD file pose's ligand as laid into the receptor, for the viewer.
     #[serde(skip)]
     pub docked: Option<Vec<Atom>>,
+}
+
+/// What of a pose's ligand geometry strays from the reference ligand's, as
+/// PoseBusters checks it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct GeometryRecord {
+    pub bonds: usize,
+    pub angles: usize,
+    pub internal_clashes: usize,
+    /// The aromatic rings and double bonds not flat, or `None` when the
+    /// reference ligand's definitions do not say which they are.
+    pub unflat: Option<usize>,
+}
+
+impl From<&Geometry> for GeometryRecord {
+    fn from(geometry: &Geometry) -> Self {
+        Self {
+            bonds: geometry.bonds,
+            angles: geometry.angles,
+            internal_clashes: geometry.clashes,
+            unflat: geometry.unflat,
+        }
+    }
+}
+
+impl GeometryRecord {
+    /// The checks failed, each with how many fail it, e.g. `bonds 2`.
+    pub fn failed(&self) -> Vec<String> {
+        [
+            ("bonds", self.bonds),
+            ("angles", self.angles),
+            ("internal clashes", self.internal_clashes),
+            ("flatness", self.unflat.unwrap_or(0)),
+        ]
+        .into_iter()
+        .filter(|&(_, count)| count > 0)
+        .map(|(check, count)| format!("{check} {count}"))
+        .collect()
+    }
 }
 
 impl Row for PoseRecord {
@@ -63,6 +106,7 @@ impl Row for PoseRecord {
             "rmsd",
             "clashes",
             "inverted",
+            "geometry",
             "lost",
         ]
     }
@@ -81,6 +125,9 @@ impl Row for PoseRecord {
             self.inverted
                 .as_ref()
                 .map_or(String::new(), |inverted| inverted.join(", ")),
+            self.geometry
+                .as_ref()
+                .map_or(String::new(), |geometry| geometry.failed().join(", ")),
             self.lost.join(", "),
         ]
     }
@@ -302,6 +349,18 @@ impl Reference {
             .min_by(|a, b| preferred(&a.record, &b.record))
             .expect("copies holds at least the whole ligand");
         best.record.superposition = self.rmsd.superposition(protein, &best.map).ok();
+        if best
+            .record
+            .geometry
+            .as_ref()
+            .is_some_and(|geometry| geometry.unflat.is_none())
+        {
+            warnings.warn(
+                "the reference ligand's definitions give no bond orders, so poses are not \
+                 checked for flatness or for double bonds turned from E to Z"
+                    .to_string(),
+            );
+        }
 
         self.check_pairing(&best.map, pose, warnings)?;
         if let Some(reason) = &best.no_rmsd
@@ -352,7 +411,8 @@ impl Reference {
         let found = pose::fingerprint(model.protein, &model.interactions, copy);
         let map = pose::residue_map(&found, &model.chains, reference, &self.chains);
         let fingerprint = pose::renumbered(&found, reference, &map);
-        let fit = self.rmsd.fit(model.protein, copy, &map);
+        let assessment = self.rmsd.assess(model.protein, copy, &map);
+        let assessed = assessment.as_ref().ok();
 
         let record = PoseRecord {
             pose: model.pose.to_string(),
@@ -362,12 +422,15 @@ impl Reference {
             shared: fingerprint.shared(reference),
             recovery: rounded(fingerprint.recovery(reference), 3),
             similarity: rounded(fingerprint.similarity(reference), 3),
-            rmsd: fit.as_ref().ok().map(|fit| rounded(fit.rmsd, 2)),
+            rmsd: assessed.map(|assessment| rounded(assessment.rmsd, 2)),
             clashes: pose::clashes(model.protein, copy, &self.attachments.renumbered(&map)),
-            inverted: fit
-                .as_ref()
-                .ok()
-                .map(|fit| fit.inverted.iter().map(atom_label).collect()),
+            inverted: assessed.map(|assessment| {
+                let centres = assessment.inverted.iter().map(atom_label);
+                centres
+                    .chain(assessment.flipped.iter().map(bond_label))
+                    .collect()
+            }),
+            geometry: assessed.map(|assessment| GeometryRecord::from(&assessment.geometry)),
             lost: fingerprint.lost(reference).map(contact_label).collect(),
             ligand: copy.iter().collect(),
             superposition: None,
@@ -377,7 +440,7 @@ impl Reference {
         Scored {
             record,
             map,
-            no_rmsd: fit.err(),
+            no_rmsd: assessment.err(),
         }
     }
 
@@ -516,6 +579,7 @@ pub fn viewed(
                 rmsd: record.rmsd,
                 clashes: record.clashes,
                 inverted: record.inverted,
+                geometry: record.geometry.as_ref().map(GeometryRecord::failed),
                 lost: record.lost,
                 ligand: record.ligand,
                 superposition: record.superposition,
@@ -561,6 +625,22 @@ fn atom_label((residue, residue_name, name): &AtomId) -> String {
     format!("{residue_name} {} {name}", residue_id(*residue))
 }
 
+/// A double bond as its residue and the names of its ends, e.g.
+/// `GPP A/501 C2=C3`.
+fn bond_label([first, second]: &[AtomId; 2]) -> String {
+    if first.0 == second.0 {
+        format!(
+            "{} {} {}={}",
+            first.1,
+            residue_id(first.0),
+            first.2,
+            second.2
+        )
+    } else {
+        format!("{}={}", atom_label(first), atom_label(second))
+    }
+}
+
 /// A contact as its residue and kind, e.g. `HIS H/57 hydrogen-bond`.
 fn contact_label(contact: &Contact) -> String {
     format!(
@@ -587,6 +667,7 @@ mod tests {
             rmsd: None,
             clashes,
             inverted: None,
+            geometry: None,
             lost: Vec::new(),
             ligand: Vec::new(),
             superposition: None,

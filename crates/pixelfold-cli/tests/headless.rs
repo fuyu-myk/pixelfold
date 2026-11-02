@@ -812,7 +812,7 @@ fn a_frequency_threshold_needs_every_model_and_a_fraction() {
 /// Fixture `id` and a copy with residue `moved` of chain A carried `shift` A
 /// along x, as separate files.
 fn two_samples(id: &str, dir: &Path, moved: i32, shift: f32) -> [PathBuf; 2] {
-    let copy = edited_copy(id, dir, "moved.cif", |column, fields| {
+    let copy = edited_fixture(id, dir, |fields, column| {
         if fields[column["auth_asym_id"]] == "A"
             && fields[column["auth_seq_id"]] == moved.to_string()
         {
@@ -884,7 +884,7 @@ fn the_network_of_several_files_weighs_each_edge_by_the_files_it_is_in() {
 #[test]
 fn files_that_name_a_residue_differently_are_refused() {
     let dir = tempfile::tempdir().unwrap();
-    let mutant = edited_copy("1CRN", dir.path(), "mutant.cif", |column, fields| {
+    let mutant = edited_fixture("1CRN", dir.path(), |fields, column| {
         if fields[column["auth_seq_id"]] == "1" {
             fields[column["label_comp_id"]] = "ALA".to_string();
             fields[column["auth_comp_id"]] = "ALA".to_string();
@@ -901,7 +901,7 @@ fn files_that_name_a_residue_differently_are_refused() {
         !run.ok,
         "a renumbered or different sequence must not fold in"
     );
-    for named in ["mutant.cif", "A/1", "THR", "ALA"] {
+    for named in ["1CRN-edited.cif", "A/1", "THR", "ALA"] {
         assert!(run.stderr.contains(named), "no {named}: {}", run.stderr);
     }
 }
@@ -1175,33 +1175,6 @@ fn atom_site_columns(text: &str) -> HashMap<&str, usize> {
         .collect()
 }
 
-/// A copy of fixture `id` in `dir`, named `name`, with `edit` applied to the
-/// fields of every atom record.
-fn edited_copy(
-    id: &str,
-    dir: &Path,
-    name: &str,
-    edit: impl Fn(&HashMap<&str, usize>, &mut [String]),
-) -> PathBuf {
-    let text = std::fs::read_to_string(fixture(id)).unwrap();
-    let column = atom_site_columns(&text);
-    let lines: Vec<String> = text
-        .lines()
-        .map(|line| {
-            if !(line.starts_with("ATOM") || line.starts_with("HETATM")) {
-                return line.to_string();
-            }
-            let mut fields: Vec<String> = line.split_whitespace().map(String::from).collect();
-            edit(&column, &mut fields);
-            fields.join(" ")
-        })
-        .collect();
-
-    let path = dir.join(name);
-    std::fs::write(&path, lines.join("\n")).unwrap();
-    path
-}
-
 /// A copy of fixture `id` in `dir` holding a second copy of the `ligand`
 /// component, as chain Y moved `shift` A along x and written before the first.
 fn with_another_copy(id: &str, dir: &Path, ligand: &str, shift: f32) -> PathBuf {
@@ -1433,6 +1406,55 @@ fn poses_rank_by_the_reference_contacts_they_keep() {
     assert!(!moved["lost"].as_array().unwrap().is_empty(), "{moved}");
     // Every ligand atom moved 2 A and the pocket not at all.
     assert_eq!(moved["rmsd"], 2.0, "{moved}");
+}
+
+// The cyclic urea's hydroxyl oxygen O4 carried 2 A off along x: its bond, and
+// the angles across it, stray from the reference's.
+#[test]
+fn a_pose_whose_ligand_strays_from_the_reference_s_geometry_says_so() {
+    let dir = tempfile::tempdir().unwrap();
+    let strayed = edited_fixture("1HVR", dir.path(), |fields, column| {
+        if fields[column["auth_comp_id"]] == "XK2" && fields[column["auth_atom_id"]] == "O4" {
+            let x: f32 = fields[column["Cartn_x"]].parse().unwrap();
+            fields[column["Cartn_x"]] = format!("{:.3}", x + 2.0);
+        }
+    });
+
+    let found = records(&poses_with(
+        &["--ligand", "XK2"],
+        &fixture("1HVR"),
+        &[&fixture("1HVR"), &strayed],
+    ));
+    let geometry = |name: &str| {
+        found
+            .iter()
+            .find(|record| record["pose"].as_str().unwrap().ends_with(name))
+            .map(|record| record["geometry"].clone())
+            .unwrap()
+    };
+
+    assert_eq!(
+        geometry("1HVR.cif"),
+        serde_json::json!({"bonds": 0, "angles": 0, "internal_clashes": 0, "unflat": 0})
+    );
+    let strayed = geometry("1HVR-edited.cif");
+    assert!(strayed["bonds"].as_u64().unwrap() >= 1, "{strayed}");
+    assert!(strayed["angles"].as_u64().unwrap() >= 1, "{strayed}");
+
+    let table = run_args(
+        ["poses", "--format", "tsv", "--ligand", "XK2", "--reference"]
+            .map(OsStr::new)
+            .into_iter()
+            .chain([
+                fixture("1HVR").as_os_str(),
+                dir.path().join("1HVR-edited.cif").as_os_str(),
+            ]),
+    );
+    assert!(table.ok, "{}", table.stderr);
+    let header: Vec<&str> = table.stdout.lines().next().unwrap().split('\t').collect();
+    let column = header.iter().position(|&name| name == "geometry").unwrap();
+    let cell = table.rows()[0].split('\t').nth(column).unwrap().to_string();
+    assert!(cell.starts_with("bonds "), "{cell}");
 }
 
 #[test]

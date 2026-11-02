@@ -269,6 +269,7 @@ mod tests {
             rmsd: Some(0.0),
             clashes: 0,
             inverted: Some(Vec::new()),
+            geometry: Some(Vec::new()),
             lost: Vec::new(),
             ligand: vec![3],
             superposition,

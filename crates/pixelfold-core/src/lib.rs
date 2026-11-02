@@ -5,6 +5,7 @@ mod assembly;
 pub mod components;
 mod dssp;
 pub mod fixed_str;
+mod geometry;
 pub mod interactions;
 pub mod numbering;
 pub mod parser;

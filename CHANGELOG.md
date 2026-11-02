@@ -34,6 +34,26 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the files before it is refused, as is one naming otherwise a ligand or water
   that both networks hold. `--mvsj` shows the first file. The library gains
   `rin::Ensemble::try_add` and `rin::Renamed`.
+- **Pose geometry and E/Z double bonds.** `pixelfold poses` makes
+  PoseBusters' checks of each pose's own geometry, with the reference ligand's
+  geometry in place of RDKit's ideal one: bond lengths and angles more than a
+  quarter off the reference's, atoms neither bonded nor sharing a neighbour
+  that come within seven tenths of their lower bound (never further apart than
+  the reference holds them), and aromatic rings and carbon double bonds more
+  than 0.25 A from flat where the reference's are flat. A new `geometry`
+  column names the checks a pose fails, with counts (an object of counts in
+  JSON), and the viewer's pose table names them too. `inverted` now also names
+  the reference's E and Z double bonds a pose turns the other way, read from
+  its chemical definitions; without them, a warning says neither flatness nor
+  E and Z is checked. The ranking is unchanged. The library gains
+  `rmsd::RmsdReference::assess`, `rmsd::Assessment` and `rmsd::Geometry`.
+
+### Changed
+
+- **The viewer library's poses.** `pixelfold_tui::Pose` gains `docked` and
+  `geometry`, and `view_poses` and `PoseTable::new` take the receptor docked
+  poses are laid into: a breaking change to the `pixelfold-tui` library, so the
+  next release is major.
 
 ## [4.0.0] (2026-11-01)
 
