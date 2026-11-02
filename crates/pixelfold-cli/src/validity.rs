@@ -671,6 +671,75 @@ mod tests {
     }
 
     #[test]
+    fn each_docked_pose_pairs_the_receptor_s_copies_by_its_own_contacts() {
+        let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+        let crystal = ParsedStructure::read(fixtures.join("1PPB.cif"))
+            .unwrap()
+            .protein(&Load::default())
+            .unwrap();
+        let is_ppack = |atom: &Atom| atom.residue_name.as_str() == "0G6";
+        let thrombin = crystal.without(|_, atom| is_ppack(atom) || atom.residue_name == "HOH");
+        // A second thrombin beside the first, as in a homodimer with a site
+        // in each copy.
+        let shift = Vec3::new(80.0, 0.0, 0.0);
+        let copy = thrombin.atoms.iter().map(|atom| Atom {
+            position: atom.position + shift,
+            chain_id: format!("{}2", atom.chain_id).as_str().into(),
+            ..atom.clone()
+        });
+        let receptor = Protein {
+            atoms: thrombin.atoms.iter().cloned().chain(copy).collect(),
+            ..thrombin.clone()
+        };
+        let first_site: Vec<Atom> = crystal
+            .atoms
+            .iter()
+            .filter(|atom| is_ppack(atom))
+            .cloned()
+            .collect();
+        let second_site: Vec<Atom> = first_site
+            .iter()
+            .map(|atom| Atom {
+                position: atom.position + shift,
+                ..atom.clone()
+            })
+            .collect();
+        let docked = |ligand: &[Atom], model| {
+            let mut protein = receptor.clone();
+            protein.atoms.extend(ligand.iter().cloned());
+            let ligand_atoms = pixelfold_core::select::select("resn 0G6", &protein).unwrap();
+            CheckRecord {
+                fingerprint: pose::fingerprint(&protein, &detect(&protein), &ligand_atoms),
+                ligand: ligand_atoms,
+                docked: Some(ligand.to_vec()),
+                ..record(model, vec![], vec![], None)
+            }
+        };
+        let records = vec![
+            docked(&first_site, 1),
+            docked(&second_site, 2),
+            docked(&first_site, 3),
+        ];
+
+        let viewed = viewed(
+            records,
+            Some(&receptor),
+            |_, _| unreachable!("docked poses are laid into the receptor"),
+            |pose| Ok(PathBuf::from(pose)),
+        )
+        .unwrap();
+
+        for pose in &viewed {
+            let laid = pose.superposition.expect("the pocket pairs");
+            let ligand = pose.docked.as_ref().unwrap();
+            for (atom, at) in ligand.iter().zip(&first_site) {
+                let off = laid.apply(atom.position).distance(at.position);
+                assert!(off < 0.01, "model {} off by {off}", pose.model);
+            }
+        }
+    }
+
+    #[test]
     fn a_check_left_unmade_ranks_as_one_failed() {
         let ranked = ranked(vec![
             record(1, vec![], vec!["geometry", "stereo"], Some(0.9)),
