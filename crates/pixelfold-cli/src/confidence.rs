@@ -129,22 +129,24 @@ pub fn beside(pose: &Path, chain: &str, chains: &[String]) -> Result<Option<Conf
 mod tests {
     use super::*;
 
+    /// The candidates' file names, each checked to sit beside the model.
     fn names(pose: &str) -> Vec<String> {
-        candidates(Path::new(pose))
+        let pose = Path::new(pose);
+        candidates(pose)
             .into_iter()
-            .map(|(path, _)| path.to_string_lossy().into_owned())
+            .map(|(path, _)| {
+                assert_eq!(path.parent(), pose.parent());
+                path.file_name().unwrap().to_string_lossy().into_owned()
+            })
             .collect()
     }
 
     #[test]
     fn each_tool_s_confidence_file_is_named_after_its_model() {
-        assert_eq!(
-            names("out/job_model.cif"),
-            ["out/job_summary_confidences.json"]
-        );
+        assert_eq!(names("out/job_model.cif"), ["job_summary_confidences.json"]);
         assert_eq!(
             names("seed-1_sample-0/model.cif"),
-            ["seed-1_sample-0/summary_confidences.json"]
+            ["summary_confidences.json"]
         );
         assert_eq!(
             names("fold_job_model_3.cif"),
