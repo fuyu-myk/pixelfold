@@ -22,7 +22,7 @@ mod poses;
 mod render;
 mod ui;
 
-pub use pose_table::Pose;
+pub use pose_table::{Pose, Scores};
 
 /// The framebuffer of the last drawn frame, kept so a mouse click can be mapped
 /// straight to the atom under it through the id buffer. `area` is where the image

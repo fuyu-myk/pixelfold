@@ -2513,16 +2513,45 @@ fn a_ligand_code_in_lower_case_is_the_same_component() {
 }
 
 #[test]
+fn poses_checked_on_their_own_open_in_the_viewer() {
+    let cache = seeded_cache();
+    let dir = tempfile::tempdir().unwrap();
+    let docked = ligand_sdf("1HVR", "XK2", dir.path(), false);
+    let structure = fixture("1HVR");
+    let viewed = |flags: &[&OsStr], poses: &[&Path]| {
+        let head = ["poses", "--ligand", "XK2", "--view", "--cache-dir"]
+            .into_iter()
+            .map(OsStr::new)
+            .chain([cache.path().as_os_str()])
+            .chain(flags.iter().copied());
+        run_args(head.chain(poses.iter().map(|pose| pose.as_os_str())))
+    };
+
+    for run in [
+        viewed(&[], &[&structure, &structure]),
+        viewed(
+            &[OsStr::new("--receptor"), structure.as_os_str()],
+            &[&docked],
+        ),
+    ] {
+        // Checked and laid on the best pose's pocket, they stop only at the
+        // terminal a test has not got.
+        assert!(!run.ok);
+        assert!(run.stderr.contains("needs a terminal"), "{}", run.stderr);
+    }
+}
+
+#[test]
 fn options_that_compare_with_a_reference_need_one() {
     let cache = seeded_cache();
     let pose = fixture("1HVR");
-    for args in [
-        &["--ligand", "XK2", "--reference-select", "resn XK2"][..],
-        &["--ligand", "XK2", "--view"][..],
-    ] {
-        let run = checked(cache.path(), args, &[&pose]);
-        assert!(!run.ok, "{args:?} ran");
-    }
+    let run = checked(
+        cache.path(),
+        &["--ligand", "XK2", "--reference-select", "resn XK2"],
+        &[&pose],
+    );
+    assert!(!run.ok);
+    assert!(run.stderr.contains("--reference"), "{}", run.stderr);
 
     let dir = tempfile::tempdir().unwrap();
     let docked = ligand_sdf("1HVR", "XK2", dir.path(), false);

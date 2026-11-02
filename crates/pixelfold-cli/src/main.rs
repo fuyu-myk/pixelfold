@@ -1,9 +1,11 @@
+use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
-use pixelfold_core::parser::{AssemblyChoice, Load};
+use pixelfold_core::parser::{AssemblyChoice, Load, ParsedStructure};
 use pixelfold_core::rin::{self, Ensemble};
 use pixelfold_core::{AtomSet, InteractionKind, Network, Protein};
 
@@ -298,8 +300,9 @@ enum Command {
         smiles: Option<String>,
 
         /// Open the viewer on the ranked poses instead: a table to sort and
-        /// step through, each pose drawn on the reference's pocket
-        #[arg(long, conflicts_with = "format", requires = "reference")]
+        /// step through, each pose drawn on the reference's pocket, or
+        /// without --reference on the best pose's
+        #[arg(long, conflicts_with = "format")]
         view: bool,
 
         /// Terminal graphics protocol for the viewer's structure pane
@@ -639,6 +642,8 @@ fn run(command: Command) -> Result<()> {
             let query = ligand
                 .as_ref()
                 .map_or(select, |code| format!("resn {code}"));
+            let shown = view.then(|| protocol.unwrap_or(ProtocolArg::Auto));
+            let output = shown.map_or(Output::Format(format), Output::View);
             let Some(reference) = reference else {
                 return check_poses(
                     receptor.as_deref(),
@@ -646,12 +651,11 @@ fn run(command: Command) -> Result<()> {
                     &query,
                     ligand.as_deref(),
                     smiles.as_deref(),
-                    format,
+                    output,
                     &common,
                 );
             };
             let reference_query = reference_select.unwrap_or_else(|| query.clone());
-            let shown = view.then(|| protocol.unwrap_or(ProtocolArg::Auto));
 
             compare_poses(
                 &reference,
@@ -659,7 +663,7 @@ fn run(command: Command) -> Result<()> {
                 receptor.as_deref(),
                 &poses,
                 &query,
-                shown.map_or(Output::Format(format), Output::View),
+                output,
                 &common,
             )
         }
@@ -957,16 +961,16 @@ fn compare_poses(
 }
 
 /// Check the `query` ligand of every pose on its own, without a reference,
-/// and write them best first. Each record of an SD file is a pose, its ligand
-/// laid into `receptor`; `code` is the component `--ligand` names and
-/// `smiles` the string `--smiles` gives.
+/// best first. Each record of an SD file is a pose, its ligand laid into
+/// `receptor`; `code` is the component `--ligand` names and `smiles` the
+/// string `--smiles` gives.
 fn check_poses(
     receptor: Option<&str>,
     poses: &[String],
     query: &str,
     code: Option<&str>,
     smiles: Option<&str>,
-    format: Format,
+    output: Output,
     common: &Common,
 ) -> Result<()> {
     let smiles = smiles
@@ -1042,7 +1046,35 @@ fn check_poses(
         }
     }
 
-    emit(&validity::ranked(records), format)
+    let ranked = validity::ranked(records);
+    match output {
+        Output::Format(format) => emit(&ranked, format),
+        Output::View(protocol) => {
+            anyhow::ensure!(!ranked.is_empty(), "no pose file holds a model to view");
+            // Each file is read again, its warnings already given, and let go
+            // before the viewer opens.
+            let viewed = {
+                let mut parsed = HashMap::new();
+                let model_of = |pose: &str, model: usize| -> Result<Protein> {
+                    let structure =
+                        match parsed.entry(pose.to_string()) {
+                            Entry::Occupied(found) => found.into_mut(),
+                            Entry::Vacant(place) => {
+                                let path = load::structure_path(pose, &dir)?;
+                                place.insert(ParsedStructure::read(&path).with_context(|| {
+                                    format!("failed to load {}", path.display())
+                                })?)
+                            }
+                        };
+                    structure.protein(&common.load(Some(model)))
+                };
+                validity::viewed(ranked, receptor.as_ref(), model_of, |pose| {
+                    load::structure_path(pose, &dir)
+                })?
+            };
+            pixelfold_tui::view_poses(viewed, receptor, common.load(None), protocol.into())
+        }
+    }
 }
 
 /// The URL and parse format a MolViewSpec scene should load the structure from.
@@ -1324,14 +1356,16 @@ mod tests {
 
         let no_poses = ["pixelfold", "poses", "--reference", "ref.cif"];
         assert!(Cli::try_parse_from(no_poses).is_err());
-        let Some(Command::Poses { reference, .. }) =
-            Cli::try_parse_from(["pixelfold", "poses", "a.cif"])
-                .expect("a reference is optional")
-                .command
+        let Some(Command::Poses {
+            reference, view, ..
+        }) = Cli::try_parse_from(["pixelfold", "poses", "--view", "a.cif"])
+            .expect("a reference is optional, viewed or not")
+            .command
         else {
             panic!("expected the poses command");
         };
         assert_eq!(reference, None);
+        assert!(view);
         let both = [
             "pixelfold",
             "poses",

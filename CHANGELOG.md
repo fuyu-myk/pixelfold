@@ -40,7 +40,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   ligand's canonical SMILES instead, the stereochemistry agrees as well (the
   README has the table and the causes of every disagreement);
   `benchmarks/tools/Dockerfile.posebusters` and `compare_posebusters.py`
-  reproduce it.
+  reproduce it. With `--view` the ranking opens in the viewer, its table
+  listing each pose's failed checks, clashes, stereochemistry and
+  confidence, sortable by confidence or clashes, and every pose laid on the
+  pocket of the best ranked, so stepping through samples from separate runs
+  keeps the pocket still.
 - **Saturated rings held flat.** Both modes of `poses` now make PoseBusters'
   non-aromatic ring non-flatness check: a cyclohexane, piperidine or
   morpholine ring (and their kin with a double bond or two) whose atoms all
@@ -74,7 +78,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - **`poses --reference` is optional.** Without it the command checks poses on
-  their own; `--reference-select` and `--view` need a reference.
+  their own; `--reference-select` needs a reference.
+- **The viewer library's pose scores.** `pixelfold_tui::Pose` holds its
+  scores in `scores`, a `Scores::Compared` against a reference or a
+  `Scores::Checked` on its own, in place of its `similarity`, `recovery`,
+  `rmsd`, `inverted` and `lost` fields: a breaking change to the
+  `pixelfold-tui` library.
 - **`rin --analyze` and `--path` take only `--format json`.** The text report
   stays their default; `--format graphml` or `tsv` beside them, once ignored,
   is now an error.

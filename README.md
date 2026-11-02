@@ -400,6 +400,8 @@ pixelfold poses --reference crystal.cif --ligand STI --receptor receptor.pdb ran
 # AlphaFold 3 or Boltz wrote beside it
 pixelfold poses --ligand STI fold_job_model_*.cif
 pixelfold poses --receptor receptor.pdb --ligand STI docked.sdf
+# The same checks in the viewer, each pose laid on the best one's pocket
+pixelfold poses --ligand STI fold_job_model_*.cif --view
 # A ligand with no dictionary code, checked against the SMILES it was given;
 # AlphaFold 3's models carry it, so --smiles is for other tools' output
 pixelfold poses --ligand LIG_A fold_job_model_*.cif

@@ -6,12 +6,14 @@
 
 use std::cmp::Ordering;
 use std::collections::{BTreeSet, HashMap};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use pixelfold_core::checks;
 use pixelfold_core::interactions::detect;
-use pixelfold_core::pose::{self, Attachments, Link};
+use pixelfold_core::numbering;
+use pixelfold_core::pose::{self, Attachments, Fingerprint, Link};
+use pixelfold_core::rmsd::RmsdReference;
 use pixelfold_core::sdf;
 use pixelfold_core::smiles::Smiles;
 use pixelfold_core::stated::Stated;
@@ -41,6 +43,16 @@ pub struct CheckRecord {
     /// turns the other way, or `None` when no residue could be checked.
     pub stereo: Option<Vec<String>>,
     pub confidence: Option<Confidence>,
+    /// The ligand's atoms, which the viewer tints.
+    #[serde(skip)]
+    pub ligand: AtomSet,
+    /// The contacts the ligand makes, which pair the pose's chains with the
+    /// best pose's for the viewer.
+    #[serde(skip)]
+    pub fingerprint: Fingerprint,
+    /// An SD file pose's ligand as laid into the receptor, for the viewer.
+    #[serde(skip)]
+    pub docked: Option<Vec<Atom>>,
 }
 
 impl Row for CheckRecord {
@@ -255,7 +267,7 @@ impl<'a> Checker<'a> {
                 attached: Attachments::default(),
                 stated: &stated,
             };
-            return scored(&laid, pose, model, None, warnings);
+            return with_docked(scored(&laid, pose, model, None, warnings), &docked);
         };
         let entry = self.entry(&code, warnings);
         let reference = entry
@@ -291,7 +303,7 @@ impl<'a> Checker<'a> {
             attached: Attachments::default(),
             stated: &stated,
         };
-        scored(&laid, pose, model, None, warnings)
+        with_docked(scored(&laid, pose, model, None, warnings), &docked)
     }
 
     /// What `--smiles` states of a docked ligand, which carries its own
@@ -432,16 +444,35 @@ fn scored(
         unchecked.push("stereo");
     }
 
+    let fingerprint = pose::fingerprint(protein, &detect(protein), ligand);
     CheckRecord {
         pose: pose.to_string(),
         model,
         failed,
         unchecked,
-        contacts: pose::fingerprint(protein, &detect(protein), ligand).len(),
+        contacts: fingerprint.len(),
         clashes,
         geometry,
         stereo: (stereo.checked > 0).then_some(labels),
         confidence,
+        ligand: ligand.clone(),
+        fingerprint,
+        docked: None,
+    }
+}
+
+/// `record` of the ligand `docked` into a receptor, holding the ligand's
+/// atoms for the viewer to lay into it again.
+fn with_docked(record: CheckRecord, docked: &sdf::Docked) -> CheckRecord {
+    CheckRecord {
+        docked: Some(
+            docked
+                .ligand
+                .iter()
+                .map(|atom| docked.protein.atoms[atom].clone())
+                .collect(),
+        ),
+        ..record
     }
 }
 
@@ -472,9 +503,93 @@ pub fn ranked(mut records: Vec<CheckRecord>) -> Vec<CheckRecord> {
     records
 }
 
+/// The ranked `records` as the viewer lists them, each laid on the pocket of
+/// the best: `model_of` builds a model of a pose file, an SD file's ligands
+/// are laid into `receptor`, and `path_of` finds each pose file. Each SD
+/// pose pairs the receptor's chains with the best pose's by its own
+/// contacts, as a ligand docked in one site of a homodimer must not lay the
+/// receptor on the pocket of the other.
+pub fn viewed(
+    records: Vec<CheckRecord>,
+    receptor: Option<&Protein>,
+    mut model_of: impl FnMut(&str, usize) -> Result<Protein>,
+    path_of: impl Fn(&str) -> Result<PathBuf>,
+) -> Result<Vec<pixelfold_tui::Pose>> {
+    let mut protein_of = |record: &CheckRecord| -> Result<Protein> {
+        match (&record.docked, receptor) {
+            (Some(ligand), Some(receptor)) => {
+                let mut protein = receptor.clone();
+                protein.atoms.extend(ligand.iter().cloned());
+                Ok(protein)
+            }
+            (Some(_), None) => anyhow::bail!("no receptor to lay {} into", record.pose),
+            (None, _) => model_of(&record.pose, record.model)
+                .with_context(|| format!("{}, model {}", record.pose, record.model)),
+        }
+    };
+    let Some(best) = records.first() else {
+        return Ok(Vec::new());
+    };
+    let frame = protein_of(best)?;
+    let pocket = RmsdReference::new(&frame, &best.ligand);
+    let (chains, contacts) = (numbering::polymer_chains(&frame), best.fingerprint.clone());
+    let receptor_chains = receptor.map(numbering::polymer_chains);
+    let laid_on = |protein: &Protein, protein_chains: &[numbering::Chain], record: &CheckRecord| {
+        let map = pose::residue_map(&record.fingerprint, protein_chains, &contacts, &chains);
+        pocket.superposition(protein, &map).ok()
+    };
+
+    let mut viewed = Vec::with_capacity(records.len());
+    for record in records {
+        let superposition = match (&record.docked, receptor, &receptor_chains) {
+            (Some(_), Some(receptor), Some(receptor_chains)) => {
+                laid_on(receptor, receptor_chains, &record)
+            }
+            _ => {
+                let protein = protein_of(&record)?;
+                laid_on(&protein, &numbering::polymer_chains(&protein), &record)
+            }
+        };
+        viewed.push(pixelfold_tui::Pose {
+            path: path_of(&record.pose)?,
+            model: record.model,
+            copy: None,
+            clashes: record.clashes,
+            geometry: record.geometry.as_ref().map(GeometryRecord::failed),
+            scores: pixelfold_tui::Scores::Checked {
+                failed: record.failed.iter().map(ToString::to_string).collect(),
+                unchecked: record.unchecked.iter().map(ToString::to_string).collect(),
+                stereo: record.stereo,
+                confidence: record.confidence.as_ref().map(|found| found.score),
+                ligand_iptm: record.confidence.and_then(|found| found.ligand_iptm),
+            },
+            ligand: record.ligand.iter().collect(),
+            superposition,
+            docked: record.docked,
+            label: record.pose,
+        });
+    }
+
+    Ok(viewed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use glam::Vec3;
+    use pixelfold_core::parser::{Load, ParsedStructure};
+
+    /// No atoms of an empty structure, a ligand for a record that needs none.
+    fn nothing() -> AtomSet {
+        let empty = Protein {
+            atoms: Vec::new(),
+            title: String::new(),
+            hbonds: Vec::new(),
+            assembly: None,
+            components: Dictionary::default(),
+        };
+        pixelfold_core::select::select("none", &empty).unwrap()
+    }
 
     fn record(
         model: usize,
@@ -496,6 +611,62 @@ mod tests {
                 score,
                 ligand_iptm: None,
             }),
+            ligand: nothing(),
+            fingerprint: Fingerprint::default(),
+            docked: None,
+        }
+    }
+
+    #[test]
+    fn each_pose_viewed_is_laid_on_the_best_one_s_pocket() {
+        let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+        let best = ParsedStructure::read(fixtures.join("1HVR.cif"))
+            .unwrap()
+            .protein(&Load::default())
+            .unwrap();
+        // The same model turned a quarter about z and moved, as another
+        // co-folding sample comes out in a frame of its own.
+        let turned = Protein {
+            atoms: best
+                .atoms
+                .iter()
+                .map(|atom| Atom {
+                    position: Vec3::new(-atom.position.y, atom.position.x, atom.position.z)
+                        + Vec3::new(5.0, -3.0, 2.0),
+                    ..atom.clone()
+                })
+                .collect(),
+            ..best.clone()
+        };
+        let mut checker = Checker::new("resn XK2", None, None, &fixtures);
+        let mut warnings = Warnings::default();
+        let records = [("best.cif", &best), ("turned.cif", &turned)]
+            .map(|(name, protein)| {
+                checker
+                    .check(protein.clone(), &[], name, 1, &mut warnings)
+                    .unwrap()
+            })
+            .into_iter()
+            .collect();
+
+        let model_of = |pose: &str, _| {
+            Ok(match pose {
+                "best.cif" => best.clone(),
+                _ => turned.clone(),
+            })
+        };
+        let viewed = viewed(records, None, model_of, |pose| Ok(PathBuf::from(pose))).unwrap();
+
+        let xk2: Vec<usize> = (0..best.atoms.len())
+            .filter(|&atom| best.atoms[atom].residue_name.as_str() == "XK2")
+            .collect();
+        assert_eq!(viewed[1].ligand, xk2);
+        for (pose, protein) in viewed.iter().zip([&best, &turned]) {
+            let laid = pose.superposition.expect("the pocket pairs");
+            for (atom, at) in protein.atoms.iter().zip(&best.atoms).step_by(97) {
+                let off = laid.apply(atom.position).distance(at.position);
+                assert!(off < 0.01, "{} off by {off}", pose.label);
+            }
         }
     }
 

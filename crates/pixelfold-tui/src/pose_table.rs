@@ -1,5 +1,6 @@
-//! The pose table: ligand poses scored against a reference, listed best
-//! first or sorted by another score, and the rows a click lands on.
+//! The pose table: ligand poses scored against a reference or checked on
+//! their own, listed best first or sorted by another score, and the rows a
+//! click lands on.
 
 use std::path::{Path, PathBuf};
 
@@ -14,8 +15,8 @@ use ratatui::widgets::{Block, Borders, Row, Table, TableState};
 /// The most rows the table shows before it scrolls.
 const MAX_ROWS: usize = 8;
 
-/// One pose of a ligand scored against a reference, as `pixelfold poses`
-/// ranks it, with what drawing it needs.
+/// One pose of a ligand as `pixelfold poses` ranks it, scored against a
+/// reference or checked on its own, with what drawing it needs.
 #[derive(Clone, Debug)]
 pub struct Pose {
     /// The pose file as it was named.
@@ -24,27 +25,80 @@ pub struct Pose {
     pub model: usize,
     /// The copy of the ligand scored, when the pose holds several.
     pub copy: Option<String>,
-    pub similarity: f32,
-    pub recovery: f32,
-    /// The ligand's RMSD in angstroms on the reference's pocket, when measured.
-    pub rmsd: Option<f32>,
     pub clashes: usize,
-    /// The reference stereocentres the pose inverts, or `None` when its atoms
-    /// could not be paired with the reference's.
-    pub inverted: Option<Vec<String>>,
     /// The checks of its own geometry the ligand fails, each with how many
-    /// fail it, or `None` when its atoms could not be paired.
+    /// fail it, or `None` when its geometry could not be checked.
     pub geometry: Option<Vec<String>>,
-    /// The reference contacts the pose lacks.
-    pub lost: Vec<String>,
+    pub scores: Scores,
     /// The scored copy's atoms, as indices into the model loaded.
     pub ligand: Vec<usize>,
-    /// What lays the pose on the reference's pocket, or `None` when too few
-    /// pocket atoms have a counterpart.
+    /// What lays the pose on the reference's pocket, or without a reference
+    /// on the best pose's, or `None` when too few pocket atoms have a
+    /// counterpart.
     pub superposition: Option<Superposition>,
     /// An SD file pose's ligand, laid into the receptor the viewer is given;
     /// `None` for a pose drawn from its file.
     pub docked: Option<Vec<Atom>>,
+}
+
+/// What a pose is ranked by: how it compares with a reference, or how it
+/// fares checked on its own.
+#[derive(Clone, Debug)]
+pub enum Scores {
+    Compared {
+        similarity: f32,
+        recovery: f32,
+        /// The ligand's RMSD in angstroms on the reference's pocket, when
+        /// measured.
+        rmsd: Option<f32>,
+        /// The reference stereocentres the pose inverts, or `None` when its
+        /// atoms could not be paired with the reference's.
+        inverted: Option<Vec<String>>,
+        /// The reference contacts the pose lacks.
+        lost: Vec<String>,
+    },
+    Checked {
+        /// The checks the pose fails.
+        failed: Vec<String>,
+        /// The checks that could not be made.
+        unchecked: Vec<String>,
+        /// The labelled stereocentres the pose inverts and E or Z double
+        /// bonds it turns, or `None` when none could be checked.
+        stereo: Option<Vec<String>>,
+        /// The score the co-folding tool ranks its samples by.
+        confidence: Option<f32>,
+        /// The tool's confidence in the ligand's interface.
+        ligand_iptm: Option<f32>,
+    },
+}
+
+impl Pose {
+    pub(crate) fn is_checked(&self) -> bool {
+        matches!(self.scores, Scores::Checked { .. })
+    }
+
+    fn rmsd(&self) -> Option<f32> {
+        match &self.scores {
+            Scores::Compared { rmsd, .. } => *rmsd,
+            Scores::Checked { .. } => None,
+        }
+    }
+
+    /// The stereocentres inverted and double bonds turned, or `None` when
+    /// none could be checked.
+    fn turned(&self) -> Option<&[String]> {
+        match &self.scores {
+            Scores::Compared { inverted, .. } => inverted.as_deref(),
+            Scores::Checked { stereo, .. } => stereo.as_deref(),
+        }
+    }
+
+    fn confidence(&self) -> Option<f32> {
+        match &self.scores {
+            Scores::Compared { .. } => None,
+            Scores::Checked { confidence, .. } => *confidence,
+        }
+    }
 }
 
 /// What the pose table is sorted by, best first; ties keep the rank.
@@ -53,27 +107,35 @@ pub(crate) enum PoseSort {
     #[default]
     Rank,
     Rmsd,
+    Confidence,
     Clashes,
     Inverted,
 }
 
 impl PoseSort {
-    fn next(self) -> Self {
-        match self {
-            PoseSort::Rank => PoseSort::Rmsd,
-            PoseSort::Rmsd => PoseSort::Clashes,
-            PoseSort::Clashes => PoseSort::Inverted,
-            PoseSort::Inverted => PoseSort::Rank,
+    /// The sort after this one, through the scores poses `checked` on their
+    /// own have.
+    fn next(self, checked: bool) -> Self {
+        match (self, checked) {
+            (PoseSort::Rank, false) => PoseSort::Rmsd,
+            (PoseSort::Rank, true) => PoseSort::Confidence,
+            (PoseSort::Rmsd | PoseSort::Confidence, _) => PoseSort::Clashes,
+            (PoseSort::Clashes, _) => PoseSort::Inverted,
+            (PoseSort::Inverted, _) => PoseSort::Rank,
         }
     }
 
-    /// The column the sort orders by.
-    fn column(self) -> &'static str {
-        match self {
-            PoseSort::Rank => "similarity",
-            PoseSort::Rmsd => "RMSD",
-            PoseSort::Clashes => "clashes",
-            PoseSort::Inverted => "inverted",
+    /// The column the sort orders by, among the columns of poses `checked`
+    /// on their own or not.
+    fn column(self, checked: bool) -> &'static str {
+        match (self, checked) {
+            (PoseSort::Rank, false) => "similarity",
+            (PoseSort::Rank, true) => "failed",
+            (PoseSort::Rmsd, _) => "RMSD",
+            (PoseSort::Confidence, _) => "confidence",
+            (PoseSort::Clashes, _) => "clashes",
+            (PoseSort::Inverted, false) => "inverted",
+            (PoseSort::Inverted, true) => "stereo",
         }
     }
 
@@ -83,12 +145,18 @@ impl PoseSort {
         match self {
             PoseSort::Rank => {}
             PoseSort::Rmsd => order.sort_by(|&a, &b| {
-                let rmsd = |pose: usize| poses[pose].rmsd.unwrap_or(f32::INFINITY);
+                let rmsd = |pose: usize| poses[pose].rmsd().unwrap_or(f32::INFINITY);
                 rmsd(a).total_cmp(&rmsd(b))
             }),
+            PoseSort::Confidence => order.sort_by(|&a, &b| {
+                let confidence =
+                    |pose: usize| poses[pose].confidence().unwrap_or(f32::NEG_INFINITY);
+                confidence(b).total_cmp(&confidence(a))
+            }),
             PoseSort::Clashes => order.sort_by_key(|&pose| poses[pose].clashes),
-            PoseSort::Inverted => order
-                .sort_by_key(|&pose| poses[pose].inverted.as_ref().map_or(usize::MAX, Vec::len)),
+            PoseSort::Inverted => {
+                order.sort_by_key(|&pose| poses[pose].turned().map_or(usize::MAX, <[_]>::len))
+            }
         }
 
         order
@@ -106,6 +174,44 @@ fn elided(label: &str, width: usize) -> String {
     format!("\u{2026}{tail}")
 }
 
+/// The cells of `pose`'s scores, in the order of the table's columns.
+fn scored_cells(pose: &Pose) -> Vec<String> {
+    let dash = || "-".to_string();
+    let count = |names: Option<&[String]>| names.map_or_else(dash, |names| names.len().to_string());
+    match &pose.scores {
+        Scores::Compared {
+            similarity,
+            recovery,
+            rmsd,
+            inverted,
+            ..
+        } => vec![
+            format!("{similarity:.3}"),
+            format!("{recovery:.3}"),
+            rmsd.map_or_else(dash, |rmsd| format!("{rmsd:.2}")),
+            pose.clashes.to_string(),
+            count(inverted.as_deref()),
+        ],
+        Scores::Checked {
+            failed,
+            unchecked,
+            stereo,
+            confidence,
+            ..
+        } => vec![
+            // A check that could not be made marks the count as uncertain.
+            format!(
+                "{}{}",
+                failed.len(),
+                if unchecked.is_empty() { "" } else { "?" }
+            ),
+            pose.clashes.to_string(),
+            count(stereo.as_deref()),
+            confidence.map_or_else(dash, |confidence| format!("{confidence:.2}")),
+        ],
+    }
+}
+
 /// The poses, in rank order, as the table lists them under its sort.
 pub(crate) struct PoseTable {
     pub(crate) poses: Vec<Pose>,
@@ -113,6 +219,8 @@ pub(crate) struct PoseTable {
     pub(crate) receptor: Option<Protein>,
     pub(crate) order: Vec<usize>,
     pub(crate) sort: PoseSort,
+    /// Whether the poses were checked on their own, not against a reference.
+    checked: bool,
     /// The pose drawn, by rank.
     pub(crate) shown: Option<usize>,
     pub(crate) visible: bool,
@@ -137,6 +245,7 @@ impl PoseTable {
 
         Self {
             order: PoseSort::Rank.order(&poses),
+            checked: poses.iter().any(Pose::is_checked),
             poses,
             receptor,
             sort: PoseSort::Rank,
@@ -185,7 +294,7 @@ impl PoseTable {
 
     /// Sort the table by the next column in turn, keeping the pose drawn.
     pub(crate) fn cycle_sort(&mut self) {
-        self.sort = self.sort.next();
+        self.sort = self.sort.next(self.checked);
         self.order = self.sort.order(&self.poses);
     }
 
@@ -224,13 +333,22 @@ impl PoseTable {
         if copies {
             columns.push(("copy", Constraint::Length(9)));
         }
-        columns.extend([
-            ("similarity", Constraint::Length(11)),
-            ("recovery", Constraint::Length(9)),
-            ("RMSD", Constraint::Length(5)),
-            ("clashes", Constraint::Length(8)),
-            ("inverted", Constraint::Length(9)),
-        ]);
+        if self.checked {
+            columns.extend([
+                ("failed", Constraint::Length(7)),
+                ("clashes", Constraint::Length(8)),
+                ("stereo", Constraint::Length(7)),
+                ("confidence", Constraint::Length(11)),
+            ]);
+        } else {
+            columns.extend([
+                ("similarity", Constraint::Length(11)),
+                ("recovery", Constraint::Length(9)),
+                ("RMSD", Constraint::Length(5)),
+                ("clashes", Constraint::Length(8)),
+                ("inverted", Constraint::Length(9)),
+            ]);
+        }
         // The pose column fills what the others and the gaps between them leave.
         let fixed: u16 = columns
             .iter()
@@ -241,7 +359,7 @@ impl PoseTable {
             .sum();
         let label_width = usize::from(area.width.saturating_sub(fixed + 1));
         let header = Row::new(columns.iter().map(|&(name, _)| {
-            if name == self.sort.column() {
+            if name == self.sort.column(self.checked) {
                 format!("{name}\u{25be}")
             } else {
                 name.to_string()
@@ -263,23 +381,14 @@ impl PoseTable {
             if copies {
                 cells.push(pose.copy.clone().unwrap_or_default());
             }
-            cells.extend([
-                format!("{:.3}", pose.similarity),
-                format!("{:.3}", pose.recovery),
-                pose.rmsd
-                    .map_or("-".to_string(), |rmsd| format!("{rmsd:.2}")),
-                pose.clashes.to_string(),
-                pose.inverted
-                    .as_ref()
-                    .map_or("-".to_string(), |centres| centres.len().to_string()),
-            ]);
+            cells.extend(scored_cells(pose));
             Row::new(cells)
         });
 
         let title = format!(
             " Poses ({}) \u{b7} sorted by {} ",
             self.poses.len(),
-            self.sort.column()
+            self.sort.column(self.checked)
         );
         let bottom = match &self.error {
             Some(error) => Line::from(format!(" {error} ")).style(Style::default().fg(Color::Red)),
@@ -305,9 +414,8 @@ impl PoseTable {
         self.drawn.clone_from(&self.order);
     }
 
-    /// What the pose drawn lacks, in about `width` columns: the reference's
-    /// frame, when it is drawn in its own, the centres it inverts, the checks
-    /// of its geometry it fails and the contacts it loses.
+    /// What the pose drawn lacks, in about `width` columns: the frame it is
+    /// drawn in, when its own, then what its scores say against it.
     fn details(&self, width: usize) -> String {
         let Some(pose) = self.shown_pose() else {
             return String::new();
@@ -316,18 +424,38 @@ impl PoseTable {
         if pose.superposition.is_none() {
             parts.push("in its own frame: too few pocket atoms matched".to_string());
         }
-        if let Some(inverted) = pose.inverted.as_ref().filter(|centres| !centres.is_empty()) {
-            parts.push(format!("inverts {}", inverted.join(", ")));
+        if let Some(turned) = pose.turned().filter(|turned| !turned.is_empty()) {
+            parts.push(format!("inverts {}", turned.join(", ")));
         }
         if let Some(failed) = pose.geometry.as_ref().filter(|failed| !failed.is_empty()) {
             parts.push(format!("strays in {}", failed.join(", ")));
         }
-        if pose.lost.is_empty() {
-            parts.push("keeps every reference contact".to_string());
-        } else {
-            let used: usize = parts.iter().map(|part| part.chars().count() + 3).sum();
-            let room = width.saturating_sub(used + "lost: ".len() + 2);
-            parts.push(format!("lost: {}", crate::ui::fitted(&pose.lost, room)));
+        match &pose.scores {
+            Scores::Compared { lost, .. } if lost.is_empty() => {
+                parts.push("keeps every reference contact".to_string());
+            }
+            Scores::Compared { lost, .. } => {
+                let used: usize = parts.iter().map(|part| part.chars().count() + 3).sum();
+                let room = width.saturating_sub(used + "lost: ".len() + 2);
+                parts.push(format!("lost: {}", crate::ui::fitted(lost, room)));
+            }
+            Scores::Checked {
+                failed,
+                unchecked,
+                ligand_iptm,
+                ..
+            } => {
+                let verdict = match (failed.is_empty(), unchecked.is_empty()) {
+                    (true, true) => vec!["passes every check".to_string()],
+                    (true, false) => Vec::new(),
+                    (false, _) => vec![format!("fails {}", failed.join(", "))],
+                };
+                let unchecked =
+                    (!unchecked.is_empty()).then(|| format!("unchecked: {}", unchecked.join(", ")));
+                let iptm = ligand_iptm.map(|iptm| format!("ligand ipTM {iptm:.2}"));
+                parts.splice(0..0, verdict.into_iter().chain(unchecked));
+                parts.extend(iptm);
+            }
         }
 
         format!(" {} ", parts.join(" \u{b7} "))
@@ -361,24 +489,53 @@ impl PoseTable {
 mod tests {
     use super::*;
 
-    /// A pose scored with `clashes` and `inverted` centres, otherwise perfect.
-    fn scored(clashes: usize, inverted: Option<&[&str]>) -> Pose {
+    fn named(names: &[&str]) -> Vec<String> {
+        names.iter().map(|name| name.to_string()).collect()
+    }
+
+    /// A pose with `clashes` and `scores`, otherwise perfect.
+    fn pose(clashes: usize, scores: Scores) -> Pose {
         Pose {
             label: "pose.cif".to_string(),
             path: PathBuf::from("pose.cif"),
             model: 1,
             copy: None,
-            similarity: 1.0,
-            recovery: 1.0,
-            rmsd: Some(0.0),
             clashes,
-            inverted: inverted.map(|names| names.iter().map(|name| name.to_string()).collect()),
             geometry: None,
-            lost: Vec::new(),
+            scores,
             ligand: Vec::new(),
             superposition: None,
             docked: None,
         }
+    }
+
+    /// A pose scored with `clashes` and `inverted` centres, otherwise perfect.
+    fn scored(clashes: usize, inverted: Option<&[&str]>) -> Pose {
+        pose(
+            clashes,
+            Scores::Compared {
+                similarity: 1.0,
+                recovery: 1.0,
+                rmsd: Some(0.0),
+                inverted: inverted.map(named),
+                lost: Vec::new(),
+            },
+        )
+    }
+
+    /// A pose checked on its own with `clashes`, failing `failed` and scored
+    /// `confidence`.
+    fn checked(clashes: usize, failed: &[&str], confidence: Option<f32>) -> Pose {
+        pose(
+            clashes,
+            Scores::Checked {
+                failed: named(failed),
+                unchecked: Vec::new(),
+                stereo: Some(Vec::new()),
+                confidence,
+                ligand_iptm: None,
+            },
+        )
     }
 
     #[test]
@@ -408,5 +565,101 @@ mod tests {
         assert_eq!(table.order, [0, 3, 2, 1], "the unpaired last");
         table.cycle_sort();
         assert_eq!(table.order, [0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn poses_checked_on_their_own_sort_by_confidence_not_rmsd() {
+        let mut table = PoseTable::new(
+            vec![
+                checked(2, &["clashes"], Some(0.4)),
+                checked(0, &[], None),
+                checked(1, &["clashes"], Some(0.9)),
+            ],
+            None,
+        );
+        assert_eq!(table.sort.column(table.checked), "failed");
+
+        table.cycle_sort();
+        assert_eq!(table.sort, PoseSort::Confidence);
+        assert_eq!(table.order, [2, 0, 1], "the unscored last");
+        table.cycle_sort();
+        assert_eq!(table.sort, PoseSort::Clashes);
+        assert_eq!(table.order, [1, 2, 0]);
+        table.cycle_sort();
+        assert_eq!(table.sort.column(table.checked), "stereo");
+        table.cycle_sort();
+        assert_eq!(table.sort, PoseSort::Rank);
+    }
+
+    #[test]
+    fn a_checked_pose_s_details_name_what_it_fails_and_what_went_unchecked() {
+        let failing = Pose {
+            geometry: Some(named(&["bonds 1"])),
+            scores: Scores::Checked {
+                failed: named(&["clashes", "bonds"]),
+                unchecked: named(&["stereo"]),
+                stereo: None,
+                confidence: Some(0.8),
+                ligand_iptm: Some(0.61),
+            },
+            ..checked(2, &[], None)
+        };
+        let mut table = PoseTable::new(vec![failing, checked(0, &[], None)], None);
+
+        table.shown = Some(0);
+        assert_eq!(
+            table.details(200),
+            " fails clashes, bonds \u{b7} unchecked: stereo \u{b7} in its own frame: too few \
+             pocket atoms matched \u{b7} strays in bonds 1 \u{b7} ligand ipTM 0.61 "
+        );
+        table.shown = Some(1);
+        assert!(table.details(200).starts_with(" passes every check"));
+    }
+
+    #[test]
+    fn a_table_of_checked_poses_shows_their_checks_and_confidence() {
+        use ratatui::Terminal;
+        use ratatui::backend::TestBackend;
+
+        let unsure = Pose {
+            scores: Scores::Checked {
+                failed: Vec::new(),
+                unchecked: named(&["geometry"]),
+                stereo: None,
+                confidence: None,
+                ligand_iptm: None,
+            },
+            ..checked(0, &[], None)
+        };
+        let mut table = PoseTable::new(
+            vec![checked(3, &["clashes", "angles"], Some(0.87)), unsure],
+            None,
+        );
+        let mut terminal = Terminal::new(TestBackend::new(80, 6)).unwrap();
+        terminal
+            .draw(|frame| table.render(frame, frame.area()))
+            .unwrap();
+        let lines: Vec<String> = terminal
+            .backend()
+            .buffer()
+            .content
+            .chunks(80)
+            .map(|row| row.iter().map(|cell| cell.symbol()).collect())
+            .collect();
+
+        assert!(lines[0].contains("sorted by failed"), "{lines:#?}");
+        let header = &lines[1];
+        for column in ["failed\u{25be}", "clashes", "stereo", "confidence"] {
+            assert!(header.contains(column), "{header}");
+        }
+        assert!(!header.contains("RMSD"), "{header}");
+        let words = |line: &str| -> Vec<String> {
+            line.split_whitespace()
+                .filter(|word| *word != "\u{2502}")
+                .map(str::to_string)
+                .collect()
+        };
+        assert_eq!(words(&lines[2])[3..], ["2", "3", "0", "0.87"]);
+        assert_eq!(words(&lines[3])[3..], ["0?", "0", "-", "-"]);
     }
 }

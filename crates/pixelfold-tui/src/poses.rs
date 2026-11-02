@@ -1,5 +1,6 @@
 //! Triaging poses in the viewer: the pose picked from the table is drawn on
-//! the reference's pocket, its ligand tinted, the network pane following.
+//! the reference's pocket, or without a reference on the best pose's, its
+//! ligand tinted, the network pane following.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -38,6 +39,12 @@ impl App {
         load: Load,
     ) -> Result<()> {
         anyhow::ensure!(!poses.is_empty(), "there are no poses to show");
+        anyhow::ensure!(
+            poses
+                .iter()
+                .all(|pose| pose.is_checked() == poses[0].is_checked()),
+            "poses compared with a reference and poses checked on their own cannot share a table"
+        );
         self.poses = Some(PoseTable::new(poses, receptor));
         self.load = load;
         // Space-filling atoms bury a ligand in its pocket; the trace does not.
@@ -71,8 +78,8 @@ impl App {
         self.redraw_needed = true;
     }
 
-    /// Draw the pose ranked `rank`, laid on the reference's pocket when it can
-    /// be. The camera stays put when the pose is drawn in the frame of the one
+    /// Draw the pose ranked `rank`, laid on the pocket it is compared on when
+    /// it can be. The camera stays put when the pose is drawn in the frame of the one
     /// it replaces, and is framed at the next drawing otherwise. Nothing
     /// changes when it cannot be drawn.
     fn show_pose(&mut self, rank: usize) -> Result<()> {
@@ -219,7 +226,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::pose_table::PoseSort;
+    use crate::pose_table::{PoseSort, Scores};
     use glam::Vec3;
     use pixelfold_core::rmsd::Superposition;
     use pixelfold_render::renderer::Camera;
@@ -267,16 +274,24 @@ mod tests {
             path: path.to_path_buf(),
             model,
             copy: None,
-            similarity: 1.0,
-            recovery: 1.0,
-            rmsd: Some(0.0),
             clashes: 0,
-            inverted: Some(Vec::new()),
             geometry: Some(Vec::new()),
-            lost: Vec::new(),
+            scores: compared(Some(0.0), Vec::new()),
             ligand: vec![3],
             superposition,
             docked: None,
+        }
+    }
+
+    /// Scores against a reference with `rmsd` and the contacts `lost`,
+    /// otherwise perfect.
+    fn compared(rmsd: Option<f32>, lost: Vec<String>) -> Scores {
+        Scores::Compared {
+            similarity: 1.0,
+            recovery: 1.0,
+            rmsd,
+            inverted: Some(Vec::new()),
+            lost,
         }
     }
 
@@ -338,7 +353,7 @@ mod tests {
     fn the_poses_step_in_the_order_the_table_is_sorted_in() {
         let path = poses_file("order", &[0.0, 0.0, 0.0]);
         let measured = |model, rmsd| Pose {
-            rmsd,
+            scores: compared(rmsd, Vec::new()),
             ..pose(&path, model, None)
         };
         let mut app = app_of(vec![
@@ -591,8 +606,7 @@ mod tests {
         let mut app = app_of(vec![
             pose(&path, 1, None),
             Pose {
-                rmsd: Some(1.234),
-                lost: vec!["HIS A/57 hydrogen-bond".to_string()],
+                scores: compared(Some(1.234), vec!["HIS A/57 hydrogen-bond".to_string()]),
                 ..pose(&path, 2, None)
             },
             pose(&path, 3, None),
@@ -626,6 +640,26 @@ mod tests {
         assert!(app.pick_pose(10, 4));
         let _ = std::fs::remove_file(&path);
         assert_eq!(shown(&app), 2, "the third row drawn");
+    }
+
+    #[test]
+    fn poses_compared_and_poses_checked_do_not_share_a_table() {
+        let path = poses_file("mixed", &[0.0, 0.0]);
+        let checked = Pose {
+            scores: Scores::Checked {
+                failed: Vec::new(),
+                unchecked: Vec::new(),
+                stereo: None,
+                confidence: None,
+                ligand_iptm: None,
+            },
+            ..pose(&path, 2, None)
+        };
+
+        let mixed =
+            App::new().load_poses(vec![pose(&path, 1, None), checked], None, Load::default());
+        let _ = std::fs::remove_file(&path);
+        assert!(mixed.is_err());
     }
 
     #[test]
