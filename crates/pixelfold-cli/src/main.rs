@@ -217,7 +217,8 @@ enum Command {
 
         /// Emit a MolViewSpec (.mvsj) scene for Mol*: the structure (the first,
         /// of several) with the network's residues highlighted (scoped by
-        /// --select)
+        /// --select), in the model --model names, or every model, overlaid,
+        /// with --model all
         #[arg(long)]
         mvsj: bool,
 
@@ -559,9 +560,10 @@ fn run(command: Command) -> Result<()> {
                 })
             } else if mvsj {
                 let (url, parse_format) = mvsj_source(&structures[0])?;
+                let models = shown_models(&structures[0], &common)?;
                 let title = format!("PixelFold — {} interaction network", structures.join(", "));
                 emit_to(output.as_deref(), |out| {
-                    graph::write_mvsj(out, &network, &url, parse_format, &title)
+                    graph::write_mvsj(out, &network, &url, parse_format, &models, &title)
                 })
             } else if analyze {
                 let report = rin::analyze(&network);
@@ -711,7 +713,9 @@ where
     let mut records = Vec::new();
     let mut matched = false;
     for model in parsed.model_numbers() {
-        let protein = parsed.protein(&analysis.common.load(Some(model)))?;
+        let protein = parsed
+            .protein(&analysis.common.load(Some(model)))
+            .with_context(|| format!("model {model}"))?;
         let chosen = load::selection(&protein, query)?;
         matched |= !chosen.is_empty();
         records.extend(
@@ -900,6 +904,23 @@ fn compare_poses(
 /// A 4-character PDB id resolves to its canonical RCSB mmCIF URL, which any Mol*
 /// can fetch. A local path becomes a `file://` URL, which a desktop or
 /// locally-served Mol* can read.
+/// The models of `structure` a scene shows, as 0-based indices in file order:
+/// the one `--model` names, or every one under `--model all`.
+fn shown_models(structure: &str, common: &Common) -> Result<Vec<usize>> {
+    let numbers = load::model_numbers(structure, &cache_dir(common)?)?;
+
+    Ok(match common.model {
+        Some(ModelChoice::All) => (0..numbers.len()).collect(),
+        Some(ModelChoice::One(number)) => vec![
+            numbers
+                .iter()
+                .position(|&model| model == number)
+                .with_context(|| format!("{structure} has no model {number}"))?,
+        ],
+        None => vec![0],
+    })
+}
+
 fn mvsj_source(structure: &str) -> Result<(String, &'static str)> {
     let is_pdb_id = structure.len() == 4 && structure.chars().all(|c| c.is_ascii_alphanumeric());
     if is_pdb_id {

@@ -309,6 +309,30 @@ fn mvsj_export_is_a_valid_molviewspec_scene() {
     );
 }
 
+// Mol* draws a file's first model unless told otherwise, whatever model the
+// network was built over.
+#[test]
+fn a_scene_shows_the_models_its_network_spans() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = with_a_second_model("1CRN", dir.path(), 40, 60.0);
+    let shown = |args: &[&str]| -> Vec<serde_json::Value> {
+        let run = run_on(&path, &[&["rin", "--mvsj"], args].concat());
+        assert!(run.ok, "{}", run.stderr);
+        let scene: serde_json::Value = serde_json::from_str(&run.stdout).unwrap();
+        let parse = &scene["root"]["children"][0]["children"][0];
+        parse["children"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|structure| structure["params"]["model_index"].clone())
+            .collect()
+    };
+
+    assert_eq!(shown(&[]), [0]);
+    assert_eq!(shown(&["--model", "2"]), [1]);
+    assert_eq!(shown(&["--model", "all"]), [0, 1]);
+}
+
 /// `--path` reports the shortest chain of interactions between two residues.
 #[test]
 fn shortest_path_reports_a_route_between_residues() {
@@ -983,6 +1007,17 @@ fn each_file_must_hold_the_model_asked_for() {
     assert!(!run.ok);
     assert!(run.stderr.contains("1CRN.cif"), "{}", run.stderr);
     assert!(run.stderr.contains("there is no model 2"), "{}", run.stderr);
+}
+
+#[test]
+fn a_model_that_fails_to_load_under_model_all_is_named() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = two_model_file(&dir);
+
+    let run = run_on(&path, &["ss", "--model", "all", "--assembly=9"]);
+
+    assert!(!run.ok);
+    assert!(run.stderr.contains("model 1"), "{}", run.stderr);
 }
 
 #[test]

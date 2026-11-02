@@ -61,6 +61,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`--mvsj` showed the first model.** A MolViewSpec scene of `rin --model N`
+  drew model 1 with model N's network, since Mol\* shows a file's first model
+  unless told otherwise. The scene now shows the model `--model` names, and
+  under `--model all` every model, overlaid, each with the network's residues
+  picked out.
+- **The model that failed under `--model all`.** `ss`, `sasa` and
+  `interactions` now name the model a load error comes from, as `rin` does.
 - **Parser warnings over the viewer.** A file's warnings, printed while the
   viewer held the terminal, landed on its drawing, and the note of a
   truncated identifier came again at every model or pose stepped to. The

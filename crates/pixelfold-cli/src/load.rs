@@ -40,6 +40,16 @@ pub fn parsed(input: &str, cache_dir: &Path) -> Result<ParsedStructure> {
     read(&path).with_context(|| format!("failed to load {}", path.display()))
 }
 
+/// The model numbers of a structure already read once, so its warnings are not
+/// printed again.
+pub fn model_numbers(input: &str, cache_dir: &Path) -> Result<Vec<usize>> {
+    let path = structure_path(input, cache_dir)?;
+    let parsed = ParsedStructure::read(&path)
+        .with_context(|| format!("failed to load {}", path.display()))?;
+
+    Ok(parsed.model_numbers())
+}
+
 /// Read the structure at `path`, printing what the parser skipped or cut short.
 fn read(path: &Path) -> Result<ParsedStructure> {
     let parsed = ParsedStructure::read(path)?;

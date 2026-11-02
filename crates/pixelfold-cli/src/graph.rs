@@ -157,12 +157,14 @@ pub fn write_path<W: Write + ?Sized>(
 /// polymer drawn as a grey cartoon, and the network's residues picked out in
 /// ball-and-stick. Mol* opens the file and reproduces the scene, so the network
 /// selection becomes a shareable, diffable 3D view. `format` is the parse format
-/// of the structure at `url` (`mmcif` or `pdb`).
+/// of the structure at `url` (`mmcif` or `pdb`), and `models` the 0-based
+/// indices of its models shown, each drawn so, overlaid as the file has them.
 pub fn write_mvsj<W: Write + ?Sized>(
     out: &mut W,
     network: &Network,
     url: &str,
     format: &str,
+    models: &[usize],
     title: &str,
 ) -> Result<()> {
     let residues: Vec<Value> = network
@@ -184,13 +186,21 @@ pub fn write_mvsj<W: Write + ?Sized>(
         components.push(component(json!(residues), "ball_and_stick", "#ffb454"));
     }
 
+    let structures: Vec<Value> = models
+        .iter()
+        .map(|&index| {
+            json!({
+                "kind": "structure",
+                "params": { "type": "model", "model_index": index },
+                "children": components
+            })
+        })
+        .collect();
     let scene = json!({
         "metadata": { "version": "1", "title": title },
         "root": { "kind": "root", "children": [
             { "kind": "download", "params": { "url": url }, "children": [
-                { "kind": "parse", "params": { "format": format }, "children": [
-                    { "kind": "structure", "params": { "type": "model" }, "children": components }
-                ]}
+                { "kind": "parse", "params": { "format": format }, "children": structures }
             ]}
         ]}
     });
