@@ -103,10 +103,13 @@ order given.
 | Field | Meaning |
 |---|---|
 | `pose`, `model` | The pose file as given, and the model (or SD record) number |
-| `failed` | The checks the pose fails: `clashes`, `bonds`, `angles`, `internal_clashes`, `flatness`, `flat_rings`, `stereo` |
+| `failed` | The checks the pose fails: `clashes`, `metal_clashes`, `water_clashes`, `too_far`, `bonds`, `angles`, `internal_clashes`, `flatness`, `flat_rings`, `stereo` |
 | `unchecked` | The checks that could not be made: `geometry` (no bond table for some ligand residue: no definition, dictionary entry or SMILES pairs with it), `stereo` (no dictionary entry its atoms match and no SMILES that pairs) |
 | `contacts` | The ligand's residue-level contacts, a count; not ranked |
-| `clashes` | Ligand-protein heavy-atom pairs closer than 0.75 of their van der Waals radii summed, the covalent bonds the pose file records in `_struct_conn` (and pairs one bond from them) left out |
+| `clashes` | Heavy-atom pairs of the ligand and the protein or an organic cofactor closer than 0.75 of their van der Waals radii summed, the covalent bonds the pose file records in `_struct_conn` (and pairs one bond from them) left out |
+| `metal_clashes` | Pairs of the ligand and a metal or inorganic ion (sulfate, phosphate, an iron-sulfur cluster, or any chlorine or bromine atom, as PoseBusters takes them) closer than 0.75 of their covalent radii summed, which a coordination bond never is |
+| `water_clashes` | Pairs of the ligand and a water oxygen closer than 0.75 of their van der Waals radii summed |
+| `protein_distance` | The shortest distance in angstroms from a ligand heavy atom to a polymer one; over 5 fails `too_far`, as does `null` (no polymer) |
 | `geometry` | The ligand's own geometry against the bounds RDKit gives its bonds: `bonds`, `angles`, `internal_clashes`, `unflat`, `flat_rings` (each a count); `null` when unchecked |
 | `stereo` | The stereocentres (`STI A/201 C20`) and E/Z double bonds (`GPP A/101 C2=C3`) the pose turns the other way from those the dictionary labels or the SMILES string (`--smiles`, or the model's own) states; `null` when no residue could be checked |
 | `confidence` | `null`, or the co-folding tool's confidence found beside the model file: `source` (`alphafold3` or `boltz`), `score` (`ranking_score` or `confidence_score`), `ligand_iptm` (the ligand chain's `chain_iptm`, or `ligand_iptm`; `null` when absent) |

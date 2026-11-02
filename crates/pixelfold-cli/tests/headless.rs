@@ -2212,6 +2212,77 @@ fn a_crystal_ligand_checked_without_a_reference_passes_every_check() {
 }
 
 #[test]
+fn a_ligand_checked_without_a_reference_is_measured_against_ions_waters_and_the_protein() {
+    let cache = seeded_cache();
+    let dir = tempfile::tempdir().unwrap();
+    let crystal = &records(&checked(
+        cache.path(),
+        &["--ligand", "0G6"],
+        &[&fixture("1PPB")],
+    ))[0];
+    assert_eq!(crystal["metal_clashes"], 0, "{crystal}");
+    assert_eq!(crystal["water_clashes"], 0, "{crystal}");
+    let nearest = crystal["protein_distance"].as_f64().unwrap();
+    assert!(nearest < 4.0, "{crystal}");
+
+    // Two waters moved onto the ligand's first atom, one of them made a zinc.
+    let mut first = None;
+    let mut moved = 0;
+    let crowded = edited_fixture("1PPB", dir.path(), |fields, column| {
+        let at = |fields: &[String], axis: &str| -> f32 { fields[column[axis]].parse().unwrap() };
+        match fields[column["auth_comp_id"]].as_str() {
+            "0G6" if first.is_none() => {
+                first = Some([
+                    at(fields, "Cartn_x"),
+                    at(fields, "Cartn_y"),
+                    at(fields, "Cartn_z"),
+                ]);
+            }
+            "HOH" if moved < 2 => {
+                let [x, y, z] = first.expect("the ligand comes before the waters");
+                if moved == 0 {
+                    for name in [
+                        "label_comp_id",
+                        "auth_comp_id",
+                        "label_atom_id",
+                        "auth_atom_id",
+                        "type_symbol",
+                    ] {
+                        fields[column[name]] = "ZN".to_string();
+                    }
+                }
+                let offset = if moved == 0 { 1.2 } else { -2.0 };
+                fields[column["Cartn_x"]] = format!("{:.3}", x + offset);
+                fields[column["Cartn_y"]] = format!("{y:.3}");
+                fields[column["Cartn_z"]] = format!("{z:.3}");
+                moved += 1;
+            }
+            _ => {}
+        }
+    });
+    let pose = &records(&checked(cache.path(), &["--ligand", "0G6"], &[&crowded]))[0];
+    let failed = pose["failed"].to_string();
+    assert!(pose["metal_clashes"].as_u64().unwrap() > 0, "{pose}");
+    assert!(pose["water_clashes"].as_u64().unwrap() > 0, "{pose}");
+    assert_eq!(pose["clashes"], crystal["clashes"], "{pose}");
+    assert!(
+        failed.contains("metal_clashes") && failed.contains("water_clashes"),
+        "{failed}"
+    );
+
+    // The ligand moved clear of the protein.
+    let far = edited_fixture("1PPB", dir.path(), |fields, column| {
+        if fields[column["auth_comp_id"]] == "0G6" {
+            let x: f32 = fields[column["Cartn_x"]].parse().unwrap();
+            fields[column["Cartn_x"]] = format!("{:.3}", x + 40.0);
+        }
+    });
+    let pose = &records(&checked(cache.path(), &["--ligand", "0G6"], &[&far]))[0];
+    assert!(pose["protein_distance"].as_f64().unwrap() > 5.0, "{pose}");
+    assert!(pose["failed"].to_string().contains("too_far"), "{pose}");
+}
+
+#[test]
 fn a_mirrored_ligand_fails_its_stereochemistry_and_ranks_after_the_crystal() {
     let cache = seeded_cache();
     let dir = tempfile::tempdir().unwrap();

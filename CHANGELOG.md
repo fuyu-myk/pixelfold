@@ -8,19 +8,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- **Pose checks without a reference.** `pixelfold poses` without
-  `--reference` checks co-folding and docking poses when no crystal structure
-  of the complex exists, as PoseBusters checks a docked pose: clashes with the
-  protein; bond lengths, bond angles, internal clashes and the flatness of
-  aromatic rings and carbon double bonds against the bounds RDKit's distance
-  geometry gives the ligand's own bonds (a port of RDKit 2024.09's bounds,
-  aromaticity, conjugation and hybridisation rules, checked pair by pair
-  against RDKit's matrix); and tetrahedral and E/Z stereochemistry against the
-  Chemical Component Dictionary's ideal conformer of the ligand's component,
-  fetched from RCSB and cached, only the centres and double bonds it labels R,
-  S, E or Z counted. Poses rank by the checks they fail (one that could not be
-  made counting as failed), then by the confidence AlphaFold 3
-  (`ranking_score`, the ligand chain's `chain_iptm`) or
+- **Pose checks without a reference.** `pixelfold poses` without `--reference`
+  checks co-folding and docking poses when no crystal structure of the complex
+  exists, as PoseBusters checks a docked pose: clashes with the protein and
+  cofactors, with metal and inorganic ions (on covalent radii, so a
+  coordination bond is no clash) and with waters, each counted apart, and
+  whether any protein lies within 5 A (`too_far`); bond lengths, bond angles,
+  internal clashes and the flatness of aromatic rings and carbon double bonds
+  against the bounds RDKit's distance geometry gives the ligand's own bonds (a
+  port of RDKit 2024.09's bounds, aromaticity, conjugation and hybridisation
+  rules, checked pair by pair against RDKit's matrix); and tetrahedral and E/Z
+  stereochemistry against the Chemical Component Dictionary's ideal conformer
+  of the ligand's component, fetched from RCSB and cached, only the centres
+  and double bonds it labels R, S, E or Z counted. Poses rank by the checks
+  they fail (one that could not be made counting as failed), then by the
+  confidence AlphaFold 3 (`ranking_score`, the ligand chain's `chain_iptm`) or
   Boltz (`confidence_score`, `ligand_iptm`) wrote beside each model, then in
   the order given. A ligand the pose file does not define borrows the
   dictionary's entry only when its atoms match it, so a SMILES ligand that
@@ -30,21 +32,22 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   stereochemistry is checked too. A ligand with no dictionary code is checked
   against a SMILES string instead: the one AlphaFold 3 writes into its model
   (`_chem_comp.pdbx_smiles`) for a ligand it was given as SMILES, or
-  `--smiles` for other tools' output and docked SD files; the string gives
-  the bond orders, charges and hydrogens the geometry is bounded by and the
-  stereochemistry it states, its atoms paired with the pose's by bond graph.
-  A covalent ligand's bonds to the protein, which the pose file records in
+  `--smiles` for other tools' output and docked SD files; the string gives the
+  bond orders, charges and hydrogens the geometry is bounded by and the
+  stereochemistry it states, its atoms paired with the pose's by bond graph. A
+  covalent ligand's bonds to the protein, which the pose file records in
   `_struct_conn` as wwPDB entries and AlphaFold 3 do, are not clashes. Over
   1107 poses of 54 benchmark ligands, the checks agree with PoseBusters 0.6.5
-  on 99.0% to 100% of poses, check by check, and checked against each
-  ligand's canonical SMILES instead, the stereochemistry agrees as well (the
-  README has the table and the causes of every disagreement);
-  `benchmarks/tools/Dockerfile.posebusters` and `compare_posebusters.py`
-  reproduce it. With `--view` the ranking opens in the viewer, its table
-  listing each pose's failed checks, clashes, stereochemistry and
-  confidence, sortable by confidence or clashes, and every pose laid on the
-  pocket of the best ranked, so stepping through samples from separate runs
-  keeps the pocket still.
+  on 99.0% to 100% of poses, check by check, and checked against each ligand's
+  canonical SMILES instead, the stereochemistry agrees as well, and over 119
+  poses of seven ligands kept beside their ions, cofactors and waters the
+  distance checks agree on every pose (the README has the tables and the
+  causes of every disagreement); `benchmarks/tools/Dockerfile.posebusters` and
+  `compare_posebusters.py` reproduce it. With `--view` the ranking opens in
+  the viewer, its table listing each pose's failed checks, clashes,
+  stereochemistry and confidence, sortable by confidence or clashes, and every
+  pose laid on the pocket of the best ranked, so stepping through samples from
+  separate runs keeps the pocket still.
 - **Saturated rings held flat.** Both modes of `poses` now make PoseBusters'
   non-aromatic ring non-flatness check: a cyclohexane, piperidine or
   morpholine ring (and their kin with a double bond or two) whose atoms all
@@ -57,6 +60,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   ligand by it, `Dictionary::smiles` gives a file's `_chem_comp.pdbx_smiles`,
   and `ParsedStructure::links` with `pose::linked` turn a file's covalent
   bonds into the attachments a clash count excuses.
+- **PoseBusters' distance checks in `pixelfold-core`.**
+  `pixelfold_core::distances` counts a ligand's clashes with the protein and
+  organic cofactors, with ions and with waters, and how near the protein
+  comes (`Distances::too_far`).
 - **Chemical component dictionary entries.** `pixelfold_fetch::fetch_ccd`
   downloads one from RCSB, and `pixelfold-core`'s `Component` reads an entry's
   charges, ideal coordinates, file order and R/S and E/Z labels; the checks

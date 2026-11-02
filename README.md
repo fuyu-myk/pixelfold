@@ -60,7 +60,7 @@ protein and moved at random:
 | Internal steric clash | 1107 | 100.0% | 52 | 0 | 0 |
 | Aromatic ring and double bond flatness | 1107 | 99.0% | 14 | 0 | 11 |
 | Non-aromatic ring non-flatness | 1107 | 100.0% | 9 | 0 | 0 |
-| Minimum distance to protein | 1107 | 99.9% | 562 | 0 | 1 |
+| Minimum distance to protein and organic cofactors | 1107 | 100.0% | 563 | 0 | 0 |
 | Tetrahedral chirality | 1107 | 99.5% | 32 | 6 | 0 |
 | Double bond stereochemistry | 1107 | 99.9% | 4 | 0 | 1 |
 
@@ -68,6 +68,20 @@ Checked against each ligand's canonical SMILES instead of its dictionary entry
 (`--smiles`, as a ligand without a dictionary code is), every pose's
 stereochemistry is still checked, and the two stereochemistry rows read 99.5%
 and 100.0%.
+
+Seven more ligands kept beside their metal ions, cofactors and waters (zinc,
+manganese, calcium and mercury ions, a haem, NADP+, HIV protease's flap water),
+in 119 poses moved towards each partner and out from the protein, check
+PoseBusters' distance checks:
+
+| PoseBusters check | Poses | Agreement | Both fail | PoseBusters only | PixelFold only |
+| --- | --- | --- | --- | --- | --- |
+| Minimum distance to protein and organic cofactors | 119 | 100.0% | 53 | 0 | 0 |
+| Minimum distance to inorganic cofactors | 119 | 100.0% | 23 | 0 | 0 |
+| Minimum distance to waters | 119 | 100.0% | 36 | 0 | 0 |
+| Protein-ligand maximum distance | 119 | 100.0% | 14 | 0 | 0 |
+
+Their geometry and stereochemistry rows agree on all 119 too.
 
 These are agreement figures and never improvement claims. Where PixelFold and the
 reference disagree, the reference is right by construction. The harness lives in
@@ -215,7 +229,7 @@ clashes are bounded as RDKit's distance geometry bounds the ligand's own bonds
 smoothing), ported and checked pair by pair against RDKit's bounds matrix, and
 stereochemistry is judged against the Chemical Component Dictionary's ideal
 conformer, as PoseBusters judges it against a true molecule. Every
-disagreement in the table has one of four causes. All nine bond-angle ones are
+disagreement in the table but one double-bond verdict has one of three causes. All nine bond-angle ones are
 phosphates bent 40 degrees or more: RDKit, reading such a pose, takes its
 phosphorus for trigonal bipyramidal and bounds its angles for that shape, so the
 distortion changes PoseBusters' ideal, where PixelFold's comes from the bonds
@@ -224,8 +238,12 @@ PoseBusters takes the largest signed distance from the fitted plane, so its
 verdict turns on which way the plane's normal points, and PixelFold takes the
 largest distance either side. The six chirality ones are centres bent or
 pressed nearly flat, which InChI still gives a handedness and PixelFold counts
-as neither kept nor inverted, and the one protein clash is with a D-phenylalanine of a peptide,
-which PoseBusters counts as a cofactor rather than protein. Reproduce with the
+as neither kept nor inverted. The clash row joins PoseBusters' protein and
+organic cofactor checks, as PixelFold's `clashes` does, since PoseBusters takes
+every HETATM residue for a cofactor, a peptide's D-phenylalanine included.
+PoseBusters takes 17 elements for inorganic ions, and PixelFold every metal its
+interaction detector knows besides, so a mercury or platinum ion's bonds are no
+clash; none of the poses comes within 8 A of 1A42's mercury. Reproduce with the
 `Dockerfile.posebusters` image and `benchmarks/tools/compare_posebusters.py`
 (see [`benchmarks/tools`](https://github.com/fuyu-myk/pixelfold/blob/main/benchmarks/tools/README.md)).
 
@@ -326,7 +344,11 @@ Being explicit about what this does not do:
   checks, only the warning that it has no RMSD.
 - **Without a reference, poses are checked, not compared.** `pixelfold poses`
   with no `--reference` reports what PoseBusters' docking checks report and no
-  more: no RMSD, no contacts kept, no energy ratio. A ligand's geometry needs
+  more: no RMSD, no contacts kept, no energy ratio. Clashes are counted apart
+  with the protein and cofactors, with metal and inorganic ions (on covalent
+  radii, so a coordination bond is none), and with waters (often one the
+  ligand would displace), and a pose with no protein atom within 5 A fails
+  `too_far`. A ligand's geometry needs
   its bond table: the pose file's own component definitions, an SD record's
   bonds, the dictionary entry of its component when its atoms match that entry
   by name and element with at least half its bonds in place (a SMILES ligand

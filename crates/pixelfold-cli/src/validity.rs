@@ -1,6 +1,7 @@
 //! `pixelfold poses` without a reference: each pose checked as PoseBusters
-//! checks a docked pose, its clashes with the protein, its own geometry and
-//! its stereochemistry against the Chemical Component Dictionary, and ranked
+//! checks a docked pose, its clashes with the protein and cofactors, ions and
+//! waters, its distance from the protein, its own geometry and its
+//! stereochemistry against the Chemical Component Dictionary, and ranked
 //! by the checks it fails, then by the confidence its co-folding model gives
 //! it.
 
@@ -10,6 +11,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use pixelfold_core::checks;
+use pixelfold_core::distances;
 use pixelfold_core::interactions::detect;
 use pixelfold_core::numbering;
 use pixelfold_core::pose::{self, Attachments, Fingerprint, Link};
@@ -20,6 +22,7 @@ use pixelfold_core::stated::Stated;
 use pixelfold_core::{Atom, AtomSet, Component, Dictionary, Protein};
 use serde::Serialize;
 
+use crate::analyse::rounded;
 use crate::confidence::{self, Confidence};
 use crate::load;
 use crate::poses::{GeometryRecord, Warnings, atom_label, bond_label};
@@ -30,14 +33,20 @@ use crate::report::Row;
 pub struct CheckRecord {
     pub pose: String,
     pub model: usize,
-    /// The checks the pose fails: `clashes`, `bonds`, `angles`,
-    /// `internal_clashes`, `flatness`, `flat_rings`, `stereo`.
+    /// The checks the pose fails: `clashes`, `metal_clashes`,
+    /// `water_clashes`, `too_far`, `bonds`, `angles`, `internal_clashes`,
+    /// `flatness`, `flat_rings`, `stereo`.
     pub failed: Vec<&'static str>,
     /// The checks that could not be made: `geometry` without the ligand's
     /// bond table, `stereo` without a dictionary entry its atoms match.
     pub unchecked: Vec<&'static str>,
     pub contacts: usize,
     pub clashes: usize,
+    pub metal_clashes: usize,
+    pub water_clashes: usize,
+    /// The shortest distance from the ligand to the protein, or `None` with
+    /// no protein.
+    pub protein_distance: Option<f32>,
     pub geometry: Option<GeometryRecord>,
     /// The labelled stereocentres the pose inverts and E or Z double bonds it
     /// turns the other way, or `None` when no residue could be checked.
@@ -62,6 +71,9 @@ impl Row for CheckRecord {
             "model",
             "failed",
             "clashes",
+            "metal_clashes",
+            "water_clashes",
+            "protein_distance",
             "geometry",
             "stereo",
             "confidence",
@@ -76,6 +88,10 @@ impl Row for CheckRecord {
             self.model.to_string(),
             self.failed.join(", "),
             self.clashes.to_string(),
+            self.metal_clashes.to_string(),
+            self.water_clashes.to_string(),
+            self.protein_distance
+                .map_or(String::new(), |distance| format!("{distance:.2}")),
             self.geometry
                 .as_ref()
                 .map_or_else(unchecked, |geometry| geometry.failed().join(", ")),
@@ -408,7 +424,7 @@ fn scored(
             codes.join(", ")
         ));
     }
-    let clashes = pose::clashes(protein, ligand, attached);
+    let near = distances::distances(protein, ligand, attached);
     let labels: Vec<String> = stereo
         .inverted
         .iter()
@@ -417,8 +433,17 @@ fn scored(
         .collect();
 
     let mut failed = Vec::new();
-    if clashes > 0 {
-        failed.push("clashes");
+    for (check, count) in [
+        ("clashes", near.clashes),
+        ("metal_clashes", near.metal_clashes),
+        ("water_clashes", near.water_clashes),
+    ] {
+        if count > 0 {
+            failed.push(check);
+        }
+    }
+    if near.too_far() {
+        failed.push("too_far");
     }
     if let Some(geometry) = &geometry {
         for (check, count) in [
@@ -451,7 +476,10 @@ fn scored(
         failed,
         unchecked,
         contacts: fingerprint.len(),
-        clashes,
+        clashes: near.clashes,
+        metal_clashes: near.metal_clashes,
+        water_clashes: near.water_clashes,
+        protein_distance: near.protein_distance.map(|distance| rounded(distance, 2)),
         geometry,
         stereo: (stereo.checked > 0).then_some(labels),
         confidence,
@@ -604,6 +632,9 @@ mod tests {
             unchecked,
             contacts: 0,
             clashes: 0,
+            metal_clashes: 0,
+            water_clashes: 0,
+            protein_distance: None,
             geometry: None,
             stereo: None,
             confidence: score.map(|score| Confidence {

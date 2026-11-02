@@ -91,9 +91,12 @@ pixelfold poses --receptor receptor.pdb --smiles 'CC(=O)Nc1ccc(O)cc1' docked.sdf
 - Records come best first: fewest `failed` checks (an `unchecked` one counts
   as failed), then the highest `confidence.score`, read from AlphaFold 3's or Boltz's JSON beside each model
   file (keep the tools' file names), then the order given.
-- `failed` names the checks failed: `clashes` (with the protein), `bonds`,
-  `angles`, `internal_clashes`, `flatness`, `flat_rings` (a saturated ring
-  left flat), `stereo`. Empty means the pose
+- `failed` names the checks failed: `clashes` (with the protein or a
+  cofactor), `metal_clashes` (with a metal or ion, on covalent radii),
+  `water_clashes`, `too_far` (no protein within 5 A), `bonds`, `angles`,
+  `internal_clashes`, `flatness`, `flat_rings` (a saturated ring left flat),
+  `stereo`. A water clash is often a water the ligand would displace, so
+  read it apart from the rest. Empty means the pose
   passes everything that could be checked; read `unchecked` too.
 - `stereo` lists the centres and E/Z bonds turned the other way from the
   Chemical Component Dictionary entry of the ligand's code, fetched once and

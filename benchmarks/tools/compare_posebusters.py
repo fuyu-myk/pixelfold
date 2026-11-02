@@ -15,7 +15,10 @@ fetched) and compares each pose's failed checks with PoseBusters' verdicts:
     internal_clashes  Internal steric clash
     flatness          Aromatic ring flatness and Double bond flatness
     flat_rings        Non-aromatic ring non-flatness
-    clashes           Minimum distance to protein
+    clashes           Minimum distance to protein and to organic cofactors
+    metal_clashes     Minimum distance to inorganic cofactors
+    water_clashes     Minimum distance to waters
+    too_far           Protein-ligand maximum distance
     stereo (centres)  Tetrahedral chirality
     stereo (bonds)    Double bond stereochemistry
 
@@ -47,7 +50,14 @@ CHECKS = [
     ("internal_clashes", ["internal_steric_clash"], "Internal steric clash"),
     ("flatness", ["aromatic_ring_flatness", "double_bond_flatness"], "Flatness (aromatic rings, double bonds)"),
     ("flat_rings", ["non-aromatic_ring_non-flatness"], "Non-aromatic ring non-flatness"),
-    ("clashes", ["minimum_distance_to_protein"], "Minimum distance to protein"),
+    (
+        "clashes",
+        ["minimum_distance_to_protein", "minimum_distance_to_organic_cofactors"],
+        "Minimum distance to protein and organic cofactors",
+    ),
+    ("metal_clashes", ["minimum_distance_to_inorganic_cofactors"], "Minimum distance to inorganic cofactors"),
+    ("water_clashes", ["minimum_distance_to_waters"], "Minimum distance to waters"),
+    ("too_far", ["protein-ligand_maximum_distance"], "Protein-ligand maximum distance"),
     ("centres", ["tetrahedral_chirality"], "Tetrahedral chirality"),
     ("double_bonds", ["double_bond_stereochemistry"], "Double bond stereochemistry"),
 ]
@@ -71,8 +81,10 @@ def pixelfold_fails(record: dict, check: str) -> bool | None:
     could not make it."""
     if check in GEOMETRY:
         return None if record["geometry"] is None else check in record["failed"]
-    if check == "clashes":
-        return record["clashes"] > 0
+    if check in ("clashes", "metal_clashes", "water_clashes"):
+        return record[check] > 0
+    if check == "too_far":
+        return check in record["failed"]
     if record["stereo"] is None:
         return None
     labels = record["stereo"]

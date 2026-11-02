@@ -4,6 +4,7 @@
 mod assembly;
 pub mod checks;
 pub mod components;
+pub mod distances;
 mod dssp;
 pub mod fixed_str;
 mod geometry;

@@ -249,7 +249,9 @@ enum Command {
     /// by aligning chain sequences, so a pose may number them as it likes. A
     /// pose holding several copies of the ligand is scored by the copy most
     /// like the reference's, named in the copy column. Without --reference each
-    /// pose is checked for clashes with the protein, for its geometry against
+    /// pose is checked for clashes with the protein and cofactors, with metal
+    /// and inorganic ions and with waters, for a protein within 5 A of it, for
+    /// its geometry against
     /// the bounds RDKit gives its bonds, and for its stereochemistry against
     /// the Chemical Component Dictionary entry of its component (fetched and
     /// cached), then ranked by the checks it fails and the confidence a

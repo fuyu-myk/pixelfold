@@ -21,10 +21,23 @@ should fail one check or another, or sit at a check's edge:
     shifted-N      the crystal moved N A towards the protein
     random-N       a random small rotation, shift and torsion
 
-and writes, under --cases (benchmarks/posebusters by default):
+With --partners it takes instead the PARTNERS entries, whose ligands sit beside
+metal ions, cofactors and waters, keeps those in the receptor, and moves the
+crystal ligand for the distance checks:
+
+    toward-K-N     the crystal moved N A towards the nearest atom of kind K
+                   (ion, water, cofactor), as PoseBusters sorts them
+    away-4.5       the crystal moved out from the protein's centre until no
+    away-5.5       protein atom lies within 4.5 or 5.5 A of it
+    away-far       10 A further out
+    random-N       a random small rotation and shift
+
+and writes, under --cases (benchmarks/posebusters by default, or
+benchmarks/posebusters-partners with --partners):
 
     <ENTRY>_<CODE>/poses.sdf     every pose, its name the variant's
-    <ENTRY>_<CODE>/receptor.pdb  the entry's polymer, no ligands or water
+    <ENTRY>_<CODE>/receptor.pdb  the entry's polymer, no ligands or water (with
+                                 --partners, everything but the ligand)
     ccd/<CODE>.cif               the dictionary entry (pixelfold's --cache-dir)
     verdicts.json                {case: {variant: {check: passed}}}
 
@@ -71,6 +84,22 @@ ADDITIVES = {
 }
 METALS = {"MG", "FE", "ZN", "CU", "CO", "MN", "NI", "CA", "NA", "K", "SR", "LI", "MO", "W", "V"}
 
+# Entries whose ligand sits beside metal ions, cofactors or waters, for the
+# distance checks (--partners).
+PARTNERS = [
+    ("3HS4", "AZM"),  # zinc, glycerol, waters
+    ("1A42", "BZU"),  # zinc, mercury
+    ("1TLP", "RDF"),  # zinc, calcium
+    ("1ATP", "ATP"),  # manganese
+    ("2CPP", "CAM"),  # haem
+    ("1RX2", "FOL"),  # NADP+, manganese
+    ("1HSG", "MK1"),  # the flap water
+]
+
+# What PoseBusters takes for inorganic cofactors (posebusters/tools/protein.py).
+ION_ELEMENTS = {"LI", "BE", "NA", "MG", "CL", "K", "CA", "MN", "FE", "CO", "NI", "CU", "ZN", "BR", "RB", "MO", "CD"}
+ION_RESIDUES = {"FES", "MOS", "PO3", "PO4", "PPK", "SO3", "SO4", "VO4"}
+
 # The checks pixelfold makes, as PoseBusters names its table's columns.
 CHECKS = [
     "sanitization",
@@ -81,6 +110,10 @@ CHECKS = [
     "double_bond_flatness",
     "non-aromatic_ring_non-flatness",
     "minimum_distance_to_protein",
+    "minimum_distance_to_organic_cofactors",
+    "minimum_distance_to_inorganic_cofactors",
+    "minimum_distance_to_waters",
+    "protein-ligand_maximum_distance",
     "tetrahedral_chirality",
     "double_bond_stereochemistry",
 ]
@@ -91,6 +124,9 @@ DG = {
     "doTriangleSmoothing": True,
     "useMacrocycle14config": False,
 }
+
+# The kinds of receptor atom PoseBusters' distance checks take one at a time.
+PARTNER_TYPES = {"protein", "organic_cofactors", "inorganic_cofactors", "waters"}
 
 LOAD = {"cleanup": False, "sanitize": False, "add_hs": False, "assign_stereo": False, "load_all": True}
 
@@ -194,10 +230,34 @@ CONFIG = {
                 "ignore_types": ["hydrogens", "organic_cofactors", "inorganic_cofactors", "waters"],
                 "max_distance": 5.0,
             },
-            "chosen_binary_test_output": ["no_clashes"],
-            "rename_outputs": {"no_clashes": "Minimum distance to protein"},
+            "chosen_binary_test_output": ["not_too_far_away", "no_clashes"],
+            "rename_outputs": {
+                "not_too_far_away": "Protein-ligand maximum distance",
+                "no_clashes": "Minimum distance to protein",
+            },
             "rename_suffix": "_protein",
         },
+        *(
+            {
+                "name": f"Distance to {label}",
+                "function": "intermolecular_distance",
+                "parameters": {
+                    "radius_type": radius,
+                    "radius_scale": 1.0,
+                    "clash_cutoff": 0.75,
+                    "ignore_types": ["hydrogens", *sorted(PARTNER_TYPES - {kind})],
+                    "max_distance": 5.0,
+                },
+                "chosen_binary_test_output": ["no_clashes"],
+                "rename_outputs": {"no_clashes": f"Minimum distance to {label}"},
+                "rename_suffix": f"_{kind}",
+            }
+            for kind, label, radius in (
+                ("organic_cofactors", "organic cofactors", "vdw"),
+                ("inorganic_cofactors", "inorganic cofactors", "covalent"),
+                ("waters", "waters", "vdw"),
+            )
+        ),
     ],
     "loading": {
         "mol_pred": LOAD,
@@ -461,6 +521,71 @@ def variants(mol: Chem.Mol, ideal: Chem.Mol, stereo_bonds, names: list[str], pro
     return out
 
 
+def partner_atoms(receptor: gemmi.Structure) -> dict[str, np.ndarray]:
+    """The receptor's heavy atom positions by the kind PoseBusters takes each
+    for: protein, ion, water or cofactor."""
+    kinds: dict[str, list] = {"protein": [], "ion": [], "water": [], "cofactor": []}
+    for chain in receptor[0]:
+        for residue in chain:
+            for atom in residue:
+                if residue.name == "HOH":
+                    kind = "water"
+                elif atom.element.name.upper() in ION_ELEMENTS or residue.name in ION_RESIDUES:
+                    kind = "ion"
+                elif residue.het_flag == "H":
+                    kind = "cofactor"
+                else:
+                    kind = "protein"
+                kinds[kind].append([atom.pos.x, atom.pos.y, atom.pos.z])
+    return {kind: np.array(points).reshape(-1, 3) for kind, points in kinds.items()}
+
+
+def nearest(points: np.ndarray, others: np.ndarray) -> tuple[float, int, int]:
+    """The shortest distance between the two sets, and the pair that makes it."""
+    gaps = np.linalg.norm(points[:, None, :] - others[None, :, :], axis=-1)
+    at, other = np.unravel_index(gaps.argmin(), gaps.shape)
+    return float(gaps[at, other]), int(at), int(other)
+
+
+def partner_variants(mol: Chem.Mol, partners: dict[str, np.ndarray], seed: int):
+    """The crystal pose moved towards the nearest ion, water and cofactor atom,
+    out from the protein, and at random, each named."""
+    positions = mol.GetConformer().GetPositions()
+    heavy = [a.GetIdx() for a in mol.GetAtoms() if a.GetAtomicNum() > 1]
+    out = [with_positions(mol, positions, "crystal")]
+
+    for kind in ("ion", "water", "cofactor"):
+        points = partners[kind]
+        if len(points) == 0:
+            continue
+        gap, at, other = nearest(positions[heavy], points)
+        if gap > 6.0:
+            continue
+        toward = (points[other] - positions[heavy][at]) / gap
+        for amount in (0.25, 0.5, 0.75, 1.0, 1.5):
+            out.append(with_positions(mol, positions + toward * amount, f"toward-{kind}-{amount}"))
+
+    protein = partners["protein"]
+    centre = positions[heavy].mean(axis=0)
+    outward = centre - protein.mean(axis=0)
+    outward /= np.linalg.norm(outward)
+    step = 0.0
+    for mark in (4.5, 5.5):
+        while nearest(positions[heavy] + outward * step, protein)[0] <= mark and step < 100:
+            step += 0.25
+        out.append(with_positions(mol, positions + outward * step, f"away-{mark}"))
+    out.append(with_positions(mol, positions + outward * (step + 10), "away-far"))
+
+    rng = random.Random(seed)
+    for number in range(1, 4):
+        axis = np.array([rng.gauss(0, 1) for _ in range(3)])
+        moved = rotated(positions, centre, axis, math.radians(rng.uniform(-20, 20)))
+        moved = moved + np.array([rng.uniform(-1, 1) for _ in range(3)])
+        out.append(with_positions(mol, moved, f"random-{number}"))
+
+    return out
+
+
 def build_case(entry: str, code: str, args, ccd_dir: Path):
     cif = fetch(CCD_CIF.format(code=code), ccd_dir / f"{code}.cif")
     entry_info = dictionary(cif)
@@ -495,7 +620,13 @@ def build_case(entry: str, code: str, args, ccd_dir: Path):
     ideal_pose = Chem.AddHs(template, addCoords=True)
 
     receptor = structure.clone()
-    receptor.remove_ligands_and_waters()
+    if args.partners:
+        for chain in receptor[0]:
+            for at in reversed(range(len(chain))):
+                if chain[at].name == code:
+                    del chain[at]
+    else:
+        receptor.remove_ligands_and_waters()
     receptor.remove_hydrogens()
     receptor.remove_empty_chains()
     protein = np.array([[a.pos.x, a.pos.y, a.pos.z] for chain in receptor[0] for residue in chain for a in residue])
@@ -504,7 +635,10 @@ def build_case(entry: str, code: str, args, ccd_dir: Path):
     case.mkdir(parents=True, exist_ok=True)
     receptor.write_pdb(str(case / "receptor.pdb"))
     seed = zlib.crc32(f"{entry}_{code}".encode())
-    poses = variants(crystal, ideal_pose, entry_info["stereo_bonds"], names, protein, seed)
+    if args.partners:
+        poses = partner_variants(crystal, partner_atoms(receptor), seed)
+    else:
+        poses = variants(crystal, ideal_pose, entry_info["stereo_bonds"], names, protein, seed)
     writer = Chem.SDWriter(str(case / "poses.sdf"))
     writer.SetKekulize(True)
     for pose in poses:
@@ -540,13 +674,34 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--manifest", type=Path, default=Path("benchmarks/manifest.toml"))
     parser.add_argument("--cache", type=Path, default=Path("benchmarks/cache"))
-    parser.add_argument("--cases", type=Path, default=Path("benchmarks/posebusters"))
+    parser.add_argument("--cases", type=Path)
     parser.add_argument("--only", nargs="*", help="entry ids to (re)generate")
+    parser.add_argument("--partners", action="store_true", help="the PARTNERS entries, ions, cofactors and waters kept")
     args = parser.parse_args()
+    if args.cases is None:
+        args.cases = Path("benchmarks/posebusters-partners" if args.partners else "benchmarks/posebusters")
 
     ccd_dir = args.cases / "ccd"
     verdicts_path = args.cases / "verdicts.json"
     verdicts = json.loads(verdicts_path.read_text()) if verdicts_path.exists() else {}
+
+    def record(built) -> None:
+        case, ideal_sdf, names = built
+        verdicts[case.name] = bust(case, ideal_sdf, names)
+        print(f"{case.name}: {len(names)} poses", file=sys.stderr)
+        verdicts_path.write_text(json.dumps(verdicts, indent=1, sort_keys=True) + "\n")
+
+    if args.partners:
+        for entry, code in PARTNERS:
+            if args.only and entry not in args.only:
+                continue
+            built = build_case(entry, code, args, ccd_dir)
+            if built is None:
+                print(f"{entry} {code}: skipped (no complete copy, or no ideal model)", file=sys.stderr)
+                continue
+            record(built)
+        return 0
+
     for entry in protein_ligand_ids(args.manifest):
         if args.only and entry not in args.only:
             continue
@@ -574,10 +729,7 @@ def main() -> int:
             if built is None:
                 print(f"{entry} {code}: skipped (no complete copy, or no ideal model)", file=sys.stderr)
                 continue
-            case, ideal_sdf, names = built
-            verdicts[case.name] = bust(case, ideal_sdf, names)
-            print(f"{case.name}: {len(names)} poses", file=sys.stderr)
-            verdicts_path.write_text(json.dumps(verdicts, indent=1, sort_keys=True) + "\n")
+            record(built)
 
     return 0
 

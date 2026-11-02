@@ -148,6 +148,18 @@ python3 benchmarks/tools/compare_posebusters.py --entries --details
 The generator keeps `verdicts.json` and adds to it; pass `--only 1HVR 4DFR` to
 regenerate some entries, or delete the file to start over.
 
+`--partners` builds the distance checks' cases instead, under
+`benchmarks/posebusters-partners`: the generator's `PARTNERS` entries, whose
+ligands sit beside metal ions, cofactors and waters, the receptor keeping
+everything but the ligand, and each crystal ligand moved towards its nearest
+ion, water and cofactor atom (as PoseBusters sorts them), out from the protein
+to either side of 5 A, and at random:
+
+```bash
+docker run --rm -v "$PWD/benchmarks:/work/benchmarks" pixelfold-posebusters --partners
+python3 benchmarks/tools/compare_posebusters.py --cases benchmarks/posebusters-partners --details
+```
+
 Then commit the new/changed files under `benchmarks/golden/`, run the harness to
 see the numbers, and update the README validation table (see the root README):
 

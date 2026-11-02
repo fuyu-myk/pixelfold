@@ -32,9 +32,11 @@ use crate::structure::{Atom, ChainId, Protein};
 /// (Buttenschoen, Morris and Deane, Chem. Sci. 15:3130, 2024).
 pub const CLASH_RATIO: f32 = 0.75;
 
-/// The farthest a clash can reach: the ratio times twice the largest radius
-/// of an atom that counts (iodine and silicon, 2.1 A; metals do not count).
-const CLASH_REACH: f32 = 3.15;
+/// The farthest a clash can reach: the ratio times twice the largest van der
+/// Waals radius of an atom that counts (iodine and silicon, 2.1 A; metals
+/// count only on covalent radii, caesium's 2.44 A the largest, in
+/// `distances`).
+pub(crate) const CLASH_REACH: f32 = 3.15;
 
 /// One element of a fingerprint: a residue the ligand touches, and how.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -469,7 +471,7 @@ fn clash_radius(atom: &Atom) -> f32 {
 
 /// The ligand-protein index pairs `attached` names in `protein`, every
 /// conformer of an atom included.
-fn attached_pairs(
+pub(crate) fn attached_pairs(
     protein: &Protein,
     ligand: &AtomSet,
     attached: &Attachments,
