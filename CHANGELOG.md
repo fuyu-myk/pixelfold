@@ -4,6 +4,34 @@ All notable changes to PixelFold are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **An agent skill.** `skills/pixelfold/SKILL.md` teaches an AI agent with a
+  shell the usual workflows (ranking poses, ligand interactions, ensemble and
+  multi-sample networks, per-residue reports, figures) and their traps; copy
+  the folder into the agent's skills directory.
+- **The JSON fields, documented.** `docs/json.md` describes every report's
+  JSON, field by field, with its units.
+- **A network's report and routes as JSON.** `rin --analyze --format json`
+  lists every residue, the most central first, with its betweenness and
+  whether it is a cut residue, and each component's residues;
+  `rin --path FROM TO --format json` gives the route's residues and steps.
+- **Examples in `--help`.** Every command's help ends with worked examples.
+
+### Changed
+
+- **`rin --analyze` and `--path` take only `--format json`.** The text report
+  stays their default; `--format graphml` or `tsv` beside them, once ignored,
+  is now an error.
+
+### Fixed
+
+- **The interactive commands without a terminal.** The viewer, `poses --view`
+  and `fetch` panicked when standard input or output was not a terminal, as in
+  an agent's shell; they now say they need one and what to run instead.
+
 ## [5.0.0] (2026-11-01)
 
 Pixelfold now scores docked poses from SD files, laid into the reference or a

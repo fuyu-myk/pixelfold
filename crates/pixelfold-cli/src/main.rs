@@ -149,6 +149,7 @@ struct Analysis {
 #[derive(Subcommand)]
 enum Command {
     /// Open the interactive viewer (the default when no command is given)
+    #[command(after_help = "Examples:\n  pixelfold view 4HHB\n  pixelfold view 1D3Z --model 3")]
     View {
         /// Path to a .pdb/.cif file, or a 4-character PDB id
         structure: String,
@@ -162,6 +163,9 @@ enum Command {
         common: Common,
     },
     /// Report non-covalent interactions
+    #[command(
+        after_help = "Examples:\n  pixelfold interactions 4DFR --ligand MTX --format json\n  pixelfold interactions 4DFR --type hydrogen-bond --select 'chain A' --format tsv"
+    )]
     Interactions {
         #[command(flatten)]
         analysis: Analysis,
@@ -178,6 +182,9 @@ enum Command {
     /// With --model all or several files, the network of the whole ensemble:
     /// every edge any model has, weighted by the fraction of models it is
     /// present in
+    #[command(
+        after_help = "Examples:\n  pixelfold rin 4DFR --format graphml -o network.graphml\n  pixelfold rin 4DFR --analyze --format json\n  pixelfold rin 4DFR --path A/23 A/94 --format json\n  pixelfold rin 1D3Z --model all --min-frequency 0.9 --format tsv\n  pixelfold rin sample_*.cif --min-frequency 0.5 --format json"
+    )]
     Rin {
         /// Paths to .pdb/.cif files, or 4-character PDB ids. Several files
         /// (the samples of one prediction, say) fold into one network, each
@@ -201,9 +208,10 @@ enum Command {
         #[arg(long, value_name = "FRACTION", value_parser = fraction)]
         min_frequency: Option<f32>,
 
-        /// How to write the network
-        #[arg(long, value_enum, default_value_t = GraphFormat::Json)]
-        format: GraphFormat,
+        /// How to write the network (default: json); with --analyze or --path,
+        /// how to write the report, as text unless json
+        #[arg(long, value_enum)]
+        format: Option<GraphFormat>,
 
         /// Print a structural analysis report (components, hub residues by
         /// betweenness, cut residues) instead of exporting the graph
@@ -237,6 +245,9 @@ enum Command {
     /// by aligning chain sequences, so a pose may number them as it likes. A
     /// pose holding several copies of the ligand is scored by the copy most
     /// like the reference's, named in the copy column
+    #[command(
+        after_help = "Examples:\n  pixelfold poses --reference crystal.cif --ligand STI model_*.cif --format json\n  pixelfold poses --reference 1IEP --reference-select 'chain A and resn STI' --ligand STI model.cif\n  pixelfold poses --reference crystal.cif --ligand STI --receptor receptor.pdb docked.sdf"
+    )]
     Poses {
         /// The pose files: .pdb/.cif paths, 4-character PDB ids, or .sdf files
         /// of docked ligands, each record a pose
@@ -284,16 +295,25 @@ enum Command {
         common: Common,
     },
     /// Report secondary structure per residue
+    #[command(
+        after_help = "Examples:\n  pixelfold ss 1UBQ --format json\n  pixelfold ss 1D3Z --model all --format tsv"
+    )]
     Ss {
         #[command(flatten)]
         analysis: Analysis,
     },
     /// Report solvent-accessible surface area per residue
+    #[command(
+        after_help = "Examples:\n  pixelfold sasa 1UBQ --format json\n  pixelfold sasa 4DFR --select 'byres within 5 of resn MTX' --format tsv"
+    )]
     Sasa {
         #[command(flatten)]
         analysis: Analysis,
     },
     /// Render a structure to a PNG file, or to the terminal when no file is given
+    #[command(
+        after_help = "Examples:\n  pixelfold render 4HHB -o hemoglobin.png --width 1600 --height 1200"
+    )]
     Render {
         /// Path to a .pdb/.cif file, or a 4-character PDB id
         structure: String,
@@ -345,6 +365,7 @@ enum Command {
         common: Common,
     },
     /// Search RCSB and download structures
+    #[command(after_help = "Examples:\n  pixelfold fetch kinase")]
     Fetch {
         /// Search terms; omit to open the search interface empty
         query: Option<String>,
@@ -523,6 +544,14 @@ fn run(command: Command) -> Result<()> {
             if mvsj && common.assembly.is_some() {
                 anyhow::bail!("--mvsj cannot show a biological assembly yet; drop --assembly");
             }
+            let reported = analyze || path.is_some();
+            if reported && matches!(format, Some(GraphFormat::Graphml | GraphFormat::Tsv)) {
+                anyhow::bail!(
+                    "--analyze and --path write a text report, or JSON with --format json"
+                );
+            }
+            let json = format == Some(GraphFormat::Json);
+            let format = format.unwrap_or(GraphFormat::Json);
             let kinds: Vec<InteractionKind> = types.into_iter().map(Into::into).collect();
             let network = network_of(
                 &structures,
@@ -550,13 +579,11 @@ fn run(command: Command) -> Result<()> {
                 let route = rin::shortest_path(&network, from, to);
 
                 emit_to(output.as_deref(), |out| {
-                    graph::write_path(
-                        out,
-                        &network,
-                        &endpoints[0],
-                        &endpoints[1],
-                        route.as_deref(),
-                    )
+                    let (from, to) = (&endpoints[0], &endpoints[1]);
+                    match json {
+                        true => graph::write_path_json(out, &network, from, to, route.as_deref()),
+                        false => graph::write_path(out, &network, from, to, route.as_deref()),
+                    }
                 })
             } else if mvsj {
                 let (url, parse_format) = mvsj_source(&structures[0])?;
@@ -567,8 +594,9 @@ fn run(command: Command) -> Result<()> {
                 })
             } else if analyze {
                 let report = rin::analyze(&network);
-                emit_to(output.as_deref(), |out| {
-                    graph::write_analysis(out, &network, &report)
+                emit_to(output.as_deref(), |out| match json {
+                    true => graph::write_analysis_json(out, &network, &report),
+                    false => graph::write_analysis(out, &network, &report),
                 })
             } else if format == GraphFormat::Tsv
                 && output.is_none()
@@ -1081,6 +1109,26 @@ mod tests {
         );
     }
 
+    // An agent reading `--help` learns a command fastest from a worked call.
+    #[test]
+    fn every_command_shows_an_example() {
+        for command in Cli::command().get_subcommands() {
+            let name = command.get_name();
+            if name == "help" {
+                continue;
+            }
+            let examples = command
+                .get_after_help()
+                .map(|help| help.to_string())
+                .unwrap_or_default();
+            assert!(
+                examples.starts_with("Examples:")
+                    && examples.contains(&format!("pixelfold {name}")),
+                "{name}: {examples:?}"
+            );
+        }
+    }
+
     #[test]
     fn rin_takes_a_graph_format_and_an_output_file() {
         let cli = Cli::try_parse_from([
@@ -1104,7 +1152,7 @@ mod tests {
             panic!("expected the rin command");
         };
         assert_eq!(structures, ["4HHB"]);
-        assert_eq!(format, GraphFormat::Graphml);
+        assert_eq!(format, Some(GraphFormat::Graphml));
         assert_eq!(output.as_deref(), Some(Path::new("net.graphml")));
     }
 

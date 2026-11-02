@@ -354,6 +354,18 @@ pixelfold interactions 7AEW --assembly --select 'chain AAA-2'
 pixelfold interactions 1STP --select 'byres within 5 of resn BTN'
 ```
 
+### From an AI agent
+
+Every report takes `--format json`, with its fields documented in
+[docs/json.md](docs/json.md); warnings and errors go to standard error, and
+`--help` on each command ends with examples. `rin --analyze` and `rin --path`
+write JSON too when asked for it. The interactive commands (the viewer,
+`poses --view` and `fetch`) need a terminal and say so in an agent's shell.
+[skills/pixelfold/SKILL.md](skills/pixelfold/SKILL.md) is an agent skill that
+teaches an agent the usual workflows and their traps; copy the
+`skills/pixelfold` folder into your agent's skills directory (for Claude Code,
+`~/.claude/skills/`).
+
 ### Viewer controls
 
 | Key | Action |

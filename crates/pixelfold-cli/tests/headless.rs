@@ -333,6 +333,89 @@ fn a_scene_shows_the_models_its_network_spans() {
     assert_eq!(shown(&["--model", "all"]), [0, 1]);
 }
 
+// An agent's shell gives no terminal: the interactive commands must say so
+// and point at the headless ones, not panic.
+#[test]
+fn the_interactive_commands_refuse_without_a_terminal() {
+    let fixture = fixture("1PPB");
+    let path = fixture.to_str().unwrap();
+    for args in [
+        vec![path],
+        vec!["view", path],
+        vec![
+            "poses",
+            "--reference",
+            path,
+            "--ligand",
+            "0G6",
+            path,
+            "--view",
+        ],
+        vec!["fetch", "kinase"],
+    ] {
+        let run = run_args(args.iter().map(OsStr::new));
+
+        assert!(!run.ok, "{args:?}");
+        assert!(
+            run.stderr.contains("needs a terminal"),
+            "{args:?}: {}",
+            run.stderr
+        );
+        assert!(!run.stderr.contains("panicked"), "{args:?}: {}", run.stderr);
+    }
+}
+
+// The structural report and a route, for a script or an agent: the text
+// stays the default, JSON when asked for.
+#[test]
+fn the_network_report_and_a_route_come_as_json_when_asked() {
+    let report = run!("1CRN", &["rin", "--analyze", "--format", "json"]);
+    let report: serde_json::Value = serde_json::from_str(&report.stdout).expect("json");
+    let residues = report["residues"].as_array().unwrap();
+    assert_eq!(report["models"], 1);
+    assert_eq!(
+        residues.len(),
+        report["components"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| c.as_array().unwrap().len())
+            .sum::<usize>()
+    );
+    let between = |at: usize| residues[at]["betweenness"].as_f64().unwrap();
+    assert!(between(0) >= between(1), "the hubs first");
+    for field in ["id", "resn", "ss", "degree", "betweenness", "articulation"] {
+        assert!(
+            residues[0].get(field).is_some(),
+            "no {field}: {}",
+            residues[0]
+        );
+    }
+
+    let text = run!("1CRN", &["rin", "--analyze"]);
+    assert!(
+        text.stdout.starts_with("Residue interaction network"),
+        "{}",
+        text.stdout
+    );
+
+    let route = run!(
+        "1CRN",
+        &["rin", "--path", "A/3", "A/40", "--format", "json"]
+    );
+    let route: serde_json::Value = serde_json::from_str(&route.stdout).expect("json");
+    assert_eq!(route["from"], "A/3");
+    assert_eq!(route["to"], "A/40");
+    let path = route["path"].as_array().unwrap();
+    assert_eq!(path.first().unwrap()["id"], "A/3");
+    assert_eq!(path.last().unwrap()["id"], "A/40");
+    assert_eq!(route["steps"], path.len() - 1);
+
+    let graphml = run!("1CRN", &["rin", "--analyze", "--format", "graphml"]);
+    assert!(!graphml.ok);
+    assert!(graphml.stderr.contains("--analyze"), "{}", graphml.stderr);
+}
+
 /// `--path` reports the shortest chain of interactions between two residues.
 #[test]
 fn shortest_path_reports_a_route_between_residues() {

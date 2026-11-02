@@ -83,12 +83,7 @@ pub fn write_analysis<W: Write + ?Sized>(
     }
 
     writeln!(out, "\nTop hubs by betweenness centrality:")?;
-    let mut ranked: Vec<usize> = (0..network.nodes.len()).collect();
-    ranked.sort_by(|&a, &b| {
-        analysis.betweenness[b]
-            .total_cmp(&analysis.betweenness[a])
-            .then(network.nodes[b].degree.cmp(&network.nodes[a].degree))
-    });
+    let ranked = by_centrality(network, analysis);
     writeln!(
         out,
         "  {:<10} {:<5} {:<3} {:>6} {:>12}",
@@ -118,6 +113,91 @@ pub fn write_analysis<W: Write + ?Sized>(
             .collect();
         writeln!(out, "  {}", residues.join(", "))?;
     }
+
+    Ok(())
+}
+
+/// The structural analysis as JSON: every residue, the most central first, with
+/// its betweenness and whether removing it splits its component, and each
+/// component's residues, the largest first. Nothing is cut short, as the text
+/// report's top lists are.
+pub fn write_analysis_json<W: Write + ?Sized>(
+    out: &mut W,
+    network: &Network,
+    analysis: &RinAnalysis,
+) -> Result<()> {
+    let id = |node: usize| network.nodes[node].id.as_str();
+    let report = JsonAnalysis {
+        models: network.models,
+        edges: network.edges.len(),
+        components: analysis
+            .components
+            .iter()
+            .map(|component| component.iter().map(|&node| id(node)).collect())
+            .collect(),
+        residues: by_centrality(network, analysis)
+            .into_iter()
+            .map(|node| JsonCentral {
+                id: id(node),
+                resn: &network.nodes[node].resn,
+                ss: network.nodes[node].ss,
+                degree: network.nodes[node].degree,
+                betweenness: round_3dp_f64(analysis.betweenness[node]),
+                articulation: analysis.articulation_points.contains(&node),
+            })
+            .collect(),
+    };
+
+    serde_json::to_writer_pretty(&mut *out, &report)?;
+    writeln!(out)?;
+
+    Ok(())
+}
+
+/// Every residue of `network`, the highest betweenness first, then the most
+/// bonded.
+fn by_centrality(network: &Network, analysis: &RinAnalysis) -> Vec<usize> {
+    let mut ranked: Vec<usize> = (0..network.nodes.len()).collect();
+    ranked.sort_by(|&a, &b| {
+        analysis.betweenness[b]
+            .total_cmp(&analysis.betweenness[a])
+            .then(network.nodes[b].degree.cmp(&network.nodes[a].degree))
+    });
+
+    ranked
+}
+
+/// The shortest chain of interactions between two residues as JSON: the
+/// residues along it in order and the steps between them, both null when the
+/// two are in different components.
+pub fn write_path_json<W: Write + ?Sized>(
+    out: &mut W,
+    network: &Network,
+    from_id: &str,
+    to_id: &str,
+    route: Option<&[usize]>,
+) -> Result<()> {
+    let path = route.map(|path| {
+        path.iter()
+            .map(|&node| {
+                let node = &network.nodes[node];
+                JsonStep {
+                    id: &node.id,
+                    resn: &node.resn,
+                    ss: node.ss,
+                }
+            })
+            .collect::<Vec<_>>()
+    });
+    let route = JsonRoute {
+        from: from_id,
+        to: to_id,
+        steps: path.as_ref().map(|path| path.len().saturating_sub(1)),
+        path,
+    };
+
+    serde_json::to_writer_pretty(&mut *out, &route)?;
+    writeln!(out)?;
 
     Ok(())
 }
@@ -237,6 +317,44 @@ fn round_2dp(value: f32) -> f32 {
 /// exact.
 fn round_3dp(value: f32) -> f32 {
     ((value as f64 * 1000.0).round() / 1000.0) as f32
+}
+
+/// A centrality to three places, free of float noise.
+fn round_3dp_f64(value: f64) -> f64 {
+    (value * 1000.0).round() / 1000.0
+}
+
+#[derive(Serialize)]
+struct JsonAnalysis<'a> {
+    models: usize,
+    edges: usize,
+    components: Vec<Vec<&'a str>>,
+    residues: Vec<JsonCentral<'a>>,
+}
+
+#[derive(Serialize)]
+struct JsonCentral<'a> {
+    id: &'a str,
+    resn: &'a str,
+    ss: char,
+    degree: usize,
+    betweenness: f64,
+    articulation: bool,
+}
+
+#[derive(Serialize)]
+struct JsonRoute<'a> {
+    from: &'a str,
+    to: &'a str,
+    steps: Option<usize>,
+    path: Option<Vec<JsonStep<'a>>>,
+}
+
+#[derive(Serialize)]
+struct JsonStep<'a> {
+    id: &'a str,
+    resn: &'a str,
+    ss: char,
 }
 
 #[derive(Serialize)]

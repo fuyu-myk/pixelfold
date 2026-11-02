@@ -432,6 +432,10 @@ fn run_viewer(
     protocol: ViewProtocol,
     open: impl FnOnce(&mut App, f32, f32) -> Result<()>,
 ) -> Result<()> {
+    require_terminal(
+        "the viewer",
+        "for a report, run interactions, rin, poses, ss or sasa, or render -o FILE",
+    )?;
     let mut terminal = ratatui::init();
 
     let picker = build_picker(protocol);
@@ -491,6 +495,10 @@ fn with_terminal<F>(f: F) -> Result<()>
 where
     F: FnOnce(&mut ratatui::DefaultTerminal) -> Result<()>,
 {
+    require_terminal(
+        "the search interface",
+        "to download an entry, give its 4-character PDB id to any command",
+    )?;
     let mut terminal = ratatui::init();
     crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture)?;
 
@@ -499,6 +507,19 @@ where
 
     ratatui::restore();
     result
+}
+
+/// Fail unless standard input and output are a terminal, which `what` draws on
+/// and reads keys from: ratatui panics without one, as in an agent's shell or
+/// with output piped. `instead` says what to run there.
+fn require_terminal(what: &str, instead: &str) -> Result<()> {
+    use std::io::IsTerminal;
+
+    if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
+        return Ok(());
+    }
+
+    anyhow::bail!("{what} needs a terminal, and standard input or output is not one; {instead}")
 }
 
 /// Recompute the highlighted set as every atom in the selected atom's residue
