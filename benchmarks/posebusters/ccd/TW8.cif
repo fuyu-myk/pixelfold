@@ -1,0 +1,172 @@
+data_TW8
+# 
+_chem_comp.id                                    TW8 
+_chem_comp.name                                  "4-(3,4-dihydro-2~{H}-quinoxalin-1-ylsulfonyl)benzaldehyde" 
+_chem_comp.type                                  non-polymer 
+_chem_comp.pdbx_type                             HETAIN 
+_chem_comp.formula                               "C15 H14 N2 O3 S" 
+_chem_comp.mon_nstd_parent_comp_id               ? 
+_chem_comp.pdbx_synonyms                         ? 
+_chem_comp.pdbx_formal_charge                    0 
+_chem_comp.pdbx_initial_date                     2021-01-14 
+_chem_comp.pdbx_modified_date                    2024-09-27 
+_chem_comp.pdbx_ambiguous_flag                   N 
+_chem_comp.pdbx_release_status                   REL 
+_chem_comp.pdbx_replaced_by                      ? 
+_chem_comp.pdbx_replaces                         ? 
+_chem_comp.formula_weight                        302.348 
+_chem_comp.one_letter_code                       ? 
+_chem_comp.three_letter_code                     TW8 
+_chem_comp.pdbx_model_coordinates_details        ? 
+_chem_comp.pdbx_model_coordinates_missing_flag   N 
+_chem_comp.pdbx_ideal_coordinates_details        Corina 
+_chem_comp.pdbx_ideal_coordinates_missing_flag   N 
+_chem_comp.pdbx_model_coordinates_db_code        7BIW 
+_chem_comp.pdbx_subcomponent_list                ? 
+_chem_comp.pdbx_processing_site                  PDBE 
+_chem_comp.pdbx_pcm                              Y 
+# 
+loop_
+_chem_comp_atom.comp_id 
+_chem_comp_atom.atom_id 
+_chem_comp_atom.alt_atom_id 
+_chem_comp_atom.type_symbol 
+_chem_comp_atom.charge 
+_chem_comp_atom.pdbx_align 
+_chem_comp_atom.pdbx_aromatic_flag 
+_chem_comp_atom.pdbx_leaving_atom_flag 
+_chem_comp_atom.pdbx_stereo_config 
+_chem_comp_atom.pdbx_backbone_atom_flag 
+_chem_comp_atom.pdbx_n_terminal_atom_flag 
+_chem_comp_atom.pdbx_c_terminal_atom_flag 
+_chem_comp_atom.model_Cartn_x 
+_chem_comp_atom.model_Cartn_y 
+_chem_comp_atom.model_Cartn_z 
+_chem_comp_atom.pdbx_model_Cartn_x_ideal 
+_chem_comp_atom.pdbx_model_Cartn_y_ideal 
+_chem_comp_atom.pdbx_model_Cartn_z_ideal 
+_chem_comp_atom.pdbx_component_atom_id 
+_chem_comp_atom.pdbx_component_comp_id 
+_chem_comp_atom.pdbx_ordinal 
+TW8 C02 C1  C 0 1 N N N N N N -19.993 -21.920 3.963  5.056  1.242  0.781  C02 TW8 1  
+TW8 C03 C2  C 0 1 Y N N N N N -19.209 -22.164 2.692  3.784  0.661  0.322  C03 TW8 2  
+TW8 C04 C3  C 0 1 Y N N N N N -19.914 -21.821 1.525  3.456  -0.659 0.649  C04 TW8 3  
+TW8 C05 C4  C 0 1 Y N N N N N -19.287 -21.986 0.291  2.263  -1.196 0.216  C05 TW8 4  
+TW8 C06 C5  C 0 1 Y N N N N N -17.978 -22.461 0.244  1.390  -0.433 -0.541 C06 TW8 5  
+TW8 C10 C6  C 0 1 N N N N N N -17.205 -20.076 -1.897 -1.519 -1.796 1.148  C10 TW8 6  
+TW8 C11 C7  C 0 1 N N N N N N -17.455 -19.178 -0.672 -3.039 -1.935 1.317  C11 TW8 7  
+TW8 C13 C8  C 0 1 Y N N N N N -15.101 -19.602 -0.042 -3.161 0.484  0.822  C13 TW8 8  
+TW8 C14 C9  C 0 1 Y N N N N N -13.940 -19.224 0.674  -3.888 1.664  0.806  C14 TW8 9  
+TW8 C15 C10 C 0 1 Y N N N N N -12.785 -20.080 0.590  -3.451 2.731  0.042  C15 TW8 10 
+TW8 C16 C11 C 0 1 Y N N N N N -12.815 -21.249 -0.174 -2.294 2.625  -0.706 C16 TW8 11 
+TW8 C17 C12 C 0 1 Y N N N N N -13.977 -21.607 -0.908 -1.563 1.450  -0.696 C17 TW8 12 
+TW8 C18 C13 C 0 1 Y N N N N N -15.139 -20.785 -0.818 -1.994 0.377  0.066  C18 TW8 13 
+TW8 C20 C14 C 0 1 Y N N N N N -17.245 -22.808 1.399  1.708  0.874  -0.868 C20 TW8 14 
+TW8 C21 C15 C 0 1 Y N N N N N -17.882 -22.649 2.634  2.895  1.428  -0.437 C21 TW8 15 
+TW8 N09 N1  N 0 1 N N N N N N -16.368 -21.149 -1.544 -1.263 -0.820 0.078  N09 TW8 16 
+TW8 N12 N2  N 0 1 N N N N N N -16.291 -18.750 0.016  -3.595 -0.602 1.595  N12 TW8 17 
+TW8 O08 O1  O 0 1 N N N N N N -16.220 -23.710 -1.307 -0.524 -0.384 -2.236 O08 TW8 18 
+TW8 O19 O2  O 0 1 N N N N N N -18.187 -22.808 -2.401 0.054  -2.538 -1.107 O19 TW8 19 
+TW8 S07 S1  S 0 1 N N N N N N -17.180 -22.618 -1.335 -0.132 -1.129 -1.091 S07 TW8 20 
+TW8 H1  H1  H 0 1 N N N N N N -21.018 -21.581 3.931  5.307  2.262  0.527  H1  TW8 21 
+TW8 H4  H4  H 0 1 N N N N N N -20.922 -21.437 1.583  4.136  -1.255 1.239  H4  TW8 22 
+TW8 H5  H5  H 0 1 N N N N N N -19.812 -21.747 -0.622 2.008  -2.215 0.467  H5  TW8 23 
+TW8 H6  H6  H 0 1 N N N N N N -16.724 -19.485 -2.690 -1.076 -1.444 2.080  H6  TW8 24 
+TW8 H7  H7  H 0 1 N N N N N N -18.165 -20.468 -2.263 -1.089 -2.760 0.877  H7  TW8 25 
+TW8 H8  H8  H 0 1 N N N N N N -17.997 -18.283 -1.012 -3.476 -2.332 0.401  H8  TW8 26 
+TW8 H9  H9  H 0 1 N N N N N N -18.082 -19.738 0.037  -3.256 -2.605 2.150  H9  TW8 27 
+TW8 H10 H10 H 0 1 N N N N N N -13.921 -18.321 1.266  -4.793 1.750  1.389  H10 TW8 28 
+TW8 H11 H11 H 0 1 N N N N N N -11.885 -19.815 1.124  -4.018 3.651  0.029  H11 TW8 29 
+TW8 H12 H12 H 0 1 N N N N N N -11.945 -21.888 -0.207 -1.958 3.462  -1.300 H12 TW8 30 
+TW8 H13 H13 H 0 1 N N N N N N -13.981 -22.492 -1.527 -0.659 1.370  -1.281 H13 TW8 31 
+TW8 H14 H14 H 0 1 N N N N N N -16.234 -23.181 1.332  1.022  1.463  -1.460 H14 TW8 32 
+TW8 H15 H15 H 0 1 N N N N N N -17.359 -22.897 3.546  3.141  2.447  -0.694 H15 TW8 33 
+TW8 H16 H16 H 0 1 N N N N N N -16.036 -17.858 -0.358 -4.249 -0.477 2.300  H16 TW8 34 
+TW8 O1  O3  O 0 1 N Y N N N N -19.336 -22.152 5.196  5.821  0.578  1.448  O1  TW8 35 
+# 
+loop_
+_chem_comp_bond.comp_id 
+_chem_comp_bond.atom_id_1 
+_chem_comp_bond.atom_id_2 
+_chem_comp_bond.value_order 
+_chem_comp_bond.pdbx_aromatic_flag 
+_chem_comp_bond.pdbx_stereo_config 
+_chem_comp_bond.pdbx_ordinal 
+TW8 O19 S07 DOUB N N 1  
+TW8 C10 N09 SING N N 2  
+TW8 C10 C11 SING N N 3  
+TW8 N09 S07 SING N N 4  
+TW8 N09 C18 SING N N 5  
+TW8 S07 O08 DOUB N N 6  
+TW8 S07 C06 SING N N 7  
+TW8 C17 C18 DOUB Y N 8  
+TW8 C17 C16 SING Y N 9  
+TW8 C18 C13 SING Y N 10 
+TW8 C11 N12 SING N N 11 
+TW8 C16 C15 DOUB Y N 12 
+TW8 C13 N12 SING N N 13 
+TW8 C13 C14 DOUB Y N 14 
+TW8 C06 C05 DOUB Y N 15 
+TW8 C06 C20 SING Y N 16 
+TW8 C05 C04 SING Y N 17 
+TW8 C15 C14 SING Y N 18 
+TW8 C20 C21 DOUB Y N 19 
+TW8 C04 C03 DOUB Y N 20 
+TW8 C21 C03 SING Y N 21 
+TW8 C03 C02 SING N N 22 
+TW8 C02 H1  SING N N 23 
+TW8 C04 H4  SING N N 24 
+TW8 C05 H5  SING N N 25 
+TW8 C10 H6  SING N N 26 
+TW8 C10 H7  SING N N 27 
+TW8 C11 H8  SING N N 28 
+TW8 C11 H9  SING N N 29 
+TW8 C14 H10 SING N N 30 
+TW8 C15 H11 SING N N 31 
+TW8 C16 H12 SING N N 32 
+TW8 C17 H13 SING N N 33 
+TW8 C20 H14 SING N N 34 
+TW8 C21 H15 SING N N 35 
+TW8 N12 H16 SING N N 36 
+TW8 C02 O1  DOUB N N 37 
+# 
+loop_
+_pdbx_chem_comp_descriptor.comp_id 
+_pdbx_chem_comp_descriptor.type 
+_pdbx_chem_comp_descriptor.program 
+_pdbx_chem_comp_descriptor.program_version 
+_pdbx_chem_comp_descriptor.descriptor 
+TW8 InChI            InChI                1.03  "InChI=1S/C15H14N2O3S/c18-11-12-5-7-13(8-6-12)21(19,20)17-10-9-16-14-3-1-2-4-15(14)17/h1-8,11,16H,9-10H2" 
+TW8 InChIKey         InChI                1.03  GOMXOBFYQBMFTF-UHFFFAOYSA-N                                                                               
+TW8 SMILES_CANONICAL CACTVS               3.385 "O=Cc1ccc(cc1)[S](=O)(=O)N2CCNc3ccccc23"                                                                  
+TW8 SMILES           CACTVS               3.385 "O=Cc1ccc(cc1)[S](=O)(=O)N2CCNc3ccccc23"                                                                  
+TW8 SMILES_CANONICAL "OpenEye OEToolkits" 2.0.7 "c1ccc2c(c1)NCCN2S(=O)(=O)c3ccc(cc3)C=O"                                                                  
+TW8 SMILES           "OpenEye OEToolkits" 2.0.7 "c1ccc2c(c1)NCCN2S(=O)(=O)c3ccc(cc3)C=O"                                                                  
+# 
+_pdbx_chem_comp_identifier.comp_id           TW8 
+_pdbx_chem_comp_identifier.type              "SYSTEMATIC NAME" 
+_pdbx_chem_comp_identifier.program           "OpenEye OEToolkits" 
+_pdbx_chem_comp_identifier.program_version   2.0.7 
+_pdbx_chem_comp_identifier.identifier        "4-(3,4-dihydro-2~{H}-quinoxalin-1-ylsulfonyl)benzaldehyde" 
+# 
+loop_
+_pdbx_chem_comp_audit.comp_id 
+_pdbx_chem_comp_audit.action_type 
+_pdbx_chem_comp_audit.date 
+_pdbx_chem_comp_audit.processing_site 
+TW8 "Create component" 2021-01-14 PDBE 
+TW8 "Initial release"  2021-09-15 RCSB 
+TW8 "Modify PCM"       2024-09-27 PDBE 
+# 
+_pdbx_chem_comp_pcm.pcm_id                             1 
+_pdbx_chem_comp_pcm.comp_id                            TW8 
+_pdbx_chem_comp_pcm.modified_residue_id                LYS 
+_pdbx_chem_comp_pcm.type                               None 
+_pdbx_chem_comp_pcm.category                           "Covalent chemical modification" 
+_pdbx_chem_comp_pcm.position                           "Amino-acid side chain" 
+_pdbx_chem_comp_pcm.polypeptide_position               "Any position" 
+_pdbx_chem_comp_pcm.comp_id_linking_atom               C02 
+_pdbx_chem_comp_pcm.modified_residue_id_linking_atom   NZ 
+_pdbx_chem_comp_pcm.uniprot_specific_ptm_accession     ? 
+_pdbx_chem_comp_pcm.uniprot_generic_ptm_accession      ? 
+# 

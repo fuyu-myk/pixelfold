@@ -25,8 +25,9 @@ For each PDB id in `benchmarks/manifest.toml`:
 
 Structures are cached (and reused) under `benchmarks/cache/` (gitignored).
 
-There are two images, one per chemistry backend: `Dockerfile` for DSSP + FreeSASA
-and `Dockerfile.plip` for PLIP. PLIP is the protein-ligand reference: it profiles
+There are three images, one per chemistry backend: `Dockerfile` for DSSP +
+FreeSASA, `Dockerfile.plip` for PLIP, and `Dockerfile.posebusters` for the pose
+checks (see [PoseBusters](#posebusters-pose-checks-without-a-reference) below). PLIP is the protein-ligand reference: it profiles
 ligand binding sites, so a `.plip.json` covers only interactions that touch a
 ligand, which is what `ligand_scoped` records, and `ligands` lists the residues
 PLIP profiled. The harness restricts pixelfold to its edges touching one of those
@@ -110,6 +111,38 @@ whole-benchmark run from an empty `ring-cache` takes about a day and a half. It 
 resumable, so stopping and rerunning picks up where it left off.
 
 To (re)generate a single entry, pass ids: `... pixelfold-golden 1UBQ 4HHB`.
+
+## PoseBusters (pose checks without a reference)
+
+`pixelfold poses` without `--reference` checks each pose as PoseBusters checks a
+docked one, and `Dockerfile.posebusters` pins the PoseBusters (0.6.5) and RDKit
+(2024.09.6) its agreement is measured against; RDKit is the release whose
+distance-geometry, UFF typing, aromaticity and hybridisation code pixelfold-core
+ports. `generate_posebusters.py` takes every drug-like ligand of the
+protein-ligand stratum (six or more heavy atoms, no metal, not a buffer or
+solvent) whose first copy is complete, puts the Chemical Component Dictionary's
+bond orders and hydrogens on its crystal coordinates, and writes it with
+perturbed copies (stretched, bent, twisted, puckered, mirrored, turned about an
+E/Z bond, shifted into the protein, moved at random) under
+`benchmarks/posebusters/<ENTRY>_<CODE>/poses.sdf`, the entry's polymer as
+`receptor.pdb` (regenerated, not committed), the dictionary entries under
+`ccd/`, and PoseBusters' verdicts on the checks pixelfold makes in
+`verdicts.json`, the dictionary's ideal conformer serving as the true molecule
+for the stereochemistry checks. `compare_posebusters.py` runs on the host with
+the standard library alone, runs a pixelfold binary over the cases with
+`--cache-dir benchmarks/posebusters` (so no entry is fetched) and prints the
+agreement table the root README shows; `--details` lists every disagreement and
+`--entries` also reads each crystal ligand from its entry file.
+
+```bash
+docker build -f benchmarks/tools/Dockerfile.posebusters -t pixelfold-posebusters benchmarks/tools
+docker run --rm -v "$PWD/benchmarks:/work/benchmarks" pixelfold-posebusters
+cargo build --release -p pixelfold
+python3 benchmarks/tools/compare_posebusters.py --entries --details
+```
+
+The generator keeps `verdicts.json` and adds to it; pass `--only 1HVR 4DFR` to
+regenerate some entries, or delete the file to start over.
 
 Then commit the new/changed files under `benchmarks/golden/`, run the harness to
 see the numbers, and update the README validation table (see the root README):

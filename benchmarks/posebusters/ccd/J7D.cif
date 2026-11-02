@@ -1,0 +1,151 @@
+data_J7D
+# 
+_chem_comp.id                                    J7D 
+_chem_comp.name                                  "1-deoxy-1-[formyl(hydroxy)amino]-5-O-phosphono-D-ribitol" 
+_chem_comp.type                                  NON-POLYMER 
+_chem_comp.pdbx_type                             HETAIN 
+_chem_comp.formula                               "C6 H14 N O9 P" 
+_chem_comp.mon_nstd_parent_comp_id               ? 
+_chem_comp.pdbx_synonyms                         ? 
+_chem_comp.pdbx_formal_charge                    0 
+_chem_comp.pdbx_initial_date                     2018-08-20 
+_chem_comp.pdbx_modified_date                    2023-12-08 
+_chem_comp.pdbx_ambiguous_flag                   N 
+_chem_comp.pdbx_release_status                   REL 
+_chem_comp.pdbx_replaced_by                      ? 
+_chem_comp.pdbx_replaces                         ? 
+_chem_comp.formula_weight                        275.150 
+_chem_comp.one_letter_code                       ? 
+_chem_comp.three_letter_code                     J7D 
+_chem_comp.pdbx_model_coordinates_details        ? 
+_chem_comp.pdbx_model_coordinates_missing_flag   N 
+_chem_comp.pdbx_ideal_coordinates_details        Corina 
+_chem_comp.pdbx_ideal_coordinates_missing_flag   N 
+_chem_comp.pdbx_model_coordinates_db_code        6EG4 
+_chem_comp.pdbx_subcomponent_list                ? 
+_chem_comp.pdbx_processing_site                  RCSB 
+# 
+loop_
+_chem_comp_atom.comp_id 
+_chem_comp_atom.atom_id 
+_chem_comp_atom.alt_atom_id 
+_chem_comp_atom.type_symbol 
+_chem_comp_atom.charge 
+_chem_comp_atom.pdbx_align 
+_chem_comp_atom.pdbx_aromatic_flag 
+_chem_comp_atom.pdbx_leaving_atom_flag 
+_chem_comp_atom.pdbx_stereo_config 
+_chem_comp_atom.pdbx_backbone_atom_flag 
+_chem_comp_atom.pdbx_n_terminal_atom_flag 
+_chem_comp_atom.pdbx_c_terminal_atom_flag 
+_chem_comp_atom.model_Cartn_x 
+_chem_comp_atom.model_Cartn_y 
+_chem_comp_atom.model_Cartn_z 
+_chem_comp_atom.pdbx_model_Cartn_x_ideal 
+_chem_comp_atom.pdbx_model_Cartn_y_ideal 
+_chem_comp_atom.pdbx_model_Cartn_z_ideal 
+_chem_comp_atom.pdbx_component_atom_id 
+_chem_comp_atom.pdbx_component_comp_id 
+_chem_comp_atom.pdbx_ordinal 
+J7D O01 O1  O 0 1 N N N N N N 0.485 -15.352 -0.365 -5.229 0.962  -1.007 O01 J7D 1  
+J7D P   P1  P 0 1 N N N N N N 1.448 -14.380 -0.689 -4.307 0.054  -0.049 P   J7D 2  
+J7D O02 O2  O 0 1 N N N N N N 2.471 -14.979 -1.479 -4.559 0.414  1.364  O02 J7D 3  
+J7D O   O3  O 0 1 N N N N N N 0.947 -13.268 -1.452 -4.661 -1.500 -0.278 O   J7D 4  
+J7D O03 O4  O 0 1 N N N N N N 2.130 -13.838 0.520  -2.756 0.308  -0.398 O03 J7D 5  
+J7D C01 C1  C 0 1 N N N N N N 2.883 -12.701 0.498  -1.685 -0.273 0.348  C01 J7D 6  
+J7D C02 C2  C 0 1 N N R N N N 2.882 -11.826 1.703  -0.348 0.172  -0.248 C02 J7D 7  
+J7D O04 O5  O 0 1 N N N N N N 3.328 -12.526 2.759  -0.200 1.584  -0.086 O04 J7D 8  
+J7D C03 C3  C 0 1 N N S N N N 3.680 -10.554 1.673  0.796  -0.547 0.471  C03 J7D 9  
+J7D C04 C4  C 0 1 N N S N N N 3.131 -9.479  0.754  2.133  -0.102 -0.126 C04 J7D 10 
+J7D C05 C5  C 0 1 N N N N N N 3.745 -8.172  1.000  3.276  -0.821 0.593  C05 J7D 11 
+J7D N   N1  N 0 1 N N N N N N 3.267 -7.073  0.198  4.556  -0.395 0.022  N   J7D 12 
+J7D O06 O6  O 0 1 N N N N N N 2.256 -6.400  0.583  5.270  -1.262 -0.840 O06 J7D 13 
+J7D C   C6  C 0 1 N N N N N N 3.944 -6.759  -0.989 5.055  0.822  0.317  C   J7D 14 
+J7D O07 O7  O 0 1 N N N N N N 3.566 -5.877  -1.681 6.114  1.174  -0.156 O07 J7D 15 
+J7D O19 O8  O 0 1 N N N N N N 1.851 -9.319  0.999  2.281  1.310  0.036  O19 J7D 16 
+J7D O23 O9  O 0 1 N N N N N N 4.961 -10.781 1.448  0.648  -1.959 0.309  O23 J7D 17 
+J7D H1  H1  H 0 1 N N N N N N 0.735 -16.186 -0.746 -6.178 0.859  -0.852 H1  J7D 18 
+J7D H2  H2  H 0 1 N N N N N N 1.415 -13.213 -2.277 -4.519 -1.806 -1.184 H2  J7D 19 
+J7D H3  H3  H 0 1 N N N N N N 3.925 -13.005 0.318  -1.746 0.054  1.386  H3  J7D 20 
+J7D H4  H4  H 0 1 N N N N N N 2.527 -12.092 -0.346 -1.758 -1.359 0.305  H4  J7D 21 
+J7D H01 H5  H 0 1 N N N N N N 1.836 -11.538 1.887  -0.323 -0.077 -1.309 H01 J7D 22 
+J7D H5  H6  H 0 1 N N N N N N 3.329 -11.971 3.530  -0.213 1.878  0.835  H5  J7D 23 
+J7D H9  H7  H 0 1 N N N N N N 3.594 -10.135 2.686  0.771  -0.298 1.532  H9  J7D 24 
+J7D H16 H8  H 0 1 N N N N N N 3.313 -9.779  -0.289 2.158  -0.351 -1.187 H16 J7D 25 
+J7D H6  H9  H 0 1 N N N N N N 4.826 -8.272  0.820  3.251  -0.572 1.654  H6  J7D 26 
+J7D H7  H10 H 0 1 N N N N N N 3.572 -7.915  2.055  3.163  -1.898 0.470  H7  J7D 27 
+J7D H8  H11 H 0 1 N N N N N N 2.069 -5.718  -0.051 6.102  -0.894 -1.167 H8  J7D 28 
+J7D H10 H12 H 0 1 N N N N N N 4.817 -7.327  -1.274 4.510  1.483  0.975  H10 J7D 29 
+J7D H11 H13 H 0 1 N N N N N N 1.396 -10.140 0.855  2.267  1.604  0.957  H11 J7D 30 
+J7D H12 H14 H 0 1 N N N N N N 5.272 -11.457 2.039  0.661  -2.252 -0.613 H12 J7D 31 
+# 
+loop_
+_chem_comp_bond.comp_id 
+_chem_comp_bond.atom_id_1 
+_chem_comp_bond.atom_id_2 
+_chem_comp_bond.value_order 
+_chem_comp_bond.pdbx_aromatic_flag 
+_chem_comp_bond.pdbx_stereo_config 
+_chem_comp_bond.pdbx_ordinal 
+J7D O07 C   DOUB N N 1  
+J7D O02 P   DOUB N N 2  
+J7D O   P   SING N N 3  
+J7D C   N   SING N N 4  
+J7D P   O01 SING N N 5  
+J7D P   O03 SING N N 6  
+J7D N   O06 SING N N 7  
+J7D N   C05 SING N N 8  
+J7D C01 O03 SING N N 9  
+J7D C01 C02 SING N N 10 
+J7D C04 O19 SING N N 11 
+J7D C04 C05 SING N N 12 
+J7D C04 C03 SING N N 13 
+J7D O23 C03 SING N N 14 
+J7D C03 C02 SING N N 15 
+J7D C02 O04 SING N N 16 
+J7D O01 H1  SING N N 17 
+J7D O   H2  SING N N 18 
+J7D C01 H3  SING N N 19 
+J7D C01 H4  SING N N 20 
+J7D C02 H01 SING N N 21 
+J7D O04 H5  SING N N 22 
+J7D C03 H9  SING N N 23 
+J7D C04 H16 SING N N 24 
+J7D C05 H6  SING N N 25 
+J7D C05 H7  SING N N 26 
+J7D O06 H8  SING N N 27 
+J7D C   H10 SING N N 28 
+J7D O19 H11 SING N N 29 
+J7D O23 H12 SING N N 30 
+# 
+loop_
+_pdbx_chem_comp_descriptor.comp_id 
+_pdbx_chem_comp_descriptor.type 
+_pdbx_chem_comp_descriptor.program 
+_pdbx_chem_comp_descriptor.program_version 
+_pdbx_chem_comp_descriptor.descriptor 
+J7D SMILES           ACDLabs              12.01 "OP(OCC(O)C(C(O)CN(O)C=O)O)(=O)O"                                                                              
+J7D InChI            InChI                1.03  "InChI=1S/C6H14NO9P/c8-3-7(12)1-4(9)6(11)5(10)2-16-17(13,14)15/h3-6,9-12H,1-2H2,(H2,13,14,15)/t4-,5+,6-/m0/s1" 
+J7D InChIKey         InChI                1.03  LBJFEFHCTYMJFD-JKUQZMGJSA-N                                                                                    
+J7D SMILES_CANONICAL CACTVS               3.385 "O[C@H](CO[P](O)(O)=O)[C@@H](O)[C@@H](O)CN(O)C=O"                                                              
+J7D SMILES           CACTVS               3.385 "O[CH](CO[P](O)(O)=O)[CH](O)[CH](O)CN(O)C=O"                                                                   
+J7D SMILES_CANONICAL "OpenEye OEToolkits" 2.0.6 "C([C@@H]([C@@H]([C@@H](COP(=O)(O)O)O)O)O)N(C=O)O"                                                             
+J7D SMILES           "OpenEye OEToolkits" 2.0.6 "C(C(C(C(COP(=O)(O)O)O)O)O)N(C=O)O"                                                                            
+# 
+loop_
+_pdbx_chem_comp_identifier.comp_id 
+_pdbx_chem_comp_identifier.type 
+_pdbx_chem_comp_identifier.program 
+_pdbx_chem_comp_identifier.program_version 
+_pdbx_chem_comp_identifier.identifier 
+J7D "SYSTEMATIC NAME" ACDLabs              12.01 "1-deoxy-1-[formyl(hydroxy)amino]-5-O-phosphono-D-ribitol"                                           
+J7D "SYSTEMATIC NAME" "OpenEye OEToolkits" 2.0.6 "[(2~{R},3~{S},4~{S})-5-[methanoyl(oxidanyl)amino]-2,3,4-tris(oxidanyl)pentyl] dihydrogen phosphate" 
+# 
+loop_
+_pdbx_chem_comp_audit.comp_id 
+_pdbx_chem_comp_audit.action_type 
+_pdbx_chem_comp_audit.date 
+_pdbx_chem_comp_audit.processing_site 
+J7D "Create component" 2018-08-20 RCSB 
+J7D "Initial release"  2023-12-13 RCSB 
+# 

@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use pixelfold_core::parser::{Load, ParsedStructure};
-use pixelfold_core::{AtomSet, Protein, select};
+use pixelfold_core::{AtomSet, Dictionary, Protein, select};
 
 use crate::resolve::{self, Resolution};
 
@@ -48,6 +48,32 @@ pub fn model_numbers(input: &str, cache_dir: &Path) -> Result<Vec<usize>> {
         .with_context(|| format!("failed to load {}", path.display()))?;
 
     Ok(parsed.model_numbers())
+}
+
+/// The Chemical Component Dictionary entry of component `code`, read from
+/// `cache_dir/ccd` or downloaded there on a miss; `None` when the dictionary
+/// has no such component or `code` could not name one.
+pub fn chemical_component(code: &str, cache_dir: &Path) -> Result<Option<Dictionary>> {
+    let code = code.to_uppercase();
+    if !pixelfold_fetch::is_component_code(&code) {
+        return Ok(None);
+    }
+    let dir = cache_dir.join("ccd");
+    let cached = dir.join(format!("{code}.cif"));
+    let path = if cached.is_file() {
+        cached
+    } else {
+        eprintln!("Fetching the dictionary entry {code} from RCSB...");
+        match pixelfold_fetch::fetch_ccd(&code, &dir)? {
+            Some(path) => path,
+            None => return Ok(None),
+        }
+    };
+    let text = std::fs::read_to_string(&path)
+        .with_context(|| format!("failed to read {}", path.display()))?;
+    let dictionary = Dictionary::parse(&text);
+
+    Ok(dictionary.get(&code).is_some().then_some(dictionary))
 }
 
 /// Read the structure at `path`, printing what the parser skipped or cut short.

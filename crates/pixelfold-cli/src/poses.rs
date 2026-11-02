@@ -140,7 +140,7 @@ pub struct Warnings {
 }
 
 impl Warnings {
-    fn warn(&mut self, message: String) {
+    pub(crate) fn warn(&mut self, message: String) {
         if !self.seen.contains(&message) {
             eprintln!("warning: {message}");
             self.seen.insert(message);
@@ -621,13 +621,13 @@ fn residue_id((chain, seq, icode): ResidueKey) -> String {
 }
 
 /// An atom as its residue and name, e.g. `0G6 H/1 CA`.
-fn atom_label((residue, residue_name, name): &AtomId) -> String {
+pub(crate) fn atom_label((residue, residue_name, name): &AtomId) -> String {
     format!("{residue_name} {} {name}", residue_id(*residue))
 }
 
 /// A double bond as its residue and the names of its ends, e.g.
 /// `GPP A/501 C2=C3`.
-fn bond_label([first, second]: &[AtomId; 2]) -> String {
+pub(crate) fn bond_label([first, second]: &[AtomId; 2]) -> String {
     if first.0 == second.0 {
         format!(
             "{} {} {}={}",

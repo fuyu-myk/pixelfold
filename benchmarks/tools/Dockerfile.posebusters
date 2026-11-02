@@ -1,0 +1,25 @@
+# Pinned PoseBusters for the reference-free pose checks' agreement figures.
+#
+# Build (from the repo root):
+#   docker build -f benchmarks/tools/Dockerfile.posebusters -t pixelfold-posebusters benchmarks/tools
+# Run:
+#   docker run --rm -v "$PWD/benchmarks:/work/benchmarks" pixelfold-posebusters \
+#       --cases benchmarks/posebusters
+#
+# PoseBusters bounds a pose's geometry by RDKit's distance geometry, which
+# pixelfold-core ports for poses without a reference, so RDKit is pinned to the
+# release whose BoundsMatrixBuilder, UFF typer and hybridisation rules the port
+# follows.
+FROM --platform=linux/amd64 mambaorg/micromamba:1.5.8
+
+RUN micromamba install -y -n base -c conda-forge \
+        python=3.11 \
+        rdkit=2024.09.6 \
+        posebusters=0.6.5 \
+        gemmi=0.7.1 \
+    && micromamba clean --all --yes
+
+COPY generate_posebusters.py /usr/local/bin/generate_posebusters.py
+
+WORKDIR /work
+ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "python", "/usr/local/bin/generate_posebusters.py"]

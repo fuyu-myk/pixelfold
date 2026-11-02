@@ -8,12 +8,14 @@ use pixelfold_core::rin::{self, Ensemble};
 use pixelfold_core::{AtomSet, InteractionKind, Network, Protein};
 
 mod analyse;
+mod confidence;
 mod graph;
 mod load;
 mod poses;
 mod render;
 mod report;
 mod resolve;
+mod validity;
 
 use graph::GraphFormat;
 use report::Format;
@@ -239,14 +241,19 @@ enum Command {
     },
     /// Rank ligand poses by the reference contacts they keep, with their
     /// pocket-aligned RMSD, their clashes and the reference stereocentres they
-    /// invert.
+    /// invert; without a reference, by the PoseBusters checks they fail.
     /// Every model of each pose file is a pose (or only --model N); the
     /// reference is its first model. Residues are matched with the reference's
     /// by aligning chain sequences, so a pose may number them as it likes. A
     /// pose holding several copies of the ligand is scored by the copy most
-    /// like the reference's, named in the copy column
+    /// like the reference's, named in the copy column. Without --reference each
+    /// pose is checked for clashes with the protein, for its geometry against
+    /// the bounds RDKit gives its bonds, and for its stereochemistry against
+    /// the Chemical Component Dictionary entry of its component (fetched and
+    /// cached), then ranked by the checks it fails and the confidence a
+    /// co-folding model wrote beside it (AlphaFold 3 or Boltz)
     #[command(
-        after_help = "Examples:\n  pixelfold poses --reference crystal.cif --ligand STI model_*.cif --format json\n  pixelfold poses --reference 1IEP --reference-select 'chain A and resn STI' --ligand STI model.cif\n  pixelfold poses --reference crystal.cif --ligand STI --receptor receptor.pdb docked.sdf"
+        after_help = "Examples:\n  pixelfold poses --reference crystal.cif --ligand STI model_*.cif --format json\n  pixelfold poses --reference 1IEP --reference-select 'chain A and resn STI' --ligand STI model.cif\n  pixelfold poses --reference crystal.cif --ligand STI --receptor receptor.pdb docked.sdf\n  pixelfold poses --ligand STI fold_job_model_*.cif --format json\n  pixelfold poses --receptor receptor.pdb --ligand STI docked.sdf --format json"
     )]
     Poses {
         /// The pose files: .pdb/.cif paths, 4-character PDB ids, or .sdf files
@@ -254,9 +261,10 @@ enum Command {
         #[arg(required = true, value_name = "POSE")]
         poses: Vec<String>,
 
-        /// The structure whose ligand contacts the poses are compared with
+        /// The structure whose ligand contacts the poses are compared with;
+        /// without one, each pose is checked on its own
         #[arg(short, long, value_name = "STRUCTURE")]
-        reference: String,
+        reference: Option<String>,
 
         /// Which atoms are the ligand, in the reference and in every pose
         #[arg(short, long, value_name = "QUERY", default_value = "ligand")]
@@ -269,12 +277,12 @@ enum Command {
         /// Which atoms are the ligand in the reference, when they are not the
         /// ones --select or --ligand picks there, such as one copy of a ligand
         /// the reference holds several of
-        #[arg(long, value_name = "QUERY")]
+        #[arg(long, value_name = "QUERY", requires = "reference")]
         reference_select: Option<String>,
 
         /// The protein the .sdf poses were docked into, its own copies of the
-        /// reference ligand left out [default: the reference without its
-        /// ligand]
+        /// reference ligand (or of the --ligand component) left out [default:
+        /// the reference without its ligand]
         #[arg(long, value_name = "STRUCTURE")]
         receptor: Option<String>,
 
@@ -284,7 +292,7 @@ enum Command {
 
         /// Open the viewer on the ranked poses instead: a table to sort and
         /// step through, each pose drawn on the reference's pocket
-        #[arg(long, conflicts_with = "format")]
+        #[arg(long, conflicts_with = "format", requires = "reference")]
         view: bool,
 
         /// Terminal graphics protocol for the viewer's structure pane
@@ -620,7 +628,19 @@ fn run(command: Command) -> Result<()> {
             protocol,
             common,
         } => {
-            let query = ligand.map_or(select, |code| format!("resn {code}"));
+            let query = ligand
+                .as_ref()
+                .map_or(select, |code| format!("resn {code}"));
+            let Some(reference) = reference else {
+                return check_poses(
+                    receptor.as_deref(),
+                    &poses,
+                    &query,
+                    ligand.as_deref(),
+                    format,
+                    &common,
+                );
+            };
             let reference_query = reference_select.unwrap_or_else(|| query.clone());
             let shown = view.then(|| protocol.unwrap_or(ProtocolArg::Auto));
 
@@ -927,6 +947,89 @@ fn compare_poses(
     }
 }
 
+/// Check the `query` ligand of every pose on its own, without a reference,
+/// and write them best first. Each record of an SD file is a pose, its ligand
+/// laid into `receptor`; `code` is the component `--ligand` names.
+fn check_poses(
+    receptor: Option<&str>,
+    poses: &[String],
+    query: &str,
+    code: Option<&str>,
+    format: Format,
+    common: &Common,
+) -> Result<()> {
+    let docking = poses
+        .iter()
+        .any(|pose| pixelfold_core::sdf::is_sdf(Path::new(pose)));
+    anyhow::ensure!(
+        docking || receptor.is_none(),
+        "--receptor is the protein .sdf poses were docked into, and no pose is an .sdf file"
+    );
+    anyhow::ensure!(
+        !docking || receptor.is_some(),
+        "without --reference, .sdf poses need --receptor, the protein they were docked into"
+    );
+    let dir = cache_dir(common)?;
+    let mut warnings = poses::Warnings::default();
+    let mut checker = validity::Checker::new(query, code, &dir);
+    let receptor = receptor
+        .map(|given| {
+            load::analysis_structure(given, &dir, &common.load(None))
+                .map(|protein| checker.receptor(protein, &mut warnings))
+                .with_context(|| format!("the receptor {given}"))
+        })
+        .transpose()?;
+    let chosen = match common.model {
+        Some(ModelChoice::One(number)) => Some(number),
+        _ => None,
+    };
+
+    let mut records = Vec::new();
+    for pose in poses {
+        if let Some(receptor) = receptor
+            .as_ref()
+            .filter(|_| pixelfold_core::sdf::is_sdf(Path::new(pose)))
+        {
+            let molecules = pixelfold_core::sdf::read(Path::new(pose))?;
+            let numbers: Vec<usize> = match chosen {
+                Some(number) => {
+                    anyhow::ensure!(
+                        (1..=molecules.len()).contains(&number),
+                        "{pose} has no record {number}; it holds {}",
+                        molecules.len()
+                    );
+                    vec![number]
+                }
+                None => (1..=molecules.len()).collect(),
+            };
+            for number in numbers {
+                records.push(checker.check_docked(
+                    &molecules[number - 1],
+                    receptor,
+                    pose,
+                    number,
+                    &mut warnings,
+                ));
+            }
+            continue;
+        }
+        let parsed = load::parsed(pose, &dir)?;
+        let models = match chosen {
+            Some(number) => vec![number],
+            None => parsed.model_numbers(),
+        };
+        for model in models {
+            let record = parsed
+                .protein(&common.load(Some(model)))
+                .and_then(|protein| checker.check(protein, pose, model, &mut warnings))
+                .with_context(|| format!("{pose}, model {model}"))?;
+            records.push(record);
+        }
+    }
+
+    emit(&validity::ranked(records), format)
+}
+
 /// The URL and parse format a MolViewSpec scene should load the structure from.
 ///
 /// A 4-character PDB id resolves to its canonical RCSB mmCIF URL, which any Mol*
@@ -1180,7 +1283,7 @@ mod tests {
             panic!("expected the poses command");
         };
         assert_eq!(poses, ["a.cif", "b.cif"]);
-        assert_eq!(reference, "ref.cif");
+        assert_eq!(reference.as_deref(), Some("ref.cif"));
         assert_eq!(select, "ligand");
         assert_eq!(ligand, None);
         assert_eq!(reference_select, None);
@@ -1206,6 +1309,14 @@ mod tests {
 
         let no_poses = ["pixelfold", "poses", "--reference", "ref.cif"];
         assert!(Cli::try_parse_from(no_poses).is_err());
+        let Some(Command::Poses { reference, .. }) =
+            Cli::try_parse_from(["pixelfold", "poses", "a.cif"])
+                .expect("a reference is optional")
+                .command
+        else {
+            panic!("expected the poses command");
+        };
+        assert_eq!(reference, None);
         let both = [
             "pixelfold",
             "poses",

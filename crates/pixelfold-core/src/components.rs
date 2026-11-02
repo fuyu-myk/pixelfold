@@ -16,6 +16,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use glam::Vec3;
 use mmcif_cif::{Block, Column, Document};
 
 /// How strongly two atoms are bonded, as the file writes it.
@@ -56,19 +57,30 @@ struct Bond {
     first: String,
     second: String,
     order: BondOrder,
+    /// Whether the definition calls the bond E or Z.
+    stereo: bool,
 }
 
 /// One component's atoms and bonds, by atom name.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Component {
     /// Element symbol per atom name, as written in the mmCIF file.
     elements: HashMap<String, String>,
+    /// The heavy atoms' names in the order the file lists them.
+    order: Vec<String>,
     /// Atom names flagged aromatic.
     aromatic: Vec<String>,
     /// Heavy-atom bonds.
     bonds: Vec<Bond>,
     /// How many hydrogens each heavy atom carries.
     hydrogens: HashMap<String, usize>,
+    /// Each heavy atom's formal charge, where the file gives charges.
+    charges: HashMap<String, i8>,
+    /// Each heavy atom's ideal position, where the file gives one: the Chemical
+    /// Component Dictionary's model of the free molecule.
+    ideal: HashMap<String, Vec3>,
+    /// The heavy atoms the definition calls R or S.
+    stereocentres: HashSet<String>,
 }
 
 impl Component {
@@ -90,6 +102,38 @@ impl Component {
     /// Every heavy atom the component defines, in no particular order.
     pub fn atoms(&self) -> impl Iterator<Item = &str> {
         self.elements.keys().map(String::as_str)
+    }
+
+    /// Every heavy atom the component defines, in the order the file lists
+    /// them.
+    pub fn atoms_in_order(&self) -> impl Iterator<Item = &str> {
+        self.order.iter().map(String::as_str)
+    }
+
+    /// A heavy atom's formal charge, or `None` when the file gives no charges,
+    /// as a structure file's own definitions do not.
+    pub fn charge(&self, atom_name: &str) -> Option<i8> {
+        self.charges.get(atom_name).copied()
+    }
+
+    /// A heavy atom's position in the component's ideal model, which the
+    /// Chemical Component Dictionary gives and a structure file does not.
+    pub fn ideal(&self, atom_name: &str) -> Option<Vec3> {
+        self.ideal.get(atom_name).copied()
+    }
+
+    /// Whether the definition calls this atom an R or S stereocentre.
+    pub fn is_stereocentre(&self, atom_name: &str) -> bool {
+        self.stereocentres.contains(atom_name)
+    }
+
+    /// Whether the definition calls the bond between these atoms E or Z.
+    pub fn has_stereo_bond(&self, first: &str, second: &str) -> bool {
+        self.bonds.iter().any(|bond| {
+            bond.stereo
+                && ((bond.first == first && bond.second == second)
+                    || (bond.first == second && bond.second == first))
+        })
     }
 
     /// How many hydrogens the definition gives this heavy atom.
@@ -118,6 +162,37 @@ impl Component {
         })
     }
 
+    /// A component made of the given heavy atoms, in order, and the bonds
+    /// between them, as a molecule's own bond table defines it.
+    pub(crate) fn of_parts(
+        atoms: Vec<DefinedAtom>,
+        bonds: Vec<(String, String, BondOrder)>,
+    ) -> Component {
+        let mut component = Component::default();
+        for atom in atoms {
+            component.order.push(atom.name.clone());
+            component.elements.insert(atom.name.clone(), atom.element);
+            if atom.aromatic {
+                component.aromatic.push(atom.name.clone());
+            }
+            component
+                .hydrogens
+                .insert(atom.name.clone(), atom.hydrogens);
+            component.charges.insert(atom.name, atom.charge);
+        }
+        component.bonds = bonds
+            .into_iter()
+            .map(|(first, second, order)| Bond {
+                first,
+                second,
+                order,
+                stereo: false,
+            })
+            .collect();
+
+        component
+    }
+
     /// How many atoms the component defines.
     pub fn len(&self) -> usize {
         self.elements.len()
@@ -126,6 +201,19 @@ impl Component {
     pub fn is_empty(&self) -> bool {
         self.elements.is_empty()
     }
+}
+
+// Every ideal coordinate is finite, refused at reading otherwise, so equality
+// is reflexive.
+impl Eq for Component {}
+
+/// A heavy atom as [`Component::of_parts`] takes it.
+pub(crate) struct DefinedAtom {
+    pub(crate) name: String,
+    pub(crate) element: String,
+    pub(crate) aromatic: bool,
+    pub(crate) hydrogens: usize,
+    pub(crate) charge: i8,
 }
 
 /// Every component definition a structure file carries, by component id.
@@ -161,6 +249,13 @@ impl Dictionary {
                 return Self::default();
             };
             let aromatic = atoms.column("pdbx_aromatic_flag");
+            let charges = atoms.column("charge");
+            let stereo = atoms.column("pdbx_stereo_config");
+            let ideal = [
+                atoms.column("pdbx_model_Cartn_x_ideal"),
+                atoms.column("pdbx_model_Cartn_y_ideal"),
+                atoms.column("pdbx_model_Cartn_z_ideal"),
+            ];
 
             for row in 0..atoms.row_count() {
                 let (Some(id), Some(name), Some(symbol)) =
@@ -180,8 +275,30 @@ impl Dictionary {
                 component
                     .elements
                     .insert(name.to_string(), symbol.to_string());
+                component.order.push(name.to_string());
                 if aromatic.as_ref().and_then(|flags| text(flags, row)) == Some("Y") {
                     component.aromatic.push(name.to_string());
+                }
+                if let Some(charge) = charges
+                    .as_ref()
+                    .and_then(|charges| text(charges, row)?.parse().ok())
+                {
+                    component.charges.insert(name.to_string(), charge);
+                }
+                if matches!(
+                    stereo.as_ref().and_then(|flags| text(flags, row)),
+                    Some("R" | "S")
+                ) {
+                    component.stereocentres.insert(name.to_string());
+                }
+                let coordinate = |axis: &Option<Column<'_>>| -> Option<f32> {
+                    text(axis.as_ref()?, row)?
+                        .parse()
+                        .ok()
+                        .filter(|value: &f32| value.is_finite())
+                };
+                if let [Some(x), Some(y), Some(z)] = ideal.each_ref().map(coordinate) {
+                    component.ideal.insert(name.to_string(), Vec3::new(x, y, z));
                 }
             }
         }
@@ -195,6 +312,7 @@ impl Dictionary {
                 return Self { components };
             };
             let orders = bonds.column("value_order");
+            let stereo = bonds.column("pdbx_stereo_config");
 
             for row in 0..bonds.row_count() {
                 let (Some(id), Some(first), Some(second)) =
@@ -219,6 +337,10 @@ impl Dictionary {
                             .as_ref()
                             .and_then(|orders| text(orders, row))
                             .map_or(BondOrder::Single, BondOrder::parse),
+                        stereo: matches!(
+                            stereo.as_ref().and_then(|flags| text(flags, row)),
+                            Some("E" | "Z")
+                        ),
                     });
                 } else if first_heavy && is_hydrogen(second) {
                     *component.hydrogens.entry(first.to_string()).or_default() += 1;
@@ -234,6 +356,13 @@ impl Dictionary {
     /// The definition of a component, if the file carried one.
     pub fn get(&self, component_id: &str) -> Option<&Component> {
         self.components.get(component_id)
+    }
+
+    /// This dictionary with `component` defining `id`, in place of any
+    /// definition it had.
+    pub fn with(mut self, id: &str, component: Component) -> Dictionary {
+        self.components.insert(id.to_string(), component);
+        self
     }
 
     /// This dictionary, plus `fallback`'s definition of every component it lacks.
@@ -399,6 +528,91 @@ GOL C1 C N 2
         let orders: Vec<(&str, BondOrder)> = ligand.bonded("C1").collect();
         assert!(orders.contains(&("C2", BondOrder::Aromatic)));
         assert!(orders.contains(&("BR3", BondOrder::Single)));
+    }
+
+    /// A component written as the Chemical Component Dictionary writes one: a
+    /// charged oxygen, an R carbon, an E double bond, ideal coordinates.
+    const DICTIONARY_ENTRY: &str = "\
+data_TST
+#
+loop_
+_chem_comp_atom.comp_id
+_chem_comp_atom.atom_id
+_chem_comp_atom.alt_atom_id
+_chem_comp_atom.type_symbol
+_chem_comp_atom.charge
+_chem_comp_atom.pdbx_aromatic_flag
+_chem_comp_atom.pdbx_leaving_atom_flag
+_chem_comp_atom.pdbx_stereo_config
+_chem_comp_atom.model_Cartn_x
+_chem_comp_atom.model_Cartn_y
+_chem_comp_atom.model_Cartn_z
+_chem_comp_atom.pdbx_model_Cartn_x_ideal
+_chem_comp_atom.pdbx_model_Cartn_y_ideal
+_chem_comp_atom.pdbx_model_Cartn_z_ideal
+_chem_comp_atom.pdbx_ordinal
+TST C3  C3  C 0  N N N 0.0 0.0 0.0  1.500  0.000 0.000 1
+TST C1  C1  C 0  N N R 0.0 0.0 0.0  0.000  0.000 0.000 2
+TST O4  O4  O -1 N N N 0.0 0.0 0.0 -0.700  1.200 0.000 3
+TST C2  C2  C 0  N N N ? ? ?        2.200  1.100 0.000 4
+TST H1  H1  H 0  N N N 0.0 0.0 0.0 -0.300 -0.500 0.900 5
+#
+loop_
+_chem_comp_bond.comp_id
+_chem_comp_bond.atom_id_1
+_chem_comp_bond.atom_id_2
+_chem_comp_bond.value_order
+_chem_comp_bond.pdbx_aromatic_flag
+_chem_comp_bond.pdbx_stereo_config
+_chem_comp_bond.pdbx_ordinal
+TST C1 C3 SING N N 1
+TST C3 C2 DOUB N E 2
+TST C1 O4 SING N N 3
+TST C1 H1 SING N N 4
+#
+";
+
+    #[test]
+    fn a_dictionary_entry_gives_charges_ideal_coordinates_and_stereo() {
+        let dictionary = Dictionary::parse(DICTIONARY_ENTRY);
+        let component = dictionary.get("TST").unwrap();
+
+        assert_eq!(component.charge("O4"), Some(-1));
+        assert_eq!(component.charge("C1"), Some(0));
+        assert_eq!(component.ideal("C1"), Some(Vec3::ZERO));
+        assert_eq!(component.ideal("O4"), Some(Vec3::new(-0.7, 1.2, 0.0)));
+        assert!(component.is_stereocentre("C1"));
+        assert!(!component.is_stereocentre("C3"));
+        assert!(component.has_stereo_bond("C2", "C3"));
+        assert!(!component.has_stereo_bond("C1", "C3"));
+    }
+
+    #[test]
+    fn an_ideal_coordinate_that_is_not_a_finite_number_is_none() {
+        let dictionary = Dictionary::parse(&DICTIONARY_ENTRY.replace("2.200  1.100", "nan  1.100"));
+        let component = dictionary.get("TST").unwrap();
+
+        assert_eq!(component.ideal("C2"), None);
+        assert_eq!(component.clone(), *component);
+    }
+
+    #[test]
+    fn heavy_atoms_keep_the_order_the_file_lists_them_in() {
+        let dictionary = Dictionary::parse(DICTIONARY_ENTRY);
+        let component = dictionary.get("TST").unwrap();
+
+        let order: Vec<&str> = component.atoms_in_order().collect();
+        assert_eq!(order, ["C3", "C1", "O4", "C2"]);
+    }
+
+    #[test]
+    fn a_structure_file_without_charges_or_ideal_coordinates_gives_none() {
+        let dictionary = Dictionary::parse(SAMPLE);
+        let ligand = dictionary.get("LIG").unwrap();
+
+        assert_eq!(ligand.charge("C1"), None);
+        assert_eq!(ligand.ideal("C1"), None);
+        assert!(!ligand.is_stereocentre("C1"));
     }
 
     #[test]

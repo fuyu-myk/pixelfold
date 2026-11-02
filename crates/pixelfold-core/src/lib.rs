@@ -2,15 +2,19 @@
 //! SASA, interactions, and residue interaction network.
 
 mod assembly;
+pub mod checks;
 pub mod components;
 mod dssp;
 pub mod fixed_str;
 mod geometry;
+mod ideal;
 pub mod interactions;
+mod molecule;
 pub mod numbering;
 pub mod parser;
 pub mod pose;
 pub mod rin;
+mod rings;
 pub mod rmsd;
 pub mod sasa;
 pub mod sdf;

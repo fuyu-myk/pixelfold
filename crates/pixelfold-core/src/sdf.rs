@@ -7,16 +7,17 @@
 //! the V2000 layout is read, the one docking programs write for a small
 //! molecule, gzipped or not.
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::io::Read;
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
 use glam::Vec3;
 
-use crate::components::BondOrder;
+use crate::components::{BondOrder, Component, DefinedAtom};
 use crate::fixed_str::FixedStr;
 use crate::interactions::connectivity;
+use crate::molecule::{self, implicit_hydrogens, kekule_valences};
 use crate::rmsd::RmsdReference;
 use crate::select::AtomSet;
 use crate::structure::{Atom, ChainId, Molecule, Protein, SecondaryStructure};
@@ -28,6 +29,10 @@ const EXTENSIONS: [&str; 3] = ["sdf", "sd", "mol"];
 /// for an unknown ligand.
 const UNKNOWN_LIGAND: &str = "UNL";
 
+/// A ligand atom's residue, number, insertion code and name, with the record
+/// atom it is.
+type Identity = (FixedStr<6>, i32, Option<char>, FixedStr<4>, usize);
+
 /// One record of an SD file: its heavy atoms and the bonds between them.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Record {
@@ -36,6 +41,10 @@ pub struct Record {
     /// Bonds between heavy atoms, as indices into `elements`, each with its
     /// order, or `None` for a bond type that names none (a query bond).
     bonds: Vec<(usize, usize, Option<BondOrder>)>,
+    /// Each heavy atom's formal charge.
+    charges: Vec<i8>,
+    /// The hydrogens the record writes on each heavy atom.
+    hydrogens: Vec<u8>,
 }
 
 /// A record's ligand laid into a receptor.
@@ -160,6 +169,7 @@ fn parse_record(lines: &[&str], offset: usize) -> Result<Record> {
     let mut heavy = Vec::with_capacity(atoms);
     let mut elements = Vec::new();
     let mut positions = Vec::new();
+    let mut charges = Vec::new();
     for at in 4..4 + atoms {
         let text = line(at)?;
         let coordinate = |start: usize| columns(text, start, 10).parse::<f32>().ok();
@@ -177,12 +187,22 @@ fn parse_record(lines: &[&str], offset: usize) -> Result<Record> {
         heavy.push(Some(elements.len()));
         elements.push(FixedStr::new(symbol));
         positions.push(Vec3::new(x, y, z));
+        charges.push(match columns(text, 36, 3) {
+            "1" => 3,
+            "2" => 2,
+            "3" => 1,
+            "5" => -1,
+            "6" => -2,
+            "7" => -3,
+            _ => 0,
+        });
     }
     if elements.is_empty() {
         bail!("line {}: no heavy atoms", offset + 4);
     }
 
     let mut heavy_bonds = Vec::with_capacity(bonds);
+    let mut hydrogens = vec![0u8; elements.len()];
     for at in 4 + atoms..4 + atoms + bonds {
         let text = line(at)?;
         let end = |start: usize| {
@@ -204,8 +224,47 @@ fn parse_record(lines: &[&str], offset: usize) -> Result<Record> {
             "4" => Some(BondOrder::Aromatic),
             _ => None,
         };
-        if let (Some(first), Some(second)) = (first, second) {
-            heavy_bonds.push((first, second, order));
+        match (first, second) {
+            (Some(first), Some(second)) => heavy_bonds.push((first, second, order)),
+            (Some(atom), None) | (None, Some(atom)) => {
+                hydrogens[atom] = hydrogens[atom].saturating_add(1);
+            }
+            (None, None) => {}
+        }
+    }
+
+    // An `M  CHG` line replaces every charge the atom block gives; one that
+    // does not read as its count of atom and charge pairs is left out whole.
+    let properties = lines
+        .iter()
+        .skip(4 + atoms + bonds)
+        .take_while(|line| !line.starts_with("M  END"));
+    let mut replaced = false;
+    for line in properties.filter_map(|line| line.strip_prefix("M  CHG")) {
+        let Ok(fields) = line
+            .split_whitespace()
+            .map(str::parse::<i32>)
+            .collect::<Result<Vec<i32>, _>>()
+        else {
+            continue;
+        };
+        let Some((&count, pairs)) = fields.split_first() else {
+            continue;
+        };
+        if usize::try_from(count).ok() != Some(pairs.len() / 2) || pairs.len() % 2 != 0 {
+            continue;
+        }
+        if !replaced {
+            charges.iter_mut().for_each(|charge| *charge = 0);
+            replaced = true;
+        }
+        for &[number, charge] in pairs.as_chunks::<2>().0 {
+            let atom = usize::try_from(number - 1)
+                .ok()
+                .and_then(|number| heavy.get(number).copied().flatten());
+            if let (Some(atom), Ok(charge)) = (atom, i8::try_from(charge)) {
+                charges[atom] = charge;
+            }
         }
     }
 
@@ -213,6 +272,8 @@ fn parse_record(lines: &[&str], offset: usize) -> Result<Record> {
         elements,
         positions,
         bonds: heavy_bonds,
+        charges,
+        hydrogens,
     })
 }
 
@@ -239,6 +300,52 @@ impl Record {
     /// table, the bonds the record's distances imply, as the reference's own
     /// are read, which differ for a metal the distances bond to nothing.
     pub fn docked(&self, receptor: &Protein, reference: &RmsdReference) -> Docked {
+        let (identities, naming) = self.named_after(reference);
+        self.laid(receptor, identities, naming)
+    }
+
+    /// This record's ligand added to `receptor` as [`Record::docked`] adds it,
+    /// named after the `reference` ligand where one is given and the two pair,
+    /// as residue `UNL` otherwise, and defined by the record's own bond table:
+    /// its bonds and their orders, its charges, its hydrogens (those it leaves
+    /// out filled to the valences allowed, as RDKit fills them) and its
+    /// aromatic rings as RDKit perceives them. A docked compound the
+    /// dictionary has never seen so carries its own chemistry.
+    pub fn defined(&self, receptor: &Protein, reference: Option<&RmsdReference>) -> Docked {
+        let (identities, naming) = match reference {
+            Some(reference) => self.named_after(reference),
+            None => (self.unnamed(), Naming::Unpaired),
+        };
+        let mut components = receptor.components.clone();
+        let residues: Vec<FixedStr<6>> = identities
+            .iter()
+            .map(|identity| identity.0)
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        for residue in residues {
+            components = components.with(residue.as_str(), self.definition(&identities, residue));
+        }
+        let mut docked = self.laid(receptor, identities, naming);
+        docked.protein.components = components;
+
+        docked
+    }
+
+    /// Each heavy atom as its residue, number, insertion code and name, with
+    /// the record atom it is, named after the `reference` ligand's atoms they
+    /// pair with by bond graph, and how they were named.
+    ///
+    /// The pairing is the nearest in place among those the bonds, and their
+    /// orders where both sides give them, allow, with the record's coordinates
+    /// taken as they are rather than laid on the reference's pocket: any such
+    /// pairing names each atom after one of the same chemistry, and the RMSD
+    /// pairs the two again once the pose is superposed. Without a pairing
+    /// that keeps the bond orders, the bonds alone pair the atoms, since a
+    /// docking program may write another tautomer; without one by the bond
+    /// table, the bonds the record's distances imply, as the reference's own
+    /// are read, which differ for a metal the distances bond to nothing.
+    fn named_after(&self, reference: &RmsdReference) -> (Vec<Identity>, Naming) {
         let skeleton: Vec<(usize, usize)> = self.bonds.iter().map(|&(a, b, _)| (a, b)).collect();
         let pair = |bonds: &[(usize, usize)], sums: Option<&[u8]>| {
             reference.counterparts(&self.elements, &self.positions, bonds, sums)
@@ -265,22 +372,32 @@ impl Record {
                 (pairs, naming)
             };
 
-        // Each ligand atom as its residue, number, insertion code and name,
-        // with the record atom it is.
-        let identities: Vec<(FixedStr<6>, i32, Option<char>, FixedStr<4>, usize)> =
-            match counterparts {
-                Some(pairs) => pairs
+        match counterparts {
+            Some(pairs) => (
+                pairs
                     .into_iter()
                     .map(|(((_, seq, icode), residue, name), at)| (residue, seq, icode, name, at))
                     .collect(),
-                None => (0..self.elements.len())
-                    .map(|at| {
-                        let name = FixedStr::new(&format!("{}{}", self.elements[at], at + 1));
-                        (FixedStr::new(UNKNOWN_LIGAND), 1, None, name, at)
-                    })
-                    .collect(),
-            };
+                naming,
+            ),
+            None => (self.unnamed(), naming),
+        }
+    }
 
+    /// Each heavy atom as an atom of residue `UNL`, named by element and
+    /// number.
+    fn unnamed(&self) -> Vec<Identity> {
+        (0..self.elements.len())
+            .map(|at| {
+                let name = FixedStr::new(&format!("{}{}", self.elements[at], at + 1));
+                (FixedStr::new(UNKNOWN_LIGAND), 1, None, name, at)
+            })
+            .collect()
+    }
+
+    /// This record's ligand added to `receptor` in a chain of its own, its
+    /// atoms as `identities` names them, in that order.
+    fn laid(&self, receptor: &Protein, identities: Vec<Identity>, naming: Naming) -> Docked {
         let chain = free_chain(receptor);
         let first_serial = receptor
             .atoms
@@ -314,6 +431,56 @@ impl Record {
             ligand,
             naming,
         }
+    }
+
+    /// The definition of `residue` that the record's bond table gives, its
+    /// atoms named as `identities` names them.
+    fn definition(&self, identities: &[Identity], residue: FixedStr<6>) -> Component {
+        let bonds: Vec<(usize, usize, BondOrder)> = self
+            .bonds
+            .iter()
+            .map(|&(a, b, order)| (a, b, order.unwrap_or(BondOrder::Single)))
+            .collect();
+        let written = kekule_valences(&self.elements, &bonds, &self.hydrogens);
+        let hydrogens: Vec<u8> = (0..self.elements.len())
+            .map(|at| {
+                let added =
+                    implicit_hydrogens(self.elements[at].as_str(), self.charges[at], written[at]);
+                self.hydrogens[at].saturating_add(added)
+            })
+            .collect();
+        let molecule = molecule::Molecule::new(
+            self.elements.clone(),
+            &bonds,
+            hydrogens.clone(),
+            self.charges.clone(),
+        );
+
+        let names: HashMap<usize, String> = identities
+            .iter()
+            .filter(|identity| identity.0 == residue)
+            .map(|&(_, _, _, name, at)| (at, name.to_string()))
+            .collect();
+        let mut members: Vec<usize> = names.keys().copied().collect();
+        members.sort_unstable();
+        let atoms = members
+            .iter()
+            .map(|&at| DefinedAtom {
+                name: names[&at].clone(),
+                element: self.elements[at].to_string(),
+                aromatic: molecule.aromatic[at],
+                hydrogens: usize::from(hydrogens[at]),
+                charge: self.charges[at],
+            })
+            .collect();
+        let bonds = bonds
+            .iter()
+            .filter_map(|&(a, b, order)| {
+                Some((names.get(&a)?.clone(), names.get(&b)?.clone(), order))
+            })
+            .collect();
+
+        Component::of_parts(atoms, bonds)
     }
 
     /// Each heavy atom's bond orders summed, in half bonds, or `None` when a
@@ -586,6 +753,77 @@ M  END
             ]
         );
         assert_eq!(records[1].elements.len(), 3);
+    }
+
+    /// Glycine as a zwitterion, its charges in the atom block (the amine's
+    /// 3, +1) and again, for the carboxylate, in an `M  CHG` line, which
+    /// replaces the atom block's.
+    const GLYCINE: &str = "\
+glycine
+  docked
+
+  5  4  0  0  0  0  0  0  0  0999 V2000
+    0.0000    0.0000    0.0000 N   0  3
+    1.4700    0.0000    0.0000 C   0  0
+    2.0000    1.4000    0.0000 C   0  0
+    3.2000    1.5500    0.0000 O   0  0
+    1.2500    2.4000    0.0000 O   0  0
+  1  2  1  0
+  2  3  1  0
+  3  4  2  0
+  3  5  1  0
+M  CHG  2   1   1   5  -1
+M  END
+$$$$
+";
+
+    #[test]
+    fn charges_come_from_the_atom_block_unless_a_charge_line_replaces_them() {
+        let records = parse(&format!("{GLYCINE}{ACETATE}")).unwrap();
+
+        assert_eq!(records[0].charges, [1, 0, 0, 0, -1]);
+        assert_eq!(records[1].charges, [0; 4]);
+        // The acetate record's methyl carbon has its one hydrogen written.
+        assert_eq!(records[1].hydrogens, [0, 0, 0, 1]);
+    }
+
+    #[test]
+    fn a_charge_line_that_does_not_read_is_left_out_whole() {
+        let garbled = GLYCINE.replace("M  CHG  2   1   1   5  -1", "M  CHG  2   1   x   5  -1");
+        let records = parse(&garbled).unwrap();
+
+        // The atom block's charges stand.
+        assert_eq!(records[0].charges, [1, 0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn a_record_without_a_reference_defines_its_own_ligand() {
+        let record = &parse(GLYCINE).unwrap()[0];
+        let docked = record.defined(&receptor(), None);
+
+        assert_eq!(docked.naming, Naming::Unpaired);
+        let first = &docked.protein.atoms[docked.ligand.iter().next().unwrap()];
+        assert_eq!(first.residue_name.as_str(), "UNL");
+        let definition = docked
+            .protein
+            .components
+            .get("UNL")
+            .expect("its own definition");
+        assert_eq!(definition.charge("N1"), Some(1));
+        assert_eq!(definition.charge("O5"), Some(-1));
+        // Hydrogens the record leaves out are filled to the valences allowed:
+        // three on the ammonium, two on the alpha carbon, none on the oxygens.
+        assert_eq!(definition.hydrogen_count("N1"), 3);
+        assert_eq!(definition.hydrogen_count("C2"), 2);
+        assert_eq!(definition.hydrogen_count("O5"), 0);
+        assert!(
+            definition
+                .bonded("C3")
+                .any(|(other, order)| other == "O4" && order == BondOrder::Double)
+        );
+
+        let geometry = crate::checks::geometry(&docked.protein, &docked.ligand).expect("defined");
+        assert_eq!(geometry.unflat, Some(0));
     }
 
     #[test]

@@ -20,9 +20,9 @@ use glam::Vec3;
 use petgraph::unionfind::UnionFind;
 
 use crate::fixed_str::FixedStr;
+use crate::geometry::vdw_radius;
 use crate::interactions::{Interaction, InteractionKind, classify, connectivity, topology};
 use crate::numbering::{self, Chain, Residue, ResidueKey, ResidueMap, residue_key};
-use crate::sasa::get_vdw_radius;
 use crate::select::AtomSet;
 use crate::spatial::Grid;
 use crate::structure::{Atom, ChainId, Protein};
@@ -33,8 +33,8 @@ use crate::structure::{Atom, ChainId, Protein};
 pub const CLASH_RATIO: f32 = 0.75;
 
 /// The farthest a clash can reach: the ratio times twice the largest radius
-/// the van der Waals table holds (iodine, 1.98 A).
-const CLASH_REACH: f32 = 3.0;
+/// of an atom that counts (iodine and silicon, 2.1 A; metals do not count).
+const CLASH_REACH: f32 = 3.15;
 
 /// One element of a fingerprint: a residue the ligand touches, and how.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -374,14 +374,14 @@ pub fn clashes(protein: &Protein, ligand: &AtomSet, attached: &Attachments) -> u
 
     let mut found = 0;
     for atom in ligand.iter().filter(|&atom| counts(&protein.atoms[atom])) {
-        let radius = get_vdw_radius(protein.atoms[atom].element.as_str());
+        let radius = clash_radius(&protein.atoms[atom]);
         grid.for_each_within(positions[atom], CLASH_REACH, |other| {
             let partner = &protein.atoms[other];
             if ligand.contains(other) || !counts(partner) || excluded.contains(&(atom, other)) {
                 return;
             }
 
-            let limit = CLASH_RATIO * (radius + get_vdw_radius(partner.element.as_str()));
+            let limit = CLASH_RATIO * (radius + clash_radius(partner));
             if (positions[atom] - positions[other]).length() < limit {
                 found += 1;
             }
@@ -389,6 +389,12 @@ pub fn clashes(protein: &Protein, ligand: &AtomSet, attached: &Attachments) -> u
     }
 
     found
+}
+
+/// An atom's van der Waals radius as RDKit gives it, which PoseBusters'
+/// clash test sums.
+fn clash_radius(atom: &Atom) -> f32 {
+    vdw_radius(FixedStr::uppercased(atom.element.as_str()))
 }
 
 /// The ligand-protein index pairs `attached` names in `protein`, every

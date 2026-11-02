@@ -301,6 +301,42 @@ impl Template {
         template
     }
 
+    /// The bounds given outright: each bond's and each angle's least and most
+    /// distance, each pair further apart's least, and the groups that must
+    /// lie flat.
+    pub(crate) fn of_bounds(
+        bonds: Vec<((usize, usize), f32, f32)>,
+        angles: Vec<((usize, usize), f32, f32)>,
+        apart: Vec<((usize, usize), f32)>,
+        flat: Vec<Vec<usize>>,
+    ) -> Template {
+        let bound = |(atoms, lower, upper)| Bound {
+            atoms,
+            lower,
+            upper,
+        };
+
+        Template {
+            bonds: bonds.into_iter().map(bound).collect(),
+            angles: angles.into_iter().map(bound).collect(),
+            apart: apart
+                .into_iter()
+                .map(|((a, b), lower)| Lower {
+                    atoms: [a as u32, b as u32],
+                    lower,
+                })
+                .collect(),
+            flat: Some(
+                flat.into_iter()
+                    .map(|atoms| Flat {
+                        atoms,
+                        exchangeable: false,
+                    })
+                    .collect(),
+            ),
+        }
+    }
+
     /// What a pose's ligand fails, its atoms at `positions` in the
     /// reference's order. Unless they were put there `by_name`, a flat group
     /// a symmetry of the bond graph could exchange for atoms of other
@@ -464,7 +500,7 @@ fn cis([first, second, third]: [f32; 3], [at_second, at_third]: [f32; 2]) -> f32
 /// that fits them best. The plane is found in double precision: in single,
 /// nalgebra can return eigenvectors that do not match their eigenvalues for a
 /// scatter close to diagonal.
-fn off_plane(group: &[usize], positions: &[Vec3]) -> f32 {
+pub(crate) fn off_plane(group: &[usize], positions: &[Vec3]) -> f32 {
     let centre = group.iter().map(|&atom| positions[atom]).sum::<Vec3>() / group.len() as f32;
     let mut scatter = Matrix3::<f64>::zeros();
     for &atom in group {
@@ -485,7 +521,7 @@ fn off_plane(group: &[usize], positions: &[Vec3]) -> f32 {
 
 /// The van der Waals radius RDKit gives an element (from the Blue Obelisk
 /// data repository), in angstroms.
-fn vdw_radius(element: FixedStr<2>) -> f32 {
+pub(crate) fn vdw_radius(element: FixedStr<2>) -> f32 {
     match element.as_str() {
         "C" => 1.7,
         "N" => 1.6,
@@ -497,7 +533,7 @@ fn vdw_radius(element: FixedStr<2>) -> f32 {
         "BR" => 1.9,
         "I" => 2.1,
         "B" => 1.8,
-        "SI" => 2.1,
+        "SI" | "AL" => 2.1,
         "SE" => 1.9,
         "AS" => 2.05,
         "NA" => 2.4,

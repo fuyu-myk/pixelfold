@@ -384,6 +384,78 @@ impl RmsdReference {
         self.order_sums.is_some()
     }
 
+    /// The reference keeping only the stereocentres `centre` and the double
+    /// bonds `bond` admit, each by its atoms' names: those a chemical
+    /// definition labels, where others are left unspecified.
+    pub(crate) fn labelled(
+        mut self,
+        centre: impl Fn(&str) -> bool,
+        bond: impl Fn(&str, &str) -> bool,
+    ) -> Self {
+        let atoms = &self.atoms;
+        self.stereocentres
+            .retain(|stereocentre| centre(atoms[stereocentre.centre].2.as_str()));
+        self.double_bonds.retain(|(double, _)| {
+            double
+                .bond()
+                .is_some_and(|[a, b]| bond(atoms[a].2.as_str(), atoms[b].2.as_str()))
+        });
+
+        self
+    }
+
+    /// The reference's stereocentres and E or Z double bonds that the `ligand`
+    /// atoms of `pose` turn the other way, its atoms paired with the
+    /// reference's by name wherever the pose lies; `None` when they do not
+    /// pair. A meso compound merely turned about inverts nothing, as in
+    /// [`RmsdReference::assess`].
+    pub(crate) fn stereo(
+        &self,
+        pose: &Protein,
+        ligand: &AtomSet,
+    ) -> Option<(Vec<AtomId>, Vec<[AtomId; 2]>)> {
+        let heavy = heavy_atoms(pose, ligand);
+        if heavy.len() != self.keys.len() {
+            return None;
+        }
+        if heavy.len() < 3 {
+            return Some((Vec::new(), Vec::new()));
+        }
+        let own: Vec<Vec3> = heavy
+            .iter()
+            .map(|&atom| pose.atoms[atom].position)
+            .collect();
+        let named = self.named(pose, &heavy, &own)?;
+        let fit = Superposition::of(&named.positions, &self.graph.positions);
+        let placed = named
+            .positions
+            .iter()
+            .map(|&position| fit.apply(position))
+            .collect();
+        let mobile = named.placed_at(placed);
+        let (_, pairing) = closest_pairing(&mobile, &self.graph, &[])?;
+        let mut paired = vec![Vec3::ZERO; pairing.len()];
+        for (&position, &partner) in mobile.positions.iter().zip(&pairing) {
+            paired[partner] = position;
+        }
+
+        let inverted = self
+            .inverted(&mobile, &paired, &self.stereocentres)
+            .into_iter()
+            .map(|at| self.atoms[self.stereocentres[at].centre])
+            .collect();
+        let flipped = self
+            .double_bonds
+            .iter()
+            .map(|(bond, _)| bond)
+            .filter(|bond| bond.inverted_at(bond.atoms().map(|atom| mobile.positions[atom])))
+            .filter_map(Stereocentre::bond)
+            .map(|ends| ends.map(|end| self.atoms[end]))
+            .collect();
+
+        Some((inverted, flipped))
+    }
+
     /// The reference's bond graph with each atom at the `placed` position of
     /// the pose atom of the same key and element, when every pose atom has
     /// one: the pose is then measured on the reference's bonds, so a distorted

@@ -8,6 +8,36 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Pose checks without a reference.** `pixelfold poses` without
+  `--reference` checks co-folding and docking poses when no crystal structure
+  of the complex exists, as PoseBusters checks a docked pose: clashes with the
+  protein; bond lengths, bond angles, internal clashes and the flatness of
+  aromatic rings and carbon double bonds against the bounds RDKit's distance
+  geometry gives the ligand's own bonds (a port of RDKit 2024.09's bounds,
+  aromaticity, conjugation and hybridisation rules, checked pair by pair
+  against RDKit's matrix); and tetrahedral and E/Z stereochemistry against the
+  Chemical Component Dictionary's ideal conformer of the ligand's component,
+  fetched from RCSB and cached, only the centres and double bonds it labels R,
+  S, E or Z counted. Poses rank by the checks they fail (one that could not be
+  made counting as failed), then by the confidence AlphaFold 3
+  (`ranking_score`, the ligand chain's `chain_iptm`) or
+  Boltz (`confidence_score`, `ligand_iptm`) wrote beside each model, then in
+  the order given. A ligand the pose file does not define borrows the
+  dictionary's entry only when its atoms match it, so a SMILES ligand that
+  co-folding output names `LIG` is not taken for the dictionary's `LIG`. SD
+  poses need `--receptor` and are checked on their own bond table, charges and
+  hydrogens; with `--ligand CODE` they are named after that entry and their
+  stereochemistry is checked too. Over 1083 poses of 54 benchmark ligands, the
+  checks agree with PoseBusters 0.6.5 on 99.0% to 100% of poses, check by
+  check (the README has the table and the causes of every disagreement);
+  `benchmarks/tools/Dockerfile.posebusters` and `compare_posebusters.py`
+  reproduce it.
+- **Chemical component dictionary entries.** `pixelfold_fetch::fetch_ccd`
+  downloads one from RCSB, and `pixelfold-core`'s `Component` reads an entry's
+  charges, ideal coordinates, file order and R/S and E/Z labels; the checks
+  are `pixelfold_core::checks` (`geometry`, `stereo`, `matching`,
+  `ideal_reference`), and `sdf::Record::defined` lays an SD record in a
+  receptor defined by its own bonds.
 - **An agent skill.** `skills/pixelfold/SKILL.md` teaches an AI agent with a
   shell the usual workflows (ranking poses, ligand interactions, ensemble and
   multi-sample networks, per-residue reports, figures) and their traps; copy
@@ -22,12 +52,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **`poses --reference` is optional.** Without it the command checks poses on
+  their own; `--reference-select` and `--view` need a reference.
 - **`rin --analyze` and `--path` take only `--format json`.** The text report
   stays their default; `--format graphml` or `tsv` beside them, once ignored,
   is now an error.
 
 ### Fixed
 
+- **Protein clashes count with PoseBusters' radii.** `poses` counted a
+  ligand-protein clash below 0.75 of the pair's Bondi radii summed, where
+  PoseBusters sums RDKit's, which are 0.03 to 0.05 A larger for nitrogen and
+  oxygen; borderline clashes PoseBusters reports were missed, in both modes.
 - **The interactive commands without a terminal.** The viewer, `poses --view`
   and `fetch` panicked when standard input or output was not a terminal, as in
   an agent's shell; they now say they need one and what to run instead.

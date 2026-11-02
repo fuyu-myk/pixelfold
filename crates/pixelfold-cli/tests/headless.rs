@@ -2042,3 +2042,328 @@ fn misdefined(path: &Path, component: &str) -> PathBuf {
     std::fs::write(&copy, lines.join("\n")).unwrap();
     copy
 }
+
+/// A cache directory holding the committed Chemical Component Dictionary
+/// entries, so a run fetches nothing.
+fn seeded_cache() -> tempfile::TempDir {
+    let cache = tempfile::tempdir().unwrap();
+    let entries = cache.path().join("ccd");
+    std::fs::create_dir_all(&entries).unwrap();
+    for entry in std::fs::read_dir(fixture_file("ccd")).unwrap() {
+        let path = entry.unwrap().path();
+        std::fs::copy(&path, entries.join(path.file_name().unwrap())).unwrap();
+    }
+    cache
+}
+
+/// Run `poses` without a reference, as JSON, against the dictionary entries
+/// in `cache`.
+fn checked(cache: &Path, args: &[&str], poses: &[&Path]) -> Run {
+    let head = ["poses", "--format", "json", "--cache-dir"]
+        .into_iter()
+        .map(OsStr::new)
+        .chain([cache.as_os_str()])
+        .chain(args.iter().map(OsStr::new));
+    run_args(head.chain(poses.iter().map(|pose| pose.as_os_str())))
+}
+
+/// A ligand atom's name, element and position.
+type LigandAtom = (String, String, [f32; 3]);
+
+/// The heavy atoms of `ligand` in fixture `id`, and the bonds its definition
+/// gives between them, each with its SD bond type.
+fn ligand_of(id: &str, ligand: &str) -> (Vec<LigandAtom>, Vec<(usize, usize, u8)>) {
+    let text = std::fs::read_to_string(fixture(id)).unwrap();
+    let column = atom_site_columns(&text);
+    let atoms: Vec<LigandAtom> = text
+        .lines()
+        .filter(|line| line.starts_with("HETATM"))
+        .map(|line| line.split_whitespace().collect::<Vec<&str>>())
+        .filter(|fields| {
+            fields[column["auth_comp_id"]] == ligand
+                && fields[column["type_symbol"]] != "H"
+                && matches!(fields[column["label_alt_id"]], "." | "A")
+        })
+        .map(|fields| {
+            let position = ["Cartn_x", "Cartn_y", "Cartn_z"]
+                .map(|axis| fields[column[axis]].parse::<f32>().unwrap());
+            (
+                fields[column["auth_atom_id"]].to_string(),
+                fields[column["type_symbol"]].to_string(),
+                position,
+            )
+        })
+        .collect();
+    let index: HashMap<&str, usize> = atoms
+        .iter()
+        .enumerate()
+        .map(|(at, (name, _, _))| (name.as_str(), at))
+        .collect();
+    let bonds = text
+        .lines()
+        .map(|line| line.split_whitespace().collect::<Vec<&str>>())
+        .filter(|fields| fields.len() >= 4 && fields[0] == ligand)
+        .filter_map(|fields| {
+            let (a, b) = (*index.get(fields[1])?, *index.get(fields[2])?);
+            let order = match fields[3] {
+                "DOUB" => 2,
+                "TRIP" => 3,
+                "AROM" => 4,
+                _ => 1,
+            };
+            Some((a, b, order))
+        })
+        .collect();
+
+    (atoms, bonds)
+}
+
+/// The centre of the heavy atoms given.
+fn centre(atoms: &[LigandAtom]) -> [f32; 3] {
+    let mut sum = [0.0; 3];
+    for (_, _, position) in atoms {
+        for axis in 0..3 {
+            sum[axis] += position[axis] / atoms.len() as f32;
+        }
+    }
+    sum
+}
+
+/// An SD file of `ligand` from fixture `id`, one record as the crystal holds
+/// it, then, when `mirrored`, one reflected through the plane across its
+/// centre normal to x, which inverts every stereocentre.
+fn ligand_sdf(id: &str, ligand: &str, dir: &Path, mirrored: bool) -> PathBuf {
+    let (atoms, bonds) = ligand_of(id, ligand);
+    let middle = centre(&atoms)[0];
+    let mut out = String::new();
+    for reflect in [false, true].into_iter().take(1 + usize::from(mirrored)) {
+        out.push_str(&format!(
+            "{ligand}\n  docked\n\n{:>3}{:>3}  0  0  0  0  0  0  0  0999 V2000\n",
+            atoms.len(),
+            bonds.len()
+        ));
+        for (_, element, [x, y, z]) in &atoms {
+            let x = if reflect { 2.0 * middle - x } else { *x };
+            out.push_str(&format!(
+                "{x:>10.4}{y:>10.4}{z:>10.4} {element:<3} 0  0  0  0  0  0  0  0  0  0  0  0\n"
+            ));
+        }
+        for (a, b, order) in &bonds {
+            out.push_str(&format!("{:>3}{:>3}{order:>3}  0\n", a + 1, b + 1));
+        }
+        out.push_str("M  END\n$$$$\n");
+    }
+
+    let path = dir.join(format!("{ligand}-docked.sdf"));
+    std::fs::write(&path, out).unwrap();
+    path
+}
+
+/// A copy of fixture `id` named `name` in `dir`, its `ligand` reflected
+/// through the plane across its centre normal to x.
+fn with_mirrored_ligand(id: &str, ligand: &str, dir: &Path) -> PathBuf {
+    let middle = centre(&ligand_of(id, ligand).0)[0];
+    let own = dir.join("mirrored");
+    std::fs::create_dir_all(&own).unwrap();
+    edited_fixture(id, &own, |fields, column| {
+        if fields[column["auth_comp_id"]] == ligand {
+            let x: f32 = fields[column["Cartn_x"]].parse().unwrap();
+            fields[column["Cartn_x"]] = format!("{:.3}", 2.0 * middle - x);
+        }
+    })
+}
+
+fn names_of(value: &serde_json::Value) -> Vec<String> {
+    let mut names: Vec<String> = value
+        .as_array()
+        .expect("a list")
+        .iter()
+        .map(|name| name.as_str().unwrap().to_string())
+        .collect();
+    names.sort();
+    names
+}
+
+#[test]
+fn a_crystal_ligand_checked_without_a_reference_passes_every_check() {
+    let cache = seeded_cache();
+    let run = checked(cache.path(), &["--ligand", "XK2"], &[&fixture("1HVR")]);
+    let records = records(&run);
+
+    assert_eq!(records.len(), 1);
+    let pose = &records[0];
+    assert_eq!(pose["failed"], serde_json::json!([]), "{pose}");
+    assert_eq!(pose["unchecked"], serde_json::json!([]));
+    assert_eq!(pose["stereo"], serde_json::json!([]));
+    assert_eq!(pose["clashes"], 0);
+    assert_eq!(pose["geometry"]["bonds"], 0);
+    assert_eq!(pose["geometry"]["unflat"], 0);
+    assert!(pose["contacts"].as_u64().unwrap() > 5, "{pose}");
+    assert!(pose["confidence"].is_null());
+    for field in ["rmsd", "recovery", "similarity", "lost", "copy"] {
+        assert!(pose.get(field).is_none(), "{field} needs a reference");
+    }
+}
+
+#[test]
+fn a_mirrored_ligand_fails_its_stereochemistry_and_ranks_after_the_crystal() {
+    let cache = seeded_cache();
+    let dir = tempfile::tempdir().unwrap();
+    let mirrored = with_mirrored_ligand("1HVR", "XK2", dir.path());
+    let crystal = fixture("1HVR");
+    let run = checked(cache.path(), &["--ligand", "XK2"], &[&mirrored, &crystal]);
+    let records = records(&run);
+
+    assert_eq!(records[0]["pose"], crystal.to_str().unwrap());
+    let flipped = &records[1];
+    assert!(
+        names_of(&flipped["failed"]).contains(&"stereo".to_string()),
+        "{flipped}"
+    );
+    assert_eq!(
+        names_of(&flipped["stereo"]),
+        [
+            "XK2 A/263 C3",
+            "XK2 A/263 C4",
+            "XK2 A/263 C5",
+            "XK2 A/263 C6"
+        ]
+    );
+}
+
+#[test]
+fn a_ligand_named_as_a_dictionary_component_it_is_not_has_its_geometry_unchecked() {
+    // XK2 renamed LIG, as co-folding output names a ligand given as SMILES,
+    // so the file defines no LIG: the dictionary's LIG is another molecule,
+    // so nothing is borrowed.
+    let cache = seeded_cache();
+    let dir = tempfile::tempdir().unwrap();
+    let renamed = edited_fixture("1HVR", dir.path(), |fields, column| {
+        for name in ["label_comp_id", "auth_comp_id"] {
+            if fields[column[name]] == "XK2" {
+                fields[column[name]] = "LIG".to_string();
+            }
+        }
+    });
+
+    let run = checked(cache.path(), &["--ligand", "LIG"], &[&renamed]);
+    let pose = &records(&run)[0];
+    assert_eq!(names_of(&pose["unchecked"]), ["geometry", "stereo"]);
+    assert!(pose["geometry"].is_null() && pose["stereo"].is_null());
+    assert!(run.stderr.contains("LIG"), "{}", run.stderr);
+}
+
+#[test]
+fn docked_poses_without_a_reference_are_checked_on_their_own_bond_table() {
+    let cache = seeded_cache();
+    let dir = tempfile::tempdir().unwrap();
+    let docked = ligand_sdf("1HVR", "XK2", dir.path(), true);
+    let receptor = fixture("1HVR");
+
+    // Named after the dictionary entry, so their stereochemistry is checked;
+    // the receptor's own XK2 is left out, as the poses take its place.
+    let run = checked(
+        cache.path(),
+        &["--ligand", "XK2", "--receptor", receptor.to_str().unwrap()],
+        &[&docked],
+    );
+    let records = records(&run);
+    assert_eq!(records.len(), 2);
+    assert_eq!(records[0]["model"], 1);
+    assert_eq!(
+        records[0]["failed"],
+        serde_json::json!([]),
+        "{}",
+        records[0]
+    );
+    assert_eq!(records[1]["model"], 2);
+    assert_eq!(names_of(&records[1]["stereo"]).len(), 4);
+    assert!(run.stderr.contains("left out"), "{}", run.stderr);
+
+    // Unnamed, the records are checked on their bonds alone.
+    let run = checked(
+        cache.path(),
+        &[
+            "--select",
+            "ligand",
+            "--receptor",
+            receptor.to_str().unwrap(),
+        ],
+        &[&docked],
+    );
+    let unnamed = self::records(&run);
+    assert!(unnamed.iter().all(|pose| pose["stereo"].is_null()));
+    assert!(unnamed.iter().all(|pose| !pose["geometry"].is_null()));
+    assert!(run.stderr.contains("--ligand"), "{}", run.stderr);
+}
+
+#[test]
+fn co_folding_confidence_is_read_beside_each_model_and_breaks_ties() {
+    let cache = seeded_cache();
+    let dir = tempfile::tempdir().unwrap();
+    let crystal = std::fs::read(fixture("1HVR")).unwrap();
+    // AlphaFold Server's names, and Boltz's.
+    let alphafold = dir.path().join("fold_job_model_0.cif");
+    std::fs::write(&alphafold, &crystal).unwrap();
+    std::fs::write(
+        dir.path().join("fold_job_summary_confidences_0.json"),
+        r#"{"ranking_score": 0.42, "chain_iptm": [0.31, 0.5], "iptm": 0.4, "ptm": 0.8}"#,
+    )
+    .unwrap();
+    let boltz = dir.path().join("job_model_1.cif");
+    std::fs::write(&boltz, &crystal).unwrap();
+    std::fs::write(
+        dir.path().join("confidence_job_model_1.json"),
+        r#"{"confidence_score": 0.9, "ligand_iptm": 0.77, "ptm": 0.8}"#,
+    )
+    .unwrap();
+
+    let run = checked(cache.path(), &["--ligand", "XK2"], &[&alphafold, &boltz]);
+    let records = records(&run);
+    assert_eq!(records[0]["pose"], boltz.to_str().unwrap());
+    assert_eq!(records[0]["confidence"]["source"], "boltz");
+    assert_eq!(records[0]["confidence"]["score"], 0.9);
+    assert_eq!(records[0]["confidence"]["ligand_iptm"], 0.77);
+    assert_eq!(records[1]["confidence"]["source"], "alphafold3");
+    assert_eq!(records[1]["confidence"]["score"], 0.42);
+    // AlphaFold 3 lists its chains' ipTM in the model's chain order, and the
+    // ligand sits in chain A, the first.
+    assert_eq!(records[1]["confidence"]["ligand_iptm"], 0.31);
+}
+
+#[test]
+fn a_ligand_code_in_lower_case_is_the_same_component() {
+    let cache = seeded_cache();
+    let dir = tempfile::tempdir().unwrap();
+    let docked = ligand_sdf("1HVR", "XK2", dir.path(), true);
+    let receptor = fixture("1HVR");
+
+    let run = checked(
+        cache.path(),
+        &["--ligand", "xk2", "--receptor", receptor.to_str().unwrap()],
+        &[&docked],
+    );
+    let records = records(&run);
+    assert!(run.stderr.contains("left out"), "{}", run.stderr);
+    assert_eq!(records[0]["clashes"], 0);
+    assert_eq!(names_of(&records[1]["stereo"]).len(), 4);
+}
+
+#[test]
+fn options_that_compare_with_a_reference_need_one() {
+    let cache = seeded_cache();
+    let pose = fixture("1HVR");
+    for args in [
+        &["--ligand", "XK2", "--reference-select", "resn XK2"][..],
+        &["--ligand", "XK2", "--view"][..],
+    ] {
+        let run = checked(cache.path(), args, &[&pose]);
+        assert!(!run.ok, "{args:?} ran");
+    }
+
+    let dir = tempfile::tempdir().unwrap();
+    let docked = ligand_sdf("1HVR", "XK2", dir.path(), false);
+    let run = checked(cache.path(), &["--ligand", "XK2"], &[&docked]);
+    assert!(!run.ok);
+    assert!(run.stderr.contains("--receptor"), "{}", run.stderr);
+}

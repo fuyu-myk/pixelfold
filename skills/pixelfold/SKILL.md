@@ -1,6 +1,6 @@
 ---
 name: pixelfold
-description: Analyse protein structures and ligand poses with the pixelfold command line. Use it to rank co-folding or docking poses of a ligand against a crystal structure (contacts kept, pocket-aligned RMSD, clashes, inverted stereocentres, E/Z flips, PoseBusters-style geometry), to list the non-covalent interactions around a ligand or between chains, to build residue interaction networks of one structure, an NMR ensemble or a prediction's samples (hubs, cut residues, shortest routes), to report secondary structure or solvent accessibility per residue, or to render a structure to a PNG.
+description: Analyse protein structures and ligand poses with the pixelfold command line. Use it to rank co-folding or docking poses of a ligand against a crystal structure (contacts kept, pocket-aligned RMSD, clashes, inverted stereocentres, E/Z flips, PoseBusters-style geometry), to check poses PoseBusters-style when there is no crystal structure (clashes, geometry, stereochemistry against the Chemical Component Dictionary, AlphaFold 3 or Boltz confidence), to list the non-covalent interactions around a ligand or between chains, to build residue interaction networks of one structure, an NMR ensemble or a prediction's samples (hubs, cut residues, shortest routes), to report secondary structure or solvent accessibility per residue, or to render a structure to a PNG.
 ---
 
 # pixelfold
@@ -75,6 +75,32 @@ contacts), then `recovery`, then fewest `clashes`. Read with them:
   bonds that stray from the reference ligand's own geometry. All zero is a
   sound pose.
 - `lost`: the reference contacts the pose misses, e.g. `ASP A/381 salt-bridge`.
+
+## Checking poses without a reference
+
+```bash
+pixelfold poses --ligand STI fold_job_model_*.cif --format json
+pixelfold poses --receptor receptor.pdb --ligand STI docked.sdf --format json
+```
+
+- Leave out `--reference` when no crystal structure of the complex exists.
+  Each pose is checked as PoseBusters checks a docked one; there is no RMSD and
+  no contact recovery.
+- Records come best first: fewest `failed` checks (an `unchecked` one counts
+  as failed), then the highest `confidence.score`, read from AlphaFold 3's or Boltz's JSON beside each model
+  file (keep the tools' file names), then the order given.
+- `failed` names the checks failed: `clashes` (with the protein), `bonds`,
+  `angles`, `internal_clashes`, `flatness`, `stereo`. Empty means the pose
+  passes everything that could be checked; read `unchecked` too.
+- `stereo` lists the centres and E/Z bonds turned the other way from the
+  Chemical Component Dictionary entry of the ligand's code, fetched once and
+  cached. Use the real component code (`--ligand STI`): a ligand named `LIG`
+  from a SMILES input has no entry its atoms match, so its stereochemistry,
+  and without definitions in the file its geometry, go `unchecked`.
+- `.sdf` poses need `--receptor`; the receptor's own copy of the `--ligand`
+  component is left out. Without `--ligand` an SD record is checked on its own
+  bonds only.
+- A covalent ligand's bond to the protein counts as clashes here.
 
 ## Residue interaction networks
 
